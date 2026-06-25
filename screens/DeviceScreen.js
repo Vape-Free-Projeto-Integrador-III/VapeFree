@@ -80,7 +80,6 @@ export default function DeviceScreen({ navigation }) {
 
   return (
     <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color="#fff" />

@@ -127,7 +127,6 @@ export default function HistoryScreen() {
 
   return (
     <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <View>
           <Text style={styles.headerTitle}>Histórico</Text>
@@ -138,7 +137,6 @@ export default function HistoryScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Filter Buttons */}
       <View style={styles.filtersRow}>
         {FILTERS.map((f) => (
           <TouchableOpacity
@@ -153,7 +151,6 @@ export default function HistoryScreen() {
         ))}
       </View>
 
-      {/* Chart Card */}
       <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
         <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Puxadas por período</Text>
         {chartData.length > 0 && chartData.some((v) => v > 0) ? (
@@ -180,7 +177,6 @@ export default function HistoryScreen() {
         )}
       </View>
 
-      {/* Records List */}
       <View style={styles.listHeader}>
         <Text style={[styles.listTitle, { color: colors.text }]}>Todos os Registros</Text>
         <Text style={[styles.listCount, { color: colors.textMuted }]}>{allRecords.length} registro(s)</Text>

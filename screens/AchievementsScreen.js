@@ -25,7 +25,6 @@ export default function AchievementsScreen() {
 
   return (
     <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <View>
           <Text style={styles.headerTitle}>Conquistas</Text>
@@ -36,7 +35,6 @@ export default function AchievementsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Stats Card */}
       <View style={[styles.statsCard, { backgroundColor: colors.card }, SHADOW.medium]}>
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
@@ -56,7 +54,6 @@ export default function AchievementsScreen() {
         </View>
       </View>
 
-      {/* Unlocked */}
       {unlockedCount > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>✅ Desbloqueadas</Text>
@@ -75,7 +72,6 @@ export default function AchievementsScreen() {
         </View>
       )}
 
-      {/* Locked */}
       {totalCount - unlockedCount > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>🔒 Bloqueadas</Text>

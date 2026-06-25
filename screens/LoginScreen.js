@@ -31,7 +31,6 @@ import * as AuthSession from 'expo-auth-session';
 WebBrowser.maybeCompleteAuthSession();
 /*Fim import pro login do google*/
 
-// ─── Paleta extraída diretamente da imagem de referência ──────────────────
 const COLORS = {
     background: '#FFFFFF',
     iconCircleBg: '#98FE98',
@@ -68,9 +67,6 @@ export default function LoginScreen({ navigation }) {
     const { continueAsGuest } = useAuth();
 
     async function handleContinuarSemConta() {
-        // Não navegamos manualmente para 'Main'. Assim que isGuest vira
-        // true, o AppNavigator troca de stack sozinho — mesmo princípio
-        // usado no login normal e no login com Google.
         await continueAsGuest();
     }
 
@@ -86,13 +82,6 @@ export default function LoginScreen({ navigation }) {
             webClientId:
                 '445859118404-c0b3j87a7t0ej8s503oal396dfp2pdes.apps.googleusercontent.com',
 
-            // OBRIGATÓRIO no Android: sem isso, o app quebra com
-            // "Client Id property `androidClientId` must be defined to use
-            // Google auth on this platform." assim que a LoginScreen
-            // tenta renderizar em um celular Android.
-            //
-            // Troque pelo Client ID do tipo "Android" criado no Google
-            // Cloud Console (veja instruções enviadas no chat).
             androidClientId:
                 'COLOQUE_AQUI_O_ANDROID_CLIENT_ID.apps.googleusercontent.com',
 
@@ -118,10 +107,6 @@ export default function LoginScreen({ navigation }) {
             )
 
                 .then(() => {
-                    // Não navegamos manualmente para 'Main'.
-                    // O onAuthStateChanged (em context/AuthContext.js) vai
-                    // detectar o novo usuário autenticado automaticamente
-                    // e o AppNavigator troca de tela sozinho.
                 })
 
                 .catch(() => {
@@ -147,14 +132,7 @@ export default function LoginScreen({ navigation }) {
         setCarregando(true);
         try {
             await signInWithEmailAndPassword(auth, email.trim(), senha);
-            // Não navegamos manualmente para 'Main' aqui.
-            // O Firebase dispara onAuthStateChanged assim que o login é
-            // concluído, e o AppNavigator (em navigation/AppNavigator.js)
-            // reage a isso trocando a stack automaticamente para Main.
         } catch (error) {
-            // Mensagem amigável e genérica para qualquer falha de login
-            // (usuário inexistente, senha incorreta ou credencial inválida),
-            // sem expor detalhes técnicos do Firebase ao usuário final.
             const codigosCredenciaisInvalidas = [
                 'auth/user-not-found',
                 'auth/wrong-password',
@@ -173,15 +151,10 @@ export default function LoginScreen({ navigation }) {
     }
 
     function handleEsqueceuSenha() {
-        // TODO: navegar para um fluxo real de recuperação de senha quando existir.
         Alert.alert('Recuperar senha', 'Em breve você poderá redefinir sua senha por aqui.');
     }
 
     async function handleGoogleLogin() {
-        // Em React Native não existe signInWithPopup (API exclusiva da Web).
-        // O fluxo correto com expo-auth-session é abrir a tela de
-        // autenticação do Google via promptAsync(); o resultado é tratado
-        // no useEffect acima, que finaliza o login com signInWithCredential.
         try {
             setCarregando(true);
             await promptAsync();
@@ -207,18 +180,15 @@ export default function LoginScreen({ navigation }) {
                 showsVerticalScrollIndicator={false}
             >
                 <View style={styles.content}>
-                    {/* Logo / selo */}
                     <View style={styles.iconCircle}>
                         <Ionicons name="checkmark-circle-outline" size={32} color={COLORS.iconCheck} />
                     </View>
 
-                    {/* Título e subtítulo */}
                     <Text style={styles.title}>Respire Livre</Text>
                     <Text style={styles.subtitle}>
                         Sua jornada para uma vida sem vape começa aqui
                     </Text>
 
-                    {/* Campo E-mail */}
                     <View style={styles.fieldGroup}>
                         <Text style={styles.label}>E-mail</Text>
                         <View style={styles.inputContainer}>
@@ -241,7 +211,6 @@ export default function LoginScreen({ navigation }) {
                         </View>
                     </View>
 
-                    {/* Campo Senha */}
                     <View style={styles.fieldGroupLarge}>
                         <Text style={styles.label}>Senha</Text>
                         <View style={styles.inputContainer}>
@@ -273,7 +242,6 @@ export default function LoginScreen({ navigation }) {
                         </View>
                     </View>
 
-                    {/* Lembrar-me / Esqueceu a senha */}
                     <View style={styles.optionsRow}>
                         <TouchableOpacity
                             style={styles.rememberWrap}
@@ -291,7 +259,6 @@ export default function LoginScreen({ navigation }) {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Botão Entrar */}
                     <TouchableOpacity
                         style={[styles.button, carregando && styles.buttonDisabled]}
                         onPress={fazerLogin}
@@ -301,14 +268,12 @@ export default function LoginScreen({ navigation }) {
                         <Text style={styles.buttonText}>{carregando ? 'Entrando...' : 'Entrar'}</Text>
                     </TouchableOpacity>
 
-                    {/* Divisor "Ou continue com" */}
                     <View style={styles.dividerRow}>
                         <View style={styles.dividerLine} />
                         <Text style={styles.dividerText}>Ou continue com</Text>
                         <View style={styles.dividerLine} />
                     </View>
 
-                    {/* Botão Google */}
                     <TouchableOpacity
                         style={styles.googleButton}
                         onPress={handleGoogleLogin}
@@ -323,7 +288,6 @@ export default function LoginScreen({ navigation }) {
                         <Text style={styles.googleText}>Google</Text>
                     </TouchableOpacity>
 
-                    {/* Botão Continuar sem conta (modo convidado) */}
                     <TouchableOpacity
                         style={styles.guestButton}
                         onPress={handleContinuarSemConta}
@@ -331,7 +295,6 @@ export default function LoginScreen({ navigation }) {
                         <Text style={styles.guestButtonText}>Continuar sem conta</Text>
                     </TouchableOpacity>
 
-                    {/* Rodapé */}
                     <View style={styles.footerRow}>
                         <Text style={styles.footerText}>Não tem uma conta? </Text>
                         <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
@@ -362,7 +325,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 28,
     },
 
-    // Logo
     iconCircle: {
         width: 64,
         height: 64,
@@ -374,7 +336,6 @@ const styles = StyleSheet.create({
         marginBottom: 18,
     },
 
-    // Cabeçalho
     title: {
         fontSize: 22,
         fontWeight: '700',
@@ -392,7 +353,6 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
 
-    // Campos
     fieldGroup: {
         marginBottom: 22,
     },
@@ -426,7 +386,6 @@ const styles = StyleSheet.create({
         padding: 0,
     },
 
-    // Lembrar-me / Esqueceu a senha
     optionsRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -462,7 +421,6 @@ const styles = StyleSheet.create({
         color: COLORS.linkBlue,
     },
 
-    // Botão Entrar
     button: {
         height: 50,
         borderRadius: 12,
@@ -485,7 +443,6 @@ const styles = StyleSheet.create({
         color: COLORS.buttonText,
     },
 
-    // Divisor
     dividerRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -502,7 +459,6 @@ const styles = StyleSheet.create({
         color: COLORS.dividerText,
     },
 
-    // Botão Google
     googleButton: {
         height: 50,
         borderRadius: 12,
@@ -528,7 +484,6 @@ const styles = StyleSheet.create({
         color: COLORS.googleText,
     },
 
-    // Botão Continuar sem conta
     guestButton: {
         alignItems: 'center',
         justifyContent: 'center',
@@ -542,7 +497,6 @@ const styles = StyleSheet.create({
         textDecorationLine: 'underline',
     },
 
-    // Rodapé
     footerRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',

@@ -57,14 +57,6 @@ export default function HomeScreen({ navigation }) {
   };
 
   function handleLogout() {
-    // IMPORTANTE: no react-native-web, Alert.alert(...) com uma lista de
-    // botões NÃO renderiza nenhum diálogo e os callbacks de onPress nunca
-    // são chamados (só o alerta simples de 1 botão funciona na web). Por
-    // isso, ao rodar com `expo start --web`, clicar em "Sair" não fazia
-    // nada: o logout() nunca chegava a ser executado.
-    //
-    // Para funcionar nas três plataformas, usamos window.confirm() na web
-    // e o Alert.alert nativo (iOS/Android), onde ele funciona normalmente.
     if (Platform.OS === 'web') {
       const confirmado = window.confirm('Deseja realmente sair da sua conta?');
       if (confirmado) {
@@ -89,9 +81,7 @@ export default function HomeScreen({ navigation }) {
 
   async function performLogout() {
     await logout();
-    // Não navegamos manualmente para 'Login'. O signOut(auth) dentro
-    // de logout() dispara onAuthStateChanged com user = null, e o
-    // AppNavigator troca a stack para Login automaticamente.
+
   }
 
   const today = todayString();
@@ -119,14 +109,12 @@ export default function HomeScreen({ navigation }) {
       contentContainerStyle={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <View>
           <Text style={styles.headerTitle}>VapeFree</Text>
           <Text style={styles.headerSub}>Sua jornada para uma vida livre do vape</Text>
         </View>
 
-        {/* Botão de logout: encerra a sessão do Firebase */}
         <TouchableOpacity onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={24} color="white" />
         </TouchableOpacity>
@@ -136,7 +124,6 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Progress Card */}
       <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
         <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Progresso de Hoje</Text>
         <View style={styles.statRow}>
@@ -155,7 +142,6 @@ export default function HomeScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Economy Card */}
       <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
         <Text style={[styles.cardTitle, { color: colors.textMuted }]}>💰 Economia</Text>
         {device ? (
@@ -184,7 +170,6 @@ export default function HomeScreen({ navigation }) {
         )}
       </View>
 
-      {/* Chart Card */}
       <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
         <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Últimos 7 dias</Text>
         {records.length > 0 ? (
@@ -213,13 +198,11 @@ export default function HomeScreen({ navigation }) {
         )}
       </View>
 
-      {/* Tip Card */}
       <View style={[styles.tipCard, { backgroundColor: colors.card, borderLeftColor: colors.primary }, SHADOW.small]}>
         <Ionicons name="bulb-outline" size={24} color={colors.primary} style={{ marginRight: 10 }} />
         <Text style={[styles.tipText, { color: colors.text }]}>{tip}</Text>
       </View>
 
-      {/* Device Button */}
       <TouchableOpacity
         style={[styles.deviceBtn, { backgroundColor: colors.card, borderColor: colors.primary }, SHADOW.small]}
         onPress={() => navigation.navigate('Device')}

@@ -24,10 +24,6 @@ export default function SignUpScreen({ navigation }) {
 
       Alert.alert('Sucesso', 'Conta criada com sucesso!');
 
-      // Não navegamos manualmente para 'Main'. createUserWithEmailAndPassword
-      // já autentica o usuário automaticamente no Firebase, o que dispara
-      // onAuthStateChanged e leva o AppNavigator a mostrar a stack Main
-      // sozinho. Aqui só voltamos da tela de cadastro.
       navigation.goBack();
     } catch (error) {
       Alert.alert('Erro', error.message);
