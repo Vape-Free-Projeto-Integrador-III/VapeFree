@@ -11,27 +11,27 @@ import { configureNotificationHandler } from './utils/notifications';
 import './services/firebase';
 
 LogBox.ignoreLogs([
-  'expo-notifications: Android Push notifications (remote notifications)',
+    'expo-notifications: Android Push notifications (remote notifications)',
 ]);
 
 configureNotificationHandler();
 
 function AppContent() {
-  const { isDark } = useTheme();
-  return (
-    <SafeAreaProvider>
-      <StatusBar style={isDark ? 'light' : 'light'} />
-      <AppNavigator />
-    </SafeAreaProvider>
-  );
+    const { isDark } = useTheme();
+    return (
+        <SafeAreaProvider>
+            <StatusBar style={isDark ? 'light' : 'light'} />
+            <AppNavigator />
+        </SafeAreaProvider>
+    );
 }
 
 export default function App() {
-  return (
-    <AuthProvider>
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
-    </AuthProvider>
-  );
+    return (
+        <AuthProvider>
+            <ThemeProvider>
+                <AppContent />
+            </ThemeProvider>
+        </AuthProvider>
+    );
 }

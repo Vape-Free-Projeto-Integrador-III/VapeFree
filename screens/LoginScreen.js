@@ -105,19 +105,15 @@ export default function LoginScreen({ navigation }) {
                 auth,
                 credential
             )
-
                 .then(() => {
                 })
-
                 .catch(() => {
 
                     Alert.alert(
                         'Erro',
                         'Não foi possível fazer login com o Google.'
                     );
-
                 });
-
         }
 
     }, [response]);
