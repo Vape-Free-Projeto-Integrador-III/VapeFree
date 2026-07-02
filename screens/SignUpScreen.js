@@ -65,7 +65,7 @@ export default function SignUpScreen({ navigation }) {
             <View style={styles.iconCircle}>
                 <Ionicons name="checkmark-circle-outline" size={32} color={COLORS.iconCheck} />
             </View>
-
+a
             <Text style={styles.title}>Respire Livre</Text>
 
             <View>{/*Inicio view Nome*/}
