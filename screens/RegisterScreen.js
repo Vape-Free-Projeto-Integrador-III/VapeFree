@@ -29,6 +29,12 @@ import {
 } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 
+function formatSelectedDateLabel(dateStr) {
+    if (dateStr === todayString()) return 'hoje';
+    const [year, month, day] = dateStr.split('-');
+    return `no dia ${day}/${month}/${year}`;
+}
+
 export default function RegisterScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const [devType, setDevType] = useState('desc');
@@ -100,7 +106,7 @@ export default function RegisterScreen({ navigation }) {
 
     const handleSave = async () => {
         if (used === null) {
-            Alert.alert('Atenção', 'Selecione se usou ou não o cigarro eletrônico hoje.');
+            Alert.alert('Atenção', `Selecione se usou ou não o cigarro eletrônico ${formatSelectedDateLabel(selectedDate)}.`);
             return;
         }
         setSaving(true);
@@ -177,6 +183,7 @@ export default function RegisterScreen({ navigation }) {
     };
 
     const intensityColor = intensity <= 3 ? colors.primary : intensity <= 6 ? colors.warning : colors.danger;
+    const selectedDateLabel = formatSelectedDateLabel(selectedDate);
 
     return (
         <ScrollView
@@ -188,7 +195,7 @@ export default function RegisterScreen({ navigation }) {
             <View style={[styles.header, { backgroundColor: colors.primary }]}>
                 <View>
                     <Text style={styles.headerTitle}>Registrar Uso</Text>
-                    <Text style={styles.headerSub}>Como foi hoje?</Text>
+                    <Text style={styles.headerSub}>Como foi {selectedDateLabel}?</Text>
                 </View>
                 <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
                     <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
@@ -269,7 +276,7 @@ export default function RegisterScreen({ navigation }) {
                 </View>
 
                 {/* Used Today? */}
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Usou cigarro eletrônico hoje?</Text>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>Usou cigarro eletrônico {selectedDateLabel}?</Text>
                 <View style={styles.toggleRow}>
                     {[{ val: true, label: 'Sim' }, { val: false, label: 'Não' }].map(({ val, label }) => (
                         <TouchableOpacity

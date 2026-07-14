@@ -21,11 +21,6 @@ import {
     getDevice,
     recalcEconomy,
     getEconomy,
-    getLastNDays,
-    getLastNWeeks,
-    getLastNMonths,
-    getWeekLabel,
-    getMonthLabel,
 } from '../utils/storage';
 import { RADIUS, SHADOW, TRIGGERS, HELPS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
@@ -38,6 +33,53 @@ const FILTERS = [
     { id: 'week', label: 'Por Semana', days: 28 },
     { id: 'month', label: 'Por Mês', days: 90 },
 ];
+
+const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function parseLocalDate(dateStr) {
+    return new Date(`${dateStr}T12:00:00`);
+}
+
+function formatDayLabel(dateStr) {
+    const date = parseLocalDate(dateStr);
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function startOfWeekKey(dateStr) {
+    const date = parseLocalDate(dateStr);
+    const day = date.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + diff);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function startOfMonthKey(dateStr) {
+    const date = parseLocalDate(dateStr);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function formatWeekLabel(dateStr) {
+    const date = parseLocalDate(dateStr);
+    return `Sem ${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatMonthKeyLabel(monthKey) {
+    const [year, month] = monthKey.split('-');
+    return `${MONTHS[Number(month) - 1]} ${year}`;
+}
+
+function compareDateKeys(a, b) {
+    return a.localeCompare(b);
+}
+
+function groupRecordsBy(records, getKey) {
+    return records.reduce((groups, record) => {
+        const key = getKey(record.date);
+        if (!groups[key]) groups[key] = 0;
+        groups[key] += record.puffs || 0;
+        return groups;
+    }, {});
+}
 
 export default function HistoryScreen() {
     const { colors, isDark, toggleTheme } = useTheme();
@@ -53,48 +95,27 @@ export default function HistoryScreen() {
 
     useFocusEffect(useCallback(() => { load(); }, []));
 
-    const getDatesForFilter = (filterId) => {
-        const f = FILTERS.find((f) => f.id === filterId);
-        if (filterId === 'day') return getLastNDays(f.days);
-        if (filterId === 'week') return getLastNWeeks(Math.ceil(f.days / 7));
-        if (filterId === 'month') return getLastNMonths(Math.ceil(f.days / 30));
-        return getLastNDays(7);
-    };
-
-    const dates = getDatesForFilter(filter);
-
     const getGroupedData = () => {
         if (filter === 'day') {
-            const chartDates = dates.slice(-10);
+            const groupedDays = groupRecordsBy(records, (dateStr) => dateStr);
+            const chartDates = Object.keys(groupedDays).sort(compareDateKeys).slice(-7);
             return {
-                labels: chartDates.map((d) => d.slice(5)),
-                data: chartDates.map((d) => records.filter((r) => r.date === d).reduce((a, r) => a + (r.puffs || 0), 0)),
+                labels: chartDates.map(formatDayLabel),
+                data: chartDates.map((dateKey) => groupedDays[dateKey]),
             };
         }
         if (filter === 'week') {
-            const weekGroups = {};
-            records.forEach((r) => {
-                const d = new Date(r.date + 'T00:00:00');
-                const day = d.getDay();
-                const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-                const monday = new Date(d.setDate(diff));
-                const weekKey = monday.toISOString().slice(0, 10);
-                if (!weekGroups[weekKey]) weekGroups[weekKey] = 0;
-                weekGroups[weekKey] += r.puffs || 0;
-            });
-            const sortedWeeks = Object.keys(weekGroups).sort().slice(-10);
-            return { labels: sortedWeeks.map(getWeekLabel), data: sortedWeeks.map((w) => weekGroups[w]) };
+            const weekGroups = groupRecordsBy(records, startOfWeekKey);
+            const sortedWeeks = Object.keys(weekGroups).sort(compareDateKeys).slice(-8);
+            return {
+                labels: sortedWeeks.map(formatWeekLabel),
+                data: sortedWeeks.map((weekKey) => weekGroups[weekKey]),
+            };
         }
         if (filter === 'month') {
-            const monthGroups = {};
-            records.forEach((r) => {
-                const d = new Date(r.date + 'T00:00:00');
-                const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                if (!monthGroups[monthKey]) monthGroups[monthKey] = 0;
-                monthGroups[monthKey] += r.puffs || 0;
-            });
-            const sortedMonths = Object.keys(monthGroups).sort().slice(-10);
-            return { labels: sortedMonths.map(getMonthLabel), data: sortedMonths.map((m) => monthGroups[m]) };
+            const monthGroups = groupRecordsBy(records, startOfMonthKey);
+            const sortedMonths = Object.keys(monthGroups).sort(compareDateKeys).slice(-12);
+            return { labels: sortedMonths.map(formatMonthKeyLabel), data: sortedMonths.map((m) => monthGroups[m]) };
         }
         return { labels: [], data: [] };
     };
@@ -127,24 +148,30 @@ export default function HistoryScreen() {
 
     return (
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
-            <View style={[styles.header, { backgroundColor: colors.primary }]}>
-                <View>
-                    <Text style={styles.headerTitle}>Histórico</Text>
-                    <Text style={styles.headerSub}>Seu progresso ao longo do tempo</Text>
+            <View style={[styles.hero, { backgroundColor: colors.primary }]}>
+                <View style={styles.heroTopRow}>
+                    <View style={styles.heroTextWrap}>
+                        <Text style={styles.headerTitle}>Histórico</Text>
+                        <Text style={styles.headerSub}>Veja sua evolução por período</Text>
+                    </View>
+                    <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
+                        <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
+                    </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
-                    <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
-                </TouchableOpacity>
             </View>
 
             <View style={styles.filtersRow}>
                 {FILTERS.map((f) => (
                     <TouchableOpacity
                         key={f.id}
-                        style={[styles.filterBtn, { borderColor: colors.border, backgroundColor: colors.card }, filter === f.id && { borderColor: colors.primary, backgroundColor: colors.primary }]}
+                        style={[
+                            styles.filterBtn,
+                            { borderColor: colors.border, backgroundColor: colors.card },
+                            filter === f.id && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+                        ]}
                         onPress={() => setFilter(f.id)}
                     >
-                        <Text style={[styles.filterBtnText, { color: colors.textSecondary }, filter === f.id && { color: '#fff' }]}>
+                        <Text style={[styles.filterBtnText, { color: colors.textSecondary }, filter === f.id && { color: colors.primaryDark }]}>
                             {f.label}
                         </Text>
                     </TouchableOpacity>
@@ -152,12 +179,20 @@ export default function HistoryScreen() {
             </View>
 
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
-                <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Puxadas por período</Text>
-                {chartData.length > 0 && chartData.some((v) => v > 0) ? (
+                <View style={styles.cardHeader}>
+                    <View>
+                        <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Gráfico por período</Text>
+                        <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
+                            {filter === 'day' ? 'Mostra os últimos 7 dias com registro' : filter === 'week' ? 'Mostra as últimas 8 semanas com registro' : 'Mostra os últimos 12 meses com registro'}
+                        </Text>
+                    </View>
+                </View>
+
+                {chartData.length > 0 ? (
                     <BarChart
                         data={{ labels: chartLabels, datasets: [{ data: chartData }] }}
                         width={CHART_WIDTH}
-                        height={160}
+                        height={180}
                         fromZero
                         showValuesOnTopOfBars
                         chartConfig={{
@@ -169,11 +204,16 @@ export default function HistoryScreen() {
                             labelColor: () => colors.textSecondary,
                             propsForBackgroundLines: { stroke: colors.borderLight },
                             barPercentage: 0.65,
+                            fillShadowGradient: colors.primary,
+                            fillShadowGradientOpacity: 1,
                         }}
                         style={styles.chart}
                     />
                 ) : (
-                    <Text style={[styles.emptyChart, { color: colors.textMuted }]}>Nenhum dado para mostrar.</Text>
+                    <View style={styles.emptyChartWrap}>
+                        <Ionicons name="bar-chart-outline" size={28} color={colors.border} />
+                        <Text style={[styles.emptyChart, { color: colors.textMuted }]}>Nenhum registro nesse período.</Text>
+                    </View>
                 )}
             </View>
 
@@ -371,15 +411,16 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
-    header: {
+    hero: {
         padding: 24,
         paddingTop: 56,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        borderBottomLeftRadius: RADIUS.xl,
+        borderBottomRightRadius: RADIUS.xl,
     },
     headerTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
     headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+    heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    heroTextWrap: { flex: 1, paddingRight: 12 },
     themeBtn: {
         width: 38,
         height: 38,
@@ -392,9 +433,12 @@ const styles = StyleSheet.create({
     filterBtn: { flex: 1, paddingVertical: 10, borderRadius: RADIUS.md, borderWidth: 1.5, alignItems: 'center' },
     filterBtnText: { fontSize: 12, fontWeight: '600' },
     card: { borderRadius: RADIUS.lg, padding: 16, marginHorizontal: 16, marginTop: 14 },
-    cardTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: 12 },
+    cardTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
+    cardSubtitle: { fontSize: 12, marginTop: 4 },
     chart: { borderRadius: RADIUS.md },
-    emptyChart: { fontSize: 13, textAlign: 'center', padding: 20 },
+    emptyChartWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 28 },
+    emptyChart: { fontSize: 13, textAlign: 'center', paddingTop: 10 },
     listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 16, marginTop: 20 },
     listTitle: { fontSize: 16, fontWeight: '700' },
     listCount: { fontSize: 12 },
