@@ -7,8 +7,9 @@ import { getRecords, getEconomy, getAchievements } from '../utils/storage';
 import { checkAchievements } from '../utils/achievements';
 import { RADIUS, SHADOW } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import ScreenHeader from '../components/ScreenHeader';
 
-export default function AchievementsScreen() {
+export default function AchievementsScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const [achievements, setAchievements] = useState([]);
 
@@ -25,15 +26,14 @@ export default function AchievementsScreen() {
 
     return (
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
-            <View style={[styles.header, { backgroundColor: colors.primary }]}>
-                <View>
-                    <Text style={styles.headerTitle}>Conquistas</Text>
-                    <Text style={styles.headerSub}>Seu progresso em conquistas</Text>
-                </View>
-                <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
-                    <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
-                </TouchableOpacity>
-            </View>
+            <ScreenHeader
+                title="Conquistas"
+                subtitle="Seu progresso em conquistas"
+                colors={colors}
+                isDark={isDark}
+                toggleTheme={toggleTheme}
+                onProfilePress={() => navigation.navigate('Profile')}
+            />
 
             <View style={[styles.statsCard, { backgroundColor: colors.card }, SHADOW.medium]}>
                 <View style={styles.statsRow}>
@@ -97,23 +97,6 @@ export default function AchievementsScreen() {
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
-    header: {
-        padding: 24,
-        paddingTop: 56,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    headerTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
-    headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
-    themeBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
     statsCard: { borderRadius: RADIUS.lg, padding: 16, marginHorizontal: 16, marginTop: 16 },
     statsRow: { flexDirection: 'row', alignItems: 'center' },
     statItem: { flex: 1, alignItems: 'center' },

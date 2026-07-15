@@ -57,6 +57,13 @@ const COLORS = {
     footerText: '#6F747B',
 };
 
+const CREDENCIAIS_INVALIDAS = [
+    'auth/user-not-found',
+    'auth/wrong-password',
+    'auth/invalid-credential',
+    'auth/invalid-email',
+];
+
 export default function LoginScreen({ navigation }) {
     const [email, setEmail] = useState('');
     const [senha, setSenha] = useState('');
@@ -120,23 +127,18 @@ export default function LoginScreen({ navigation }) {
 
 
     async function fazerLogin() {
-        if (!email.trim() || !senha) {
+        const emailFormatado = email.trim();
+
+        if (!emailFormatado || !senha) {
             Alert.alert('Atenção', 'Preencha seu e-mail e senha para continuar.');
             return;
         }
 
         setCarregando(true);
         try {
-            await signInWithEmailAndPassword(auth, email.trim(), senha);
+            await signInWithEmailAndPassword(auth, emailFormatado, senha);
         } catch (error) {
-            const codigosCredenciaisInvalidas = [
-                'auth/user-not-found',
-                'auth/wrong-password',
-                'auth/invalid-credential',
-                'auth/invalid-email',
-            ];
-
-            if (codigosCredenciaisInvalidas.includes(error.code)) {
+            if (CREDENCIAIS_INVALIDAS.includes(error?.code)) {
                 Alert.alert('Erro', 'E-mail ou senha incorretos.');
             } else {
                 Alert.alert('Erro', 'Não foi possível fazer login. Tente novamente.');

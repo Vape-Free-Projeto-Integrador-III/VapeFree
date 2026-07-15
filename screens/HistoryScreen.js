@@ -10,6 +10,7 @@ import {
     Modal,
     TouchableWithoutFeedback,
 } from 'react-native';
+import ScreenHeader from '../components/ScreenHeader';
 import { useFocusEffect } from '@react-navigation/native';
 import { BarChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
@@ -81,7 +82,7 @@ function groupRecordsBy(records, getKey) {
     }, {});
 }
 
-export default function HistoryScreen() {
+export default function HistoryScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const [records, setRecords] = useState([]);
     const [filter, setFilter] = useState('day');
@@ -148,17 +149,14 @@ export default function HistoryScreen() {
 
     return (
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
-            <View style={[styles.hero, { backgroundColor: colors.primary }]}>
-                <View style={styles.heroTopRow}>
-                    <View style={styles.heroTextWrap}>
-                        <Text style={styles.headerTitle}>Histórico</Text>
-                        <Text style={styles.headerSub}>Veja sua evolução por período</Text>
-                    </View>
-                    <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
-                        <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
-                    </TouchableOpacity>
-                </View>
-            </View>
+            <ScreenHeader
+                title="Histórico"
+                subtitle="Veja sua evolução por período"
+                colors={colors}
+                isDark={isDark}
+                toggleTheme={toggleTheme}
+                onProfilePress={() => navigation.navigate('Profile')}
+            />
 
             <View style={styles.filtersRow}>
                 {FILTERS.map((f) => (
@@ -215,20 +213,12 @@ export default function HistoryScreen() {
                         <Text style={[styles.emptyChart, { color: colors.textMuted }]}>Nenhum registro nesse período.</Text>
                     </View>
                 )}
-            </View>
-
-            <View style={styles.listHeader}>
-                <Text style={[styles.listTitle, { color: colors.text }]}>Todos os Registros</Text>
-                <Text style={[styles.listCount, { color: colors.textMuted }]}>{allRecords.length} registro(s)</Text>
-            </View>
-
-            {allRecords.length === 0 ? (
-                <View style={styles.emptyWrap}>
-                    <Ionicons name="document-outline" size={48} color={colors.border} />
-                    <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>Nenhum registro ainda.</Text>
+                {!records.length ? (
                     <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>Que tal registrar agora? 😊</Text>
-                </View>
-            ) : (
+                ) : null}
+            </View>
+
+            {records.length > 0 ? (
                 allRecords.map((rec) => (
                     <View key={rec.id} style={[styles.histItem, { backgroundColor: colors.card }, SHADOW.small]}>
                         <View style={styles.histTop}>
@@ -266,7 +256,7 @@ export default function HistoryScreen() {
                         )}
                     </View>
                 ))
-            )}
+            ) : null}
 
             <View style={{ height: 24 }} />
 
@@ -411,24 +401,6 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
-    hero: {
-        padding: 24,
-        paddingTop: 56,
-        borderBottomLeftRadius: RADIUS.xl,
-        borderBottomRightRadius: RADIUS.xl,
-    },
-    headerTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
-    headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
-    heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    heroTextWrap: { flex: 1, paddingRight: 12 },
-    themeBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
     filtersRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 14 },
     filterBtn: { flex: 1, paddingVertical: 10, borderRadius: RADIUS.md, borderWidth: 1.5, alignItems: 'center' },
     filterBtnText: { fontSize: 12, fontWeight: '600' },

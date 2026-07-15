@@ -11,8 +11,9 @@ import {
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../services/firebase';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../services/firebase';
 
 const COLORS = {
     background: '#FFFFFF',
@@ -32,6 +33,14 @@ const COLORS = {
     linkBlue: '#6684A7',
 };
 
+function validarEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+function validarSenhaForte(senha) {
+    return senha.length >= 8;
+}
+
 export default function SignUpScreen({ navigation }) {
     const [nome, setNome] = useState('');
     const [email, setEmail] = useState('');
@@ -40,20 +49,65 @@ export default function SignUpScreen({ navigation }) {
     const [carregando, setCarregando] = useState(false);
 
     async function cadastrar() {
-        if (!nome.trim() || !email.trim() || !senha) {
+        const nomeFormatado = nome.trim();
+        const emailFormatado = email.trim();
+
+        if (!nomeFormatado || !emailFormatado || !senha) {
             Alert.alert('Atenção', 'Preencha nome, e-mail e senha para continuar.');
+            return;
+        }
+
+        if (!validarEmail(emailFormatado)) {
+            Alert.alert('Atenção', 'Informe um e-mail válido.');
+            return;
+        }
+
+        if (!validarSenhaForte(senha)) {
+            Alert.alert(
+                'Atenção',
+                'Sua senha precisa ter no mínimo 8 caracteres.'
+            );
             return;
         }
 
         setCarregando(true);
 
         try {
-            await createUserWithEmailAndPassword(auth, email.trim(), senha);
+            const userCredential = await createUserWithEmailAndPassword(auth, emailFormatado, senha);
+
+            await updateProfile(userCredential.user, {
+                displayName: nomeFormatado,
+            });
+
+            await setDoc(
+                doc(db, 'users', userCredential.user.uid),
+                {
+                    nome: nomeFormatado,
+                    displayName: nomeFormatado,
+                    email: emailFormatado,
+                },
+                { merge: true }
+            );
+
             Alert.alert('Sucesso', 'Conta criada com sucesso!');
             navigation.goBack();
         } catch (error) {
-            const mensagem = error?.message || 'Não foi possível criar sua conta.';
-            Alert.alert('Erro', mensagem);
+            if (error?.code === 'auth/email-already-in-use') {
+                Alert.alert('Erro', 'Este e-mail já está cadastrado. Use outro e-mail ou faça login.');
+                return;
+            }
+
+            if (error?.code === 'auth/invalid-email') {
+                Alert.alert('Erro', 'Informe um e-mail válido.');
+                return;
+            }
+
+            if (error?.code === 'auth/weak-password') {
+                Alert.alert('Erro', 'A senha informada é muito fraca. Use uma senha mais forte.');
+                return;
+            }
+
+            Alert.alert('Erro', 'Não foi possível criar sua conta. Tente novamente.');
         } finally {
             setCarregando(false);
         }

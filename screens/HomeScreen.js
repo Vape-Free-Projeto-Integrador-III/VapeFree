@@ -8,8 +8,6 @@ import {
     TouchableOpacity,
     Dimensions,
     RefreshControl,
-    Alert,
-    Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
@@ -25,13 +23,14 @@ import {
 import { RADIUS, SHADOW, TIPS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import ScreenHeader from '../components/ScreenHeader';
 
 const { width } = Dimensions.get('window');
 const CHART_WIDTH = width - 64;
 
 export default function HomeScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
-    const { logout } = useAuth();
+    const { user } = useAuth();
     const [records, setRecords] = useState([]);
     const [device, setDevice] = useState(null);
     const [economy, setEconomy] = useState({});
@@ -56,32 +55,8 @@ export default function HomeScreen({ navigation }) {
         setRefreshing(false);
     };
 
-    function handleLogout() {
-        if (Platform.OS === 'web') {
-            const confirmado = window.confirm('Deseja realmente sair da sua conta?');
-            if (confirmado) {
-                performLogout();
-            }
-            return;
-        }
-
-        Alert.alert(
-            'Sair',
-            'Deseja realmente sair da sua conta?',
-            [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                    text: 'Sair',
-                    style: 'destructive',
-                    onPress: performLogout,
-                },
-            ]
-        );
-    }
-
-    async function performLogout() {
-        await logout();
-
+    function openProfile() {
+        navigation.navigate('Profile');
     }
 
     const today = todayString();
@@ -93,7 +68,10 @@ export default function HomeScreen({ navigation }) {
         return sum + records.filter((r) => r.date === d).reduce((a, r) => a + (r.puffs || 0), 0);
     }, 0);
 
-    const chartLabels = last7.map((d) => d.slice(5));
+    const chartLabels = last7.map((d) => {
+        const [, month, day] = d.split('-');
+        return `${day}/${month}`;
+    });
     const chartData = last7.map((d) =>
         records.filter((r) => r.date === d).reduce((a, r) => a + (r.puffs || 0), 0)
     );
@@ -102,6 +80,7 @@ export default function HomeScreen({ navigation }) {
     const totalEco = Object.values(economy).reduce((a, v) => a + v, 0);
 
     const tip = TIPS[new Date().getDate() % TIPS.length];
+    const welcomeName = user?.displayName?.trim();
 
     return (
         <ScrollView
@@ -109,20 +88,14 @@ export default function HomeScreen({ navigation }) {
             contentContainerStyle={styles.container}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
-            <View style={[styles.header, { backgroundColor: colors.primary }]}>
-                <View>
-                    <Text style={styles.headerTitle}>VapeFree</Text>
-                    <Text style={styles.headerSub}>Sua jornada para uma vida livre do vape</Text>
-                </View>
-
-                <TouchableOpacity onPress={handleLogout}>
-                    <Ionicons name="log-out-outline" size={24} color="white" />
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
-                    <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
-                </TouchableOpacity>
-            </View>
+            <ScreenHeader
+                title="VapeFree"
+                subtitle="Sua jornada para uma vida livre do vape"
+                colors={colors}
+                isDark={isDark}
+                toggleTheme={toggleTheme}
+                onProfilePress={openProfile}
+            />
 
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
                 <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Progresso de Hoje</Text>
@@ -179,7 +152,7 @@ export default function HomeScreen({ navigation }) {
                             datasets: [{ data: chartData.map((v) => (v === 0 ? 0 : v)) }],
                         }}
                         width={CHART_WIDTH}
-                        height={140}
+                        height={180}
                         chartConfig={{
                             backgroundColor: colors.card,
                             backgroundGradientFrom: colors.card,
@@ -220,23 +193,7 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
-    header: {
-        padding: 24,
-        paddingTop: 56,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    headerTitle: { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
-    headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
-    themeBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    welcomeText: { fontSize: 14, fontWeight: '700', color: '#fff', marginTop: 6 },
     card: {
         borderRadius: RADIUS.lg,
         padding: 16,

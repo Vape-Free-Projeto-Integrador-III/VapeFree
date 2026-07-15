@@ -23,11 +23,13 @@ import {
     getEconomy,
     todayString,
 } from '../utils/storage';
+import { scheduleMotivationalNotifications } from '../utils/notifications';
 import {
     RADIUS, SHADOW,
     TRIGGERS, HELPS, MOTIVATIONAL_MESSAGES,
 } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import ScreenHeader from '../components/ScreenHeader';
 
 function formatSelectedDateLabel(dateStr) {
     if (dateStr === todayString()) return 'hoje';
@@ -139,6 +141,9 @@ export default function RegisterScreen({ navigation }) {
                 const [newRecords, device, economy] = await Promise.all([getRecords(), getDevice(), getEconomy()]);
                 await recalcEconomy(newRecords, device);
                 await checkAndUnlockAchievements(newRecords, economy);
+                await scheduleMotivationalNotifications().catch((err) =>
+                    console.log('Erro ao reagendar notificações motivadoras:', err)
+                );
                 setExistingRecord(updatedRecord);
             } else {
                 const record = {
@@ -156,6 +161,9 @@ export default function RegisterScreen({ navigation }) {
                 const [newRecords, device, economy] = await Promise.all([getRecords(), getDevice(), getEconomy()]);
                 await recalcEconomy(newRecords, device);
                 await checkAndUnlockAchievements(newRecords, economy);
+                await scheduleMotivationalNotifications().catch((err) =>
+                    console.log('Erro ao reagendar notificações motivadoras:', err)
+                );
                 setExistingRecord(record);
             }
 
@@ -191,16 +199,14 @@ export default function RegisterScreen({ navigation }) {
             contentContainerStyle={styles.container}
             keyboardShouldPersistTaps="handled"
         >
-            {/* Header */}
-            <View style={[styles.header, { backgroundColor: colors.primary }]}>
-                <View>
-                    <Text style={styles.headerTitle}>Registrar Uso</Text>
-                    <Text style={styles.headerSub}>Como foi {selectedDateLabel}?</Text>
-                </View>
-                <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
-                    <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
-                </TouchableOpacity>
-            </View>
+            <ScreenHeader
+                title="Registrar Uso"
+                subtitle={`Como foi ${selectedDateLabel}?`}
+                colors={colors}
+                isDark={isDark}
+                toggleTheme={toggleTheme}
+                onProfilePress={() => navigation.navigate('Profile')}
+            />
 
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
                 {/* Date Selector */}
@@ -417,23 +423,6 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
-    header: {
-        padding: 24,
-        paddingTop: 56,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    headerTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
-    headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
-    themeBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
     card: {
         borderRadius: RADIUS.lg,
         padding: 18,

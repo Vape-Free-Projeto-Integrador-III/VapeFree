@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getDevice, saveDevice, getRecords, recalcEconomy } from '../utils/storage';
 import { RADIUS, SHADOW } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import ScreenHeader from '../components/ScreenHeader';
 
 export default function DeviceScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
@@ -80,18 +81,15 @@ export default function DeviceScreen({ navigation }) {
 
     return (
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-            <View style={[styles.header, { backgroundColor: colors.primary }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Ionicons name="chevron-back" size={22} color="#fff" />
-                </TouchableOpacity>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.headerTitle}>Meu Dispositivo</Text>
-                    <Text style={styles.headerSub}>Cadastre seu cigarro eletrônico</Text>
-                </View>
-                <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
-                    <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
-                </TouchableOpacity>
-            </View>
+            <ScreenHeader
+                title="Meu Dispositivo"
+                subtitle="Cadastre seu cigarro eletrônico"
+                colors={colors}
+                isDark={isDark}
+                toggleTheme={toggleTheme}
+                onBackPress={() => navigation.goBack()}
+                onProfilePress={() => navigation.navigate('Profile')}
+            />
 
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>Nome / Modelo</Text>
@@ -171,17 +169,6 @@ export default function DeviceScreen({ navigation }) {
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
-    header: {
-        padding: 24,
-        paddingTop: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-    themeBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-    headerTitle: { fontSize: 22, fontWeight: '800', color: '#fff' },
-    headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
     card: { borderRadius: RADIUS.lg, padding: 18, marginHorizontal: 16, marginTop: 16 },
     fieldLabel: { fontSize: 14, fontWeight: '700', marginBottom: 8, marginTop: 4 },
     input: { borderWidth: 1.5, borderRadius: RADIUS.md, padding: 12, fontSize: 15, marginBottom: 14 },

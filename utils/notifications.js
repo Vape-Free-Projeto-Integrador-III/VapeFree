@@ -16,6 +16,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { TIPS } from './theme';
+import { getRecords, todayString } from './storage';
 
 // Identificador fixo: usamos sempre o mesmo, assim cancelamos a notificação
 // anterior antes de criar uma nova (evita duplicar notificações).
@@ -69,6 +70,32 @@ function pickRandomTip() {
   return TIPS[index];
 }
 
+async function ensureAndroidChannel() {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('motivational', {
+      name: 'Mensagens motivadoras',
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
+  }
+}
+
+async function getDailyReminderContent() {
+  const records = await getRecords();
+  const hasRecordToday = records.some((record) => record.date === todayString());
+
+  if (!hasRecordToday) {
+    return {
+      title: 'VapeFree 💚',
+      body: 'Você ainda não registrou hoje. Abra o app e registre seu dia para manter o controle.',
+    };
+  }
+
+  return {
+    title: 'VapeFree 💚',
+    body: pickRandomTip(),
+  };
+}
+
 // Agenda (ou reagenda) a notificação motivadora diária.
 // Chamar isso sempre que o usuário estiver autenticado (ex.: no login,
 // ou ao abrir o app já logado).
@@ -86,24 +113,16 @@ export async function scheduleMotivationalNotifications(
     return;
   }
 
-  // No Android é obrigatório ter um canal de notificação configurado.
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('motivational', {
-      name: 'Mensagens motivadoras',
-      importance: Notifications.AndroidImportance.DEFAULT,
-    });
-  }
+  await ensureAndroidChannel();
+
+  const content = await getDailyReminderContent();
 
   // Cancela a notificação diária anterior (se existir) para não duplicar.
   await Notifications.cancelScheduledNotificationAsync(DAILY_NOTIFICATION_ID).catch(() => {});
 
   await Notifications.scheduleNotificationAsync({
     identifier: DAILY_NOTIFICATION_ID,
-    content: {
-      title: 'VapeFree 💚',
-      body: pickRandomTip(),
-      sound: true,
-    },
+    content: { ...content, sound: true },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
       hour,
