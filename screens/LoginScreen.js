@@ -97,32 +97,36 @@ export default function LoginScreen({ navigation }) {
         });
 
     useEffect(() => {
+        async function autenticarComGoogle() {
+            if (response?.type !== 'success') {
+                return;
+            }
 
-        if (response?.type === 'success') {
+            try {
+                const idToken = response.authentication?.idToken ?? response.params?.id_token;
+                const accessToken = response.authentication?.accessToken ?? response.params?.access_token;
 
-            const { id_token } =
-                response.authentication;
-
-            const credential =
-                GoogleAuthProvider.credential(
-                    id_token
-                );
-
-            signInWithCredential(
-                auth,
-                credential
-            )
-                .then(() => {
-                })
-                .catch(() => {
-
+                if (!idToken && !accessToken) {
                     Alert.alert(
                         'Erro',
-                        'Não foi possível fazer login com o Google.'
+                        'Não foi possível obter o token do Google.'
                     );
-                });
+                    return;
+                }
+
+                const credential = GoogleAuthProvider.credential(idToken, accessToken);
+
+                await signInWithCredential(auth, credential);
+            } catch (error) {
+                console.log('Erro no login com Google:', error);
+                Alert.alert(
+                    'Erro',
+                    'Não foi possível fazer login com o Google.'
+                );
+            }
         }
 
+        autenticarComGoogle();
     }, [response]);
 
 
@@ -152,19 +156,24 @@ export default function LoginScreen({ navigation }) {
         Alert.alert('Recuperar senha', 'Em breve você poderá redefinir sua senha por aqui.');
     }
 
-    async function handleGoogleLogin() {
-        try {
-            setCarregando(true);
-            await promptAsync();
-        } catch (error) {
-            console.log(error);
-            Alert.alert(
-                'Erro',
-                'Não foi possível fazer login com o Google.'
-            );
-        } finally {
-            setCarregando(false);
+    function handleGoogleLogin() {
+        if (!request || carregando) {
+            return;
         }
+
+        setCarregando(true);
+
+        promptAsync()
+            .catch((error) => {
+                console.log(error);
+                Alert.alert(
+                    'Erro',
+                    'Não foi possível fazer login com o Google.'
+                );
+            })
+            .finally(() => {
+                setCarregando(false);
+            });
     }
 
     return (
