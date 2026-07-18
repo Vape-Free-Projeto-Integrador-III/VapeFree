@@ -142,13 +142,17 @@ export function calcStreak(records) {
   }, {});
 
   const dates = Object.keys(recordsByDate).sort();
-  const earliestRecordDate = dates[0];
-  const cursor = new Date(`${new Date().toISOString().slice(0, 10)}T12:00:00`);
+  const latestRecordDate = dates[dates.length - 1];
+  const cursor = new Date(`${latestRecordDate}T12:00:00`);
   let streak = 0;
 
-  while (cursor.toISOString().slice(0, 10) >= earliestRecordDate) {
+  while (true) {
     const dateKey = cursor.toISOString().slice(0, 10);
     const dayRecords = recordsByDate[dateKey] || [];
+
+    if (dayRecords.length === 0) {
+      break;
+    }
 
     if (dayRecords.some((record) => record.used === true)) {
       break;

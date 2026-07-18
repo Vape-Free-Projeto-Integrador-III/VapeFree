@@ -24,6 +24,7 @@ import {
     todayString,
 } from '../utils/storage';
 import { scheduleMotivationalNotifications } from '../utils/notifications';
+import { scheduleStreakWarningNotification } from '../utils/notifications';
 import {
     RADIUS, SHADOW,
     TRIGGERS, HELPS, MOTIVATIONAL_MESSAGES,
@@ -144,6 +145,9 @@ export default function RegisterScreen({ navigation }) {
                 await scheduleMotivationalNotifications().catch((err) =>
                     console.log('Erro ao reagendar notificações motivadoras:', err)
                 );
+                await scheduleStreakWarningNotification().catch((err) =>
+                    console.log('Erro ao reagendar notificação de streak:', err)
+                );
                 setExistingRecord(updatedRecord);
             } else {
                 const record = {
@@ -163,6 +167,9 @@ export default function RegisterScreen({ navigation }) {
                 await checkAndUnlockAchievements(newRecords, economy);
                 await scheduleMotivationalNotifications().catch((err) =>
                     console.log('Erro ao reagendar notificações motivadoras:', err)
+                );
+                await scheduleStreakWarningNotification().catch((err) =>
+                    console.log('Erro ao reagendar notificação de streak:', err)
                 );
                 setExistingRecord(record);
             }

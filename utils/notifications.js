@@ -16,11 +16,12 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { TIPS } from './theme';
-import { getRecords, todayString } from './storage';
+import { getRecords, todayString, calcStreak } from './storage';
 
 // Identificador fixo: usamos sempre o mesmo, assim cancelamos a notificação
 // anterior antes de criar uma nova (evita duplicar notificações).
 const DAILY_NOTIFICATION_ID = 'vapefree-motivational-daily';
+const STREAK_WARNING_NOTIFICATION_ID = 'vapefree-streak-warning-daily';
 
 // Horário padrão do lembrete diário (9h da manhã).
 const DEFAULT_HOUR = 9;
@@ -96,6 +97,22 @@ async function getDailyReminderContent() {
   };
 }
 
+async function getStreakWarningContent() {
+  const records = await getRecords();
+  const today = todayString();
+  const hasRecordToday = records.some((record) => record.date === today);
+  const streak = calcStreak(records);
+
+  if (hasRecordToday || streak <= 0) {
+    return null;
+  }
+
+  return {
+    title: 'VapeFree 🔥',
+    body: `Você já está a ${streak} dias sem perder o ritmo. Não deixe a sequência acabar agora, registre seu progresso de hoje!`,
+  };
+}
+
 // Agenda (ou reagenda) a notificação motivadora diária.
 // Chamar isso sempre que o usuário estiver autenticado (ex.: no login,
 // ou ao abrir o app já logado).
@@ -132,6 +149,41 @@ export async function scheduleMotivationalNotifications(
   });
 }
 
+export async function scheduleStreakWarningNotification(
+  hour = DEFAULT_HOUR,
+  minute = DEFAULT_MINUTE
+) {
+  if (Platform.OS === 'web') {
+    return;
+  }
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) {
+    return;
+  }
+
+  await ensureAndroidChannel();
+
+  const content = await getStreakWarningContent();
+
+  await Notifications.cancelScheduledNotificationAsync(STREAK_WARNING_NOTIFICATION_ID).catch(() => {});
+
+  if (!content) {
+    return;
+  }
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: STREAK_WARNING_NOTIFICATION_ID,
+    content: { ...content, sound: true },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour,
+      minute,
+      channelId: Platform.OS === 'android' ? 'motivational' : undefined,
+    },
+  });
+}
+
 // Cancela a notificação motivadora diária (chamar no logout, por exemplo,
 // para não notificar quem não está mais usando a conta).
 export async function cancelMotivationalNotifications() {
@@ -139,4 +191,11 @@ export async function cancelMotivationalNotifications() {
     return;
   }
   await Notifications.cancelScheduledNotificationAsync(DAILY_NOTIFICATION_ID).catch(() => {});
+}
+
+export async function cancelStreakWarningNotification() {
+  if (Platform.OS === 'web') {
+    return;
+  }
+  await Notifications.cancelScheduledNotificationAsync(STREAK_WARNING_NOTIFICATION_ID).catch(() => {});
 }

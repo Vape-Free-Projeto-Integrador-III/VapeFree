@@ -106,7 +106,7 @@ export default function HomeScreen({ navigation }) {
                     </View>
                     <View style={[styles.statBox, { backgroundColor: colors.primaryLight }]}>
                         <Text style={[styles.statNum, { color: colors.primaryDark }]}>{streak}</Text>
-                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dias{'\n'}sem usar</Text>
+                         <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dias{'\n'}registrados{'\n'}sem uso</Text>
                     </View>
                     <View style={[styles.statBox, { backgroundColor: colors.primaryLight }]}>
                         <Text style={[styles.statNum, { color: colors.primaryDark }]}>{weekPuffs}</Text>

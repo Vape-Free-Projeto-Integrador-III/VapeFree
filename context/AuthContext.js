@@ -20,7 +20,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
 import {
   scheduleMotivationalNotifications,
+  scheduleStreakWarningNotification,
   cancelMotivationalNotifications,
+  cancelStreakWarningNotification,
 } from '../utils/notifications';
 
 const GUEST_MODE_KEY = '@vapefree_guest_mode';
@@ -105,9 +107,15 @@ export function AuthProvider({ children }) {
       scheduleMotivationalNotifications().catch((err) =>
         console.log('Erro ao agendar notificações motivadoras:', err)
       );
+      scheduleStreakWarningNotification().catch((err) =>
+        console.log('Erro ao agendar notificação de streak:', err)
+      );
     } else {
       cancelMotivationalNotifications().catch((err) =>
         console.log('Erro ao cancelar notificações motivadoras:', err)
+      );
+      cancelStreakWarningNotification().catch((err) =>
+        console.log('Erro ao cancelar notificação de streak:', err)
       );
     }
   }, [user, isGuest, initializing]);

@@ -8,9 +8,6 @@
 [ ] Fix ter que entrar no historico apos importar conta para mostrar
     informacoes corretas na home
 
-[ ] Verificar Lógica do Streak
-
-
 ---- URGENTE (já listado antes) ----
 
 [ ] Tutorial / onboarding
@@ -20,15 +17,6 @@
     Máximo 4-5 telas simples, com ilustrações e linguagem para
     adolescentes. Salvar flag "onboarding_concluido" no storage
     para não exibir novamente.
-
-[ ] Notificações funcionando de verdade
-    O arquivo notifications.js existe mas precisa ser testado
-    e integrado de forma mais completa. Implementar:
-      - Lembrete diário para registrar (horário configurável)
-      - Notificação de parabéns ao bater streak (3, 7, 14, 30 dias)
-      - Notificação motivacional quando o streak está prestes a
-        quebrar (ex: "você ainda não registrou hoje!")
-      - Notificação ao desbloquear conquista
 
 
 ---- GAMIFICAÇÃO ----
