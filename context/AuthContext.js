@@ -28,6 +28,7 @@ const GUEST_MODE_KEY = '@vapefree_guest_mode';
 const AuthContext = createContext({
   user: null,
   isGuest: false,
+  authScreen: 'Login',
   initializing: true,
   continueAsGuest: async () => {},
   logout: async () => {},
@@ -36,6 +37,7 @@ const AuthContext = createContext({
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isGuest, setIsGuest] = useState(false);
+  const [authScreen, setAuthScreen] = useState('Login');
   // "initializing" controla a checagem inicial da sessão ao abrir o app.
   // Enquanto o Firebase não responder se existe (ou não) um usuário
   // autenticado, não decidimos a tela inicial (Main ou Login).
@@ -70,6 +72,7 @@ export function AuthProvider({ children }) {
         // marcado como convidado ao mesmo tempo.
         if (firebaseUser) {
           setIsGuest(false);
+          setAuthScreen('Login');
           AsyncStorage.removeItem(GUEST_MODE_KEY).catch(() => {});
         }
       },
@@ -113,25 +116,29 @@ export function AuthProvider({ children }) {
   async function continueAsGuest() {
     await AsyncStorage.setItem(GUEST_MODE_KEY, 'true');
     setIsGuest(true);
+    setAuthScreen('Login');
   }
 
   // Usado tanto para sair de uma conta real quanto para sair do modo
   // convidado — em ambos os casos o usuário volta para a tela de Login
   // e precisa escolher de novo (login ou "continuar sem conta") da
   // próxima vez.
-  async function logout() {
-    if (auth.currentUser) {
-      await signOut(auth);
-      // Não é necessário navegar manualmente: o onAuthStateChanged acima
-      // vai disparar com user = null, e o AppNavigator reage a isso
-      // trocando automaticamente para a stack de Login.
+  async function logout(nextAuthScreen = 'Login') {
+    try {
+      if (auth.currentUser) {
+        await signOut(auth);
+      }
+    } finally {
+      await AsyncStorage.removeItem(GUEST_MODE_KEY).catch(() => {});
+      setIsGuest(false);
+      setAuthScreen(nextAuthScreen);
     }
-    await AsyncStorage.removeItem(GUEST_MODE_KEY).catch(() => {});
-    setIsGuest(false);
   }
 
   return (
-    <AuthContext.Provider value={{ user, isGuest, initializing, continueAsGuest, logout }}>
+    <AuthContext.Provider
+      value={{ user, isGuest, authScreen, initializing, continueAsGuest, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

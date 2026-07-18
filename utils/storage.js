@@ -35,9 +35,86 @@ const KEYS = {
   ACHIEVEMENTS: '@vapefree_achievements',
 };
 
+async function readJson(key, fallback) {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 // Retorna o uid do usuário logado, ou null se estiver em modo convidado.
 function getUid() {
   return auth.currentUser ? auth.currentUser.uid : null;
+}
+
+export async function getGuestLocalData() {
+  const [records, device, economy, achievements] = await Promise.all([
+    readJson(KEYS.RECORDS, []),
+    readJson(KEYS.DEVICE, null),
+    readJson(KEYS.ECONOMY, {}),
+    readJson(KEYS.ACHIEVEMENTS, []),
+  ]);
+
+  return {
+    records: Array.isArray(records) ? records : [],
+    device: device ?? null,
+    economy: economy && typeof economy === 'object' ? economy : {},
+    achievements: Array.isArray(achievements) ? achievements : [],
+  };
+}
+
+export async function hasGuestLocalData() {
+  const data = await getGuestLocalData();
+  return (
+    data.records.length > 0 ||
+    data.device !== null ||
+    Object.keys(data.economy).length > 0 ||
+    data.achievements.length > 0
+  );
+}
+
+export async function clearGuestLocalData() {
+  await Promise.all(Object.values(KEYS).map((key) => AsyncStorage.removeItem(key)));
+}
+
+async function replaceCollectionDocs(uid, subcollection, entries) {
+  const snap = await getDocs(collection(db, 'users', uid, subcollection));
+
+  await Promise.all(snap.docs.map((item) => deleteDoc(item.ref)));
+
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return;
+  }
+
+  await Promise.all(
+    entries.map((entry) =>
+      setDoc(doc(db, 'users', uid, subcollection, String(entry.id)), entry)
+    )
+  );
+}
+
+export async function migrateGuestLocalDataToUser(uid = getUid()) {
+  if (!uid) {
+    return false;
+  }
+
+  const data = await getGuestLocalData();
+
+  await setDoc(
+    doc(db, 'users', uid),
+    {
+      device: data.device ?? null,
+      economy: data.economy && typeof data.economy === 'object' ? data.economy : {},
+    },
+    { merge: true }
+  );
+
+  await replaceCollectionDocs(uid, 'records', data.records);
+  await replaceCollectionDocs(uid, 'achievements', data.achievements);
+  await clearGuestLocalData();
+  return true;
 }
 
 // ─── Records ────────────────────────────────────────────────────────────────

@@ -19,6 +19,12 @@ import {
 
 import { auth } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
+import {
+    hasGuestLocalData,
+    clearGuestLocalData,
+    migrateGuestLocalDataToUser,
+} from '../utils/storage';
+import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
 
 /*Inicio import pro login do google*/
 import React, { useState, useEffect } from 'react';
@@ -70,11 +76,53 @@ export default function LoginScreen({ navigation }) {
     const [mostrarSenha, setMostrarSenha] = useState(false);
     const [lembrarMe, setLembrarMe] = useState(false);
     const [carregando, setCarregando] = useState(false);
+    const [guestChoiceVisible, setGuestChoiceVisible] = useState(false);
+    const [guestChoiceConfig, setGuestChoiceConfig] = useState(null);
+    const guestChoiceResolverRef = React.useRef(null);
+    const pendingGoogleGuestChoiceRef = React.useRef('skip');
 
     const { continueAsGuest } = useAuth();
 
     async function handleContinuarSemConta() {
         await continueAsGuest();
+    }
+
+    async function perguntarSobreDadosDeConvidado({ title, message, importLabel, discardLabel }) {
+        if (!(await hasGuestLocalData())) {
+            return 'skip';
+        }
+
+        return new Promise((resolve) => {
+            guestChoiceResolverRef.current = resolve;
+            setGuestChoiceConfig({ title, message, importLabel, discardLabel });
+            setGuestChoiceVisible(true);
+        });
+    }
+
+    async function finalizarDadosDeConvidado(uid, choice) {
+        if (choice === 'import') {
+            const imported = await migrateGuestLocalDataToUser(uid);
+            if (!imported) {
+                Alert.alert('Erro', 'Não foi possível importar os dados do convidado para a conta.');
+                return false;
+            }
+        }
+
+        if (choice === 'discard') {
+            await clearGuestLocalData();
+        }
+
+        return true;
+    }
+
+    function closeGuestChoice(result) {
+        setGuestChoiceVisible(false);
+        setGuestChoiceConfig(null);
+        const resolver = guestChoiceResolverRef.current;
+        guestChoiceResolverRef.current = null;
+        if (resolver) {
+            resolver(result);
+        }
     }
 
     const redirectUri = AuthSession.makeRedirectUri({
@@ -116,7 +164,9 @@ export default function LoginScreen({ navigation }) {
 
                 const credential = GoogleAuthProvider.credential(idToken, accessToken);
 
-                await signInWithCredential(auth, credential);
+                const userCredential = await signInWithCredential(auth, credential);
+                await finalizarDadosDeConvidado(userCredential.user.uid, pendingGoogleGuestChoiceRef.current);
+                pendingGoogleGuestChoiceRef.current = 'skip';
             } catch (error) {
                 console.log('Erro no login com Google:', error);
                 Alert.alert(
@@ -138,9 +188,21 @@ export default function LoginScreen({ navigation }) {
             return;
         }
 
+        const acao = await perguntarSobreDadosDeConvidado({
+            title: 'Dados de convidado encontrados',
+            message: `Você já tem dados salvos como convidado. Deseja sobrepor os dados da conta ${emailFormatado} com os dados locais do convidado ou descartar os dados do convidado?`,
+            importLabel: 'Sobrepor dados da conta',
+            discardLabel: 'Descartar dados do convidado',
+        });
+
+        if (acao === 'cancel') {
+            return;
+        }
+
         setCarregando(true);
         try {
-            await signInWithEmailAndPassword(auth, emailFormatado, senha);
+            const userCredential = await signInWithEmailAndPassword(auth, emailFormatado, senha);
+            await finalizarDadosDeConvidado(userCredential.user.uid, acao);
         } catch (error) {
             if (CREDENCIAIS_INVALIDAS.includes(error?.code)) {
                 Alert.alert('Erro', 'E-mail ou senha incorretos.');
@@ -161,19 +223,33 @@ export default function LoginScreen({ navigation }) {
             return;
         }
 
-        setCarregando(true);
+        perguntarSobreDadosDeConvidado({
+            title: 'Dados de convidado encontrados',
+            message: 'Você já tem dados salvos como convidado. Se entrar com sua conta Google, deseja transferi-los para essa conta ou começar do zero?',
+            importLabel: 'Transferir dados do convidado',
+            discardLabel: 'Começar do zero',
+        }).then((acao) => {
+            if (acao === 'cancel') {
+                return;
+            }
 
-        promptAsync()
-            .catch((error) => {
-                console.log(error);
-                Alert.alert(
-                    'Erro',
-                    'Não foi possível fazer login com o Google.'
-                );
-            })
-            .finally(() => {
-                setCarregando(false);
-            });
+            pendingGoogleGuestChoiceRef.current = acao;
+
+            setCarregando(true);
+
+            promptAsync()
+                .catch((error) => {
+                    console.log(error);
+                    Alert.alert(
+                        'Erro',
+                        'Não foi possível fazer login com o Google.'
+                    );
+                    pendingGoogleGuestChoiceRef.current = 'skip';
+                })
+                .finally(() => {
+                    setCarregando(false);
+                });
+        });
     }
 
     return (
@@ -310,9 +386,23 @@ export default function LoginScreen({ navigation }) {
                     </View>
                 </View>
             </ScrollView>
+
+            {guestChoiceConfig ? (
+                <GuestDataChoiceModal
+                    visible={guestChoiceVisible}
+                    title={guestChoiceConfig.title}
+                    message={guestChoiceConfig.message}
+                    importLabel={guestChoiceConfig.importLabel}
+                    discardLabel={guestChoiceConfig.discardLabel}
+                    onImport={() => closeGuestChoice('import')}
+                    onDiscard={() => closeGuestChoice('discard')}
+                    onCancel={() => closeGuestChoice('cancel')}
+                />
+            ) : null}
         </KeyboardAvoidingView>
     );
 }
+
 
 const styles = StyleSheet.create({
     flex: {

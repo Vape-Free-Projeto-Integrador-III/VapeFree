@@ -5,6 +5,9 @@
 
 ---- BUGS / FIXES ----
 
+[ ] Fix ter que entrar no historico apos importar conta para mostrar
+    informacoes corretas na home
+
 [ ] Corrigir lógica de streak
     Hoje o calcStreak() conta qualquer dia que tenha um registro,
     mas um dia onde o usuário não abriu o app quebra o streak mesmo
@@ -191,12 +194,6 @@
 
 
 ---- TÉCNICO ----
-
-[ ] Migração de dados local → conta
-    Se o usuário usou o app como convidado e depois cria conta,
-    os dados do AsyncStorage são perdidos. Implementar migração
-    automática: ao fazer login/cadastro, verificar se há dados
-    locais e perguntar se quer importar para a conta.
 
 [ ] Tratamento de erros mais visível para o usuário
     Atualmente os catch blocks apenas retornam false/[].

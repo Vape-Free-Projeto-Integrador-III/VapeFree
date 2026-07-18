@@ -75,9 +75,9 @@ function MainStack() {
 }
 
 // Stack exibida quando NÃO existe usuário autenticado.
-function AuthStack() {
+function AuthStack({ initialRouteName = 'Login' }) {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
     </Stack.Navigator>
@@ -97,7 +97,7 @@ export default function AppNavigator() {
   // "user" reflete o estado atual do Firebase Authentication.
   // "isGuest" reflete a escolha de "continuar sem conta".
   // "initializing" é true só durante a checagem inicial (abertura do app).
-  const { user, isGuest, initializing } = useAuth();
+  const { user, isGuest, authScreen, initializing } = useAuth();
 
   // Enquanto o Firebase ainda não respondeu se há sessão ativa, mostramos
   // um loading em vez de decidir prematuramente entre Login e Main.
@@ -116,7 +116,7 @@ export default function AppNavigator() {
         Firebase (via onAuthStateChanged) e o AuthContext (modo convidado)
         é quem controla isso.
       */}
-      {user || isGuest ? <MainStack /> : <AuthStack />}
+      {user || isGuest ? <MainStack /> : <AuthStack initialRouteName={authScreen} />}
     </NavigationContainer>
   );
 }

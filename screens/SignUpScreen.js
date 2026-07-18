@@ -14,6 +14,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
+import {
+    hasGuestLocalData,
+    clearGuestLocalData,
+    migrateGuestLocalDataToUser,
+} from '../utils/storage';
+import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
 
 const COLORS = {
     background: '#FFFFFF',
@@ -47,6 +53,47 @@ export default function SignUpScreen({ navigation }) {
     const [senha, setSenha] = useState('');
     const [mostrarSenha, setMostrarSenha] = useState(false);
     const [carregando, setCarregando] = useState(false);
+    const [guestChoiceVisible, setGuestChoiceVisible] = useState(false);
+    const [guestChoiceConfig, setGuestChoiceConfig] = useState(null);
+    const guestChoiceResolverRef = React.useRef(null);
+
+    async function perguntarSobreDadosDeConvidado({ title, message, importLabel, discardLabel }) {
+        if (!(await hasGuestLocalData())) {
+            return 'skip';
+        }
+
+        return new Promise((resolve) => {
+            guestChoiceResolverRef.current = resolve;
+            setGuestChoiceConfig({ title, message, importLabel, discardLabel });
+            setGuestChoiceVisible(true);
+        });
+    }
+
+    async function finalizarDadosDeConvidado(uid, choice) {
+        if (choice === 'import') {
+            const imported = await migrateGuestLocalDataToUser(uid);
+            if (!imported) {
+                Alert.alert('Erro', 'Não foi possível transferir os dados do convidado para a conta.');
+                return false;
+            }
+        }
+
+        if (choice === 'discard') {
+            await clearGuestLocalData();
+        }
+
+        return true;
+    }
+
+    function closeGuestChoice(result) {
+        setGuestChoiceVisible(false);
+        setGuestChoiceConfig(null);
+        const resolver = guestChoiceResolverRef.current;
+        guestChoiceResolverRef.current = null;
+        if (resolver) {
+            resolver(result);
+        }
+    }
 
     async function cadastrar() {
         const nomeFormatado = nome.trim();
@@ -70,6 +117,17 @@ export default function SignUpScreen({ navigation }) {
             return;
         }
 
+        const acao = await perguntarSobreDadosDeConvidado({
+            title: 'Dados de convidado encontrados',
+            message: `Você já tem dados salvos como convidado. Deseja transferi-los para a conta ${nomeFormatado} ou começar do zero?`,
+            importLabel: 'Transferir dados do convidado',
+            discardLabel: 'Começar do zero',
+        });
+
+        if (acao === 'cancel') {
+            return;
+        }
+
         setCarregando(true);
 
         try {
@@ -88,6 +146,8 @@ export default function SignUpScreen({ navigation }) {
                 },
                 { merge: true }
             );
+
+            await finalizarDadosDeConvidado(userCredential.user.uid, acao);
 
             Alert.alert('Sucesso', 'Conta criada com sucesso!');
             navigation.goBack();
@@ -223,9 +283,23 @@ export default function SignUpScreen({ navigation }) {
                     </View>
                 </View>
             </ScrollView>
+
+            {guestChoiceConfig ? (
+                <GuestDataChoiceModal
+                    visible={guestChoiceVisible}
+                    title={guestChoiceConfig.title}
+                    message={guestChoiceConfig.message}
+                    importLabel={guestChoiceConfig.importLabel}
+                    discardLabel={guestChoiceConfig.discardLabel}
+                    onImport={() => closeGuestChoice('import')}
+                    onDiscard={() => closeGuestChoice('discard')}
+                    onCancel={() => closeGuestChoice('cancel')}
+                />
+            ) : null}
         </KeyboardAvoidingView>
     );
 }
+
 
 const styles = StyleSheet.create({
     flex: {

@@ -25,6 +25,7 @@ import {
 } from '../utils/storage';
 import { RADIUS, SHADOW, TRIGGERS, HELPS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 const CHART_WIDTH = width - 64;
@@ -84,17 +85,20 @@ function groupRecordsBy(records, getKey) {
 
 export default function HistoryScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
+    const { user } = useAuth();
     const [records, setRecords] = useState([]);
     const [filter, setFilter] = useState('day');
     const [editingRecord, setEditingRecord] = useState(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-    const load = async () => {
-        const r = await getRecords();
+    const uid = user?.uid ?? null;
+
+    const load = async (activeUid = uid) => {
+        const r = await getRecords(activeUid);
         setRecords(r);
     };
 
-    useFocusEffect(useCallback(() => { load(); }, []));
+    useFocusEffect(useCallback(() => { load(uid); }, [uid]));
 
     const getGroupedData = () => {
         if (filter === 'day') {
@@ -130,7 +134,7 @@ export default function HistoryScreen({ navigation }) {
     const handleSaveEdit = async () => {
         if (!editingRecord) return;
         await updateRecord(editingRecord);
-        const [allRecs, device, economy] = await Promise.all([getRecords(), getDevice(), getEconomy()]);
+        const [allRecs, device, economy] = await Promise.all([getRecords(uid), getDevice(uid), getEconomy(uid)]);
         await recalcEconomy(allRecs, device);
         setRecords(allRecs);
         setEditingRecord(null);
@@ -140,7 +144,7 @@ export default function HistoryScreen({ navigation }) {
         if (!deleteConfirmId) return;
         try {
             await deleteRecord(deleteConfirmId);
-            const [allRecs, device] = await Promise.all([getRecords(), getDevice()]);
+            const [allRecs, device] = await Promise.all([getRecords(uid), getDevice(uid)]);
             await recalcEconomy(allRecs, device);
             setRecords(allRecs);
         } catch (e) { }
