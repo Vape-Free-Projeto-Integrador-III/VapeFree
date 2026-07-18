@@ -26,7 +26,9 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { checkAchievements } from './achievements';
+import { checkAchievements, calcStreak } from './achievements';
+
+export { calcStreak };
 
 const KEYS = {
   RECORDS: '@vapefree_records',
@@ -330,23 +332,6 @@ export function getMonthLabel(dateStr) {
   return `${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-export function calcStreak(records) {
-  const dates = [...new Set(records.map((r) => r.date))].sort().reverse();
-  if (!dates.length) return 0;
-  let streak = 0;
-  let d = new Date();
-  for (let i = 0; i < 365; i++) {
-    const ds = d.toISOString().slice(0, 10);
-    if (dates.includes(ds)) {
-      streak++;
-      d.setDate(d.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
-
 // ─── Achievements ────────────────────────────────────────────────────────────
 // Modo conta: subcoleção users/{uid}/achievements, um documento por
 // conquista desbloqueada (id do documento = id da conquista). Modo
@@ -391,7 +376,7 @@ export async function checkAndUnlockAchievements(records, economy) {
     const unlockedIds = new Set(unlocked.map((u) => u.id));
     const newUnlocks = [];
 
-    const results = checkAchievements(records, economy);
+    const results = await checkAchievements(records, economy, unlocked);
     for (const result of results) {
       if (result.unlocked && !unlockedIds.has(result.id)) {
         await saveAchievement(result.id, result.unlockedAt);

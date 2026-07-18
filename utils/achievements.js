@@ -128,36 +128,54 @@ export const ACHIEVEMENTS = [
   },
 ];
 
-function calcStreak(records) {
-  const dates = [...new Set(records.map((r) => r.date))].sort().reverse();
-  if (!dates.length) return 0;
+export function calcStreak(records) {
+  if (!Array.isArray(records) || records.length === 0) {
+    return 0;
+  }
+
+  const recordsByDate = records.reduce((groups, record) => {
+    if (!groups[record.date]) {
+      groups[record.date] = [];
+    }
+    groups[record.date].push(record);
+    return groups;
+  }, {});
+
+  const dates = Object.keys(recordsByDate).sort();
+  const earliestRecordDate = dates[0];
+  const cursor = new Date(`${new Date().toISOString().slice(0, 10)}T12:00:00`);
   let streak = 0;
-  let d = new Date();
-  for (let i = 0; i < 365; i++) {
-    const ds = d.toISOString().slice(0, 10);
-    if (dates.includes(ds)) {
-      streak++;
-      d.setDate(d.getDate() - 1);
-    } else {
+
+  while (cursor.toISOString().slice(0, 10) >= earliestRecordDate) {
+    const dateKey = cursor.toISOString().slice(0, 10);
+    const dayRecords = recordsByDate[dateKey] || [];
+
+    if (dayRecords.some((record) => record.used === true)) {
       break;
     }
+
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
   }
+
   return streak;
 }
 
-export async function checkAchievements(records, economy = {}) {
+export async function checkAchievements(records, economy = {}, unlockedAchievements = []) {
+  const unlockedMap = new Map((unlockedAchievements || []).map((achievement) => [achievement.id, achievement]));
   const results = [];
   const today = new Date().toISOString();
 
   for (const achievement of ACHIEVEMENTS) {
-    const unlocked = achievement.condition(records, economy);
+    const savedAchievement = unlockedMap.get(achievement.id);
+    const unlocked = savedAchievement ? true : achievement.condition(records, economy);
     results.push({
       id: achievement.id,
       title: achievement.title,
       description: achievement.description,
       icon: achievement.icon,
       unlocked,
-      unlockedAt: unlocked ? today : null,
+      unlockedAt: savedAchievement?.unlockedAt || (unlocked ? today : null),
     });
   }
 

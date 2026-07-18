@@ -14,8 +14,8 @@ export default function AchievementsScreen({ navigation }) {
     const [achievements, setAchievements] = useState([]);
 
     const load = useCallback(async () => {
-        const [records, economy] = await Promise.all([getRecords(), getEconomy(), getAchievements()]);
-        const results = await checkAchievements(records, economy);
+        const [records, economy, savedAchievements] = await Promise.all([getRecords(), getEconomy(), getAchievements()]);
+        const results = await checkAchievements(records, economy, savedAchievements);
         setAchievements(results);
     }, []);
 

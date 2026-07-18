@@ -8,34 +8,7 @@
 [ ] Fix ter que entrar no historico apos importar conta para mostrar
     informacoes corretas na home
 
-[ ] Corrigir lógica de streak
-    Hoje o calcStreak() conta qualquer dia que tenha um registro,
-    mas um dia onde o usuário não abriu o app quebra o streak mesmo
-    que ele não tenha usado. A lógica precisa distinguir:
-      - Dia sem registro algum = streak mantido (correto)
-      - Dia com registro de "não usei" = streak mantido (correto)
-      - Dia com registro de "usei" = streak quebrado (correto)
-    Revisar se o campo `used` está sendo salvo e lido corretamente
-    em todos os fluxos do RegisterScreen.
-
-[ ] checkAchievements() não é async mas deveria ser
-    A função em achievements.js é síncrona mas o restante da base
-    é toda async/await. Isso cria inconsistência e pode causar
-    comportamento estranho em fluxos que fazem await nela.
-    Padronizar para async e ajustar os pontos que a chamam.
-
-[ ] Conquistas não persistem o estado "desbloqueado" corretamente
-    O checkAchievements() recalcula tudo do zero toda vez que a
-    tela é aberta, em vez de ler o estado salvo. Uma conquista
-    desbloqueada pode parecer bloqueada se os dados mudarem.
-    Usar getAchievements() como fonte de verdade e só recalcular
-    conquistas ainda não desbloqueadas.
-
-[ ] Streak conta "dias com registro" em vez de "dias consecutivos"
-    O loop em calcStreak itera datas no sentido passado → presente
-    mas usa includes() em um array não garantidamente ordenado.
-    Refatorar para garantir ordenação e checar sequência real
-    de dias (hoje, ontem, anteontem...).
+[ ] Verificar Lógica do Streak
 
 
 ---- URGENTE (já listado antes) ----
