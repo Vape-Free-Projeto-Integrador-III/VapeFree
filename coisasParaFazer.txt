@@ -8,6 +8,8 @@
 [ ] Fix ter que entrar no historico apos importar conta para mostrar
     informacoes corretas na home
 
+[ ] Fix gráfico da home, Y está com valores repetidos (além de feio)
+
 ---- URGENTE (já listado antes) ----
 
 [ ] Tutorial / onboarding

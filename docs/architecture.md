@@ -1,0 +1,47 @@
+# Arquitetura
+
+## Camadas
+
+```
+screens/          → UI + orquestração (chama utils/, context/)
+components/        → UI reutilizável, sem lógica de dados própria
+context/            → estado global (auth, tema)
+utils/storage.js    → única porta de entrada para dados (decide AsyncStorage vs Firestore)
+services/firebase.*  → inicialização do SDK Firebase
+```
+
+Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda função de `utils/storage.js` (`getRecords`, `saveDevice`, etc.) decide isso internamente olhando `auth.currentUser`. Isso é o que torna o app "isomórfico" entre os dois modos sem duplicar telas. Detalhe do modelo de dados em [database.md](database.md).
+
+## Entry point e providers
+
+`index.js` → `registerRootComponent(App)` → `App.js`:
+
+```
+<AuthProvider>
+  <ThemeProvider>
+    <AppContent> (SafeAreaProvider + StatusBar + AppNavigator)
+  </ThemeProvider>
+</AuthProvider>
+```
+
+`AuthProvider` fica fora de `ThemeProvider` porque nada em Theme depende de Auth, mas telas dependem dos dois.
+
+## Split nativo/web do Firebase
+
+`services/firebase.js` não existe como arquivo — existem `firebase.native.js` e `firebase.web.js`. O Metro bundler resolve automaticamente pela extensão de plataforma quando o código importa `'../services/firebase'`. Native usa `initializeAuth` com `getReactNativePersistence(AsyncStorage)`; web usa `getAuth` (persistência padrão do browser). Ambos exportam `auth`, `db`, `default app`. Se precisar adicionar um export novo, replique nos dois arquivos.
+
+## Decisões técnicas fixas
+
+| Decisão | Por quê |
+|---|---|
+| Sem TypeScript | Projeto começou em JS puro, nunca migrou. Não converta arquivos isoladamente. |
+| Sem Expo Router | Navegação já estruturada com React Navigation clássico (`navigation/AppNavigator.js`). |
+| Sem NativeWind | Estilo via `StyleSheet.create` + cores injetadas de `useTheme()`. |
+| Sem Redux/Zustand | Estado global é só Auth + Theme via Context; resto é local por tela. Ver [state.md](state.md). |
+| `react-native-paper` no `package.json` mas não usado | Dependência órfã — não assuma componentes do Paper disponíveis/estilizados. |
+
+## Inconsistências conhecidas (não corrigir sem pedir)
+
+- `HistoryScreen.js` chama `getRecords(uid)`, `getDevice(uid)`, `getEconomy(uid)` passando `uid` como argumento, mas essas funções em `utils/storage.js` não recebem parâmetro (usam `auth.currentUser` internamente). O argumento é ignorado silenciosamente — não é um bug ativo, mas é morto/confuso.
+- Existe bug catalogado em `coisasParaFazer.txt`: histórico não atualiza a Home corretamente após importar dados de convidado.
+- Backlog completo de features/bugs planejados está em `coisasParaFazer.txt` na raiz — consulte antes de sugerir novas funcionalidades para não duplicar planejamento já feito pelo usuário.
