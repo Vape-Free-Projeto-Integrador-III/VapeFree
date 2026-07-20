@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -9,10 +9,12 @@ import {
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RADIUS, SHADOW } from '../utils/theme';
+import { getRecords, getEconomy, calcStreak } from '../utils/storage';
 import ScreenHeader from '../components/ScreenHeader';
 
 function getInitials(name, email) {
@@ -31,10 +33,36 @@ export default function Profile({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const { user, isGuest, logout } = useAuth();
     const [busy, setBusy] = React.useState(false);
+    const [records, setRecords] = useState([]);
+    const [economy, setEconomy] = useState({});
 
     const displayName = isGuest ? 'Convidado' : user?.displayName?.trim() || 'Usuário';
-    const email = user?.email?.trim() || 'E-mail não disponível';
+    const email = user?.email?.trim() || 'Sem e-mail cadastrado';
     const initials = getInitials(user?.displayName, user?.email);
+
+    const load = useCallback(async () => {
+        const [recs, eco] = await Promise.all([getRecords(), getEconomy()]);
+        setRecords(recs);
+        setEconomy(eco);
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            load();
+        }, [load])
+    );
+
+    const streak = calcStreak(records);
+    const totalSaved = Object.values(economy).reduce((a, v) => a + v, 0);
+    const startDate = records.length
+        ? [...records].map((r) => r.date).sort()[0]
+        : null;
+    const startDateLabel = startDate
+        ? (() => {
+              const [year, month, day] = startDate.split('-');
+              return `${day}/${month}/${year}`;
+          })()
+        : '—';
 
     function handleBack() {
         navigation.goBack();
@@ -42,14 +70,14 @@ export default function Profile({ navigation }) {
 
     function handleLogout() {
         if (Platform.OS === 'web') {
-            const confirmed = window.confirm('Deseja realmente sair da sua conta?');
+            const confirmed = window.confirm('Quer mesmo sair da sua conta?');
             if (confirmed) {
                 performLogout('Login');
             }
             return;
         }
 
-        Alert.alert('Sair', 'Deseja realmente sair da sua conta?', [
+        Alert.alert('Sair', 'Quer mesmo sair da sua conta?', [
             { text: 'Cancelar', style: 'cancel' },
             {
                 text: 'Sair',
@@ -80,7 +108,7 @@ export default function Profile({ navigation }) {
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
                 title="Perfil"
-                subtitle={isGuest ? 'Você ainda está como convidado' : 'Informações da sua conta'}
+                subtitle={isGuest ? 'Você tá no modo convidado' : 'Seus dados'}
                 colors={colors}
                 isDark={isDark}
                 toggleTheme={toggleTheme}
@@ -95,8 +123,8 @@ export default function Profile({ navigation }) {
                             <Text style={[styles.avatarText, { color: colors.primaryDark }]}>G</Text>
                         </View>
 
-                        <Text style={[styles.name, { color: colors.text }]}>Você está como convidado</Text>
-                        <Text style={[styles.guestText, { color: colors.textMuted }]}>Faça login ou crie uma conta para salvar seus dados na nuvem e não perder seu progresso.</Text>
+                        <Text style={[styles.name, { color: colors.text }]}>Você tá como convidado</Text>
+                        <Text style={[styles.guestText, { color: colors.textMuted }]}>Entra ou cria uma conta pra não perder seu progresso — seus dados ficam salvos na nuvem.</Text>
                     </View>
 
                     <View style={styles.guestActions}>
@@ -124,7 +152,43 @@ export default function Profile({ navigation }) {
                             </View>
                             <View style={styles.infoTextWrap}>
                                 <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Modo convidado</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>Os dados ficam apenas neste aparelho até você entrar na conta.</Text>
+                                <Text style={[styles.infoValue, { color: colors.text }]}>Seus dados ficam só neste aparelho até você entrar numa conta.</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    <View style={[styles.infoCard, { backgroundColor: colors.card }, SHADOW.small]}>
+                        <View style={styles.infoRow}>
+                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
+                                <Ionicons name="calendar-outline" size={18} color={colors.primaryDark} />
+                            </View>
+                            <View style={styles.infoTextWrap}>
+                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Início da jornada</Text>
+                                <Text style={[styles.infoValue, { color: colors.text }]}>{startDateLabel}</Text>
+                            </View>
+                        </View>
+
+                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                        <View style={styles.infoRow}>
+                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
+                                <Ionicons name="flame-outline" size={18} color={colors.primaryDark} />
+                            </View>
+                            <View style={styles.infoTextWrap}>
+                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Dias sem usar</Text>
+                                <Text style={[styles.infoValue, { color: colors.text }]}>{streak}</Text>
+                            </View>
+                        </View>
+
+                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                        <View style={styles.infoRow}>
+                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
+                                <Ionicons name="cash-outline" size={18} color={colors.primaryDark} />
+                            </View>
+                            <View style={styles.infoTextWrap}>
+                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Total economizado</Text>
+                                <Text style={[styles.infoValue, { color: colors.text }]}>R$ {totalSaved.toFixed(2)}</Text>
                             </View>
                         </View>
                     </View>
@@ -164,13 +228,49 @@ export default function Profile({ navigation }) {
                         </View>
                     </View>
 
+                    <View style={[styles.infoCard, { backgroundColor: colors.card }, SHADOW.small]}>
+                        <View style={styles.infoRow}>
+                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
+                                <Ionicons name="calendar-outline" size={18} color={colors.primaryDark} />
+                            </View>
+                            <View style={styles.infoTextWrap}>
+                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Início da jornada</Text>
+                                <Text style={[styles.infoValue, { color: colors.text }]}>{startDateLabel}</Text>
+                            </View>
+                        </View>
+
+                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                        <View style={styles.infoRow}>
+                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
+                                <Ionicons name="flame-outline" size={18} color={colors.primaryDark} />
+                            </View>
+                            <View style={styles.infoTextWrap}>
+                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Dias sem usar</Text>
+                                <Text style={[styles.infoValue, { color: colors.text }]}>{streak}</Text>
+                            </View>
+                        </View>
+
+                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                        <View style={styles.infoRow}>
+                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
+                                <Ionicons name="cash-outline" size={18} color={colors.primaryDark} />
+                            </View>
+                            <View style={styles.infoTextWrap}>
+                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Total economizado</Text>
+                                <Text style={[styles.infoValue, { color: colors.text }]}>R$ {totalSaved.toFixed(2)}</Text>
+                            </View>
+                        </View>
+                    </View>
+
                     <TouchableOpacity
                         style={[styles.logoutBtn, { backgroundColor: colors.danger }, SHADOW.small]}
                         onPress={handleLogout}
                         disabled={busy}
                     >
                         <Ionicons name="log-out-outline" size={20} color="#fff" />
-                        <Text style={styles.logoutText}>Sair da conta</Text>
+                        <Text style={styles.logoutText}>Sair</Text>
                     </TouchableOpacity>
                 </>
             )}

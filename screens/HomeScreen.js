@@ -90,7 +90,7 @@ export default function HomeScreen({ navigation }) {
         >
             <ScreenHeader
                 title="VapeFree"
-                subtitle="Sua jornada para uma vida livre do vape"
+                subtitle="Vamos deixar o vape pra trás"
                 colors={colors}
                 isDark={isDark}
                 toggleTheme={toggleTheme}
@@ -98,7 +98,7 @@ export default function HomeScreen({ navigation }) {
             />
 
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
-                <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Progresso de Hoje</Text>
+                <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Como você foi hoje?</Text>
                 <View style={styles.statRow}>
                     <View style={[styles.statBox, { backgroundColor: colors.primaryLight }]}>
                         <Text style={[styles.statNum, { color: colors.primaryDark }]}>{todayPuffs}</Text>
@@ -122,12 +122,12 @@ export default function HomeScreen({ navigation }) {
                         <View style={[styles.moneyBox, { backgroundColor: colors.primaryLight }]}>
                             <Text style={styles.moneyIcon}>💰</Text>
                             <Text style={[styles.moneyVal, { color: colors.primaryDark }]}>R$ {todayEco.toFixed(2)}</Text>
-                            <Text style={[styles.moneyLabel, { color: colors.textSecondary }]}>Economizado hoje</Text>
+                            <Text style={[styles.moneyLabel, { color: colors.textSecondary }]}>Ficou no seu bolso hoje</Text>
                         </View>
                         <View style={[styles.moneyBox, { backgroundColor: colors.primaryLight }]}>
                             <Text style={styles.moneyIcon}>💵</Text>
                             <Text style={[styles.moneyVal, { color: colors.primaryDark }]}>R$ {totalEco.toFixed(2)}</Text>
-                            <Text style={[styles.moneyLabel, { color: colors.textSecondary }]}>Total economizado</Text>
+                            <Text style={[styles.moneyLabel, { color: colors.textSecondary }]}>Total no bolso</Text>
                         </View>
                     </View>
                 ) : (
@@ -137,7 +137,7 @@ export default function HomeScreen({ navigation }) {
                     >
                         <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
                         <Text style={[styles.devicePromptText, { color: colors.primaryDark }]}>
-                            Cadastre seu dispositivo para ver sua economia 💡
+                            Cadastra seu dispositivo pra ver quanto você tá economizando 💡
                         </Text>
                     </TouchableOpacity>
                 )}
@@ -167,7 +167,7 @@ export default function HomeScreen({ navigation }) {
                         style={styles.chart}
                     />
                 ) : (
-                    <Text style={[styles.emptyChart, { color: colors.textMuted }]}>Nenhum dado ainda. Comece registrando! 📝</Text>
+                    <Text style={[styles.emptyChart, { color: colors.textMuted }]}>Ainda não tem nada por aqui. Bora começar? 📝</Text>
                 )}
             </View>
 
@@ -182,7 +182,7 @@ export default function HomeScreen({ navigation }) {
             >
                 <Ionicons name="phone-portrait-outline" size={18} color={colors.primary} />
                 <Text style={[styles.deviceBtnText, { color: colors.primaryDark }]}>
-                    {device ? `Meu Dispositivo: ${device.name}` : 'Cadastrar Meu Dispositivo'}
+                    {device ? `Seu dispositivo: ${device.name}` : 'Cadastrar meu dispositivo'}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.primary} />
             </TouchableOpacity>

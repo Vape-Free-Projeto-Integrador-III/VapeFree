@@ -73,7 +73,7 @@ export default function SignUpScreen({ navigation }) {
         if (choice === 'import') {
             const imported = await migrateGuestLocalDataToUser(uid);
             if (!imported) {
-                Alert.alert('Erro', 'Não foi possível transferir os dados do convidado para a conta.');
+                Alert.alert('Erro', 'Não deu pra transferir seus dados de convidado. Tenta de novo.');
                 return false;
             }
         }
@@ -100,27 +100,27 @@ export default function SignUpScreen({ navigation }) {
         const emailFormatado = email.trim();
 
         if (!nomeFormatado || !emailFormatado || !senha) {
-            Alert.alert('Atenção', 'Preencha nome, e-mail e senha para continuar.');
+            Alert.alert('Opa', 'Preencha nome, e-mail e senha pra continuar.');
             return;
         }
 
         if (!validarEmail(emailFormatado)) {
-            Alert.alert('Atenção', 'Informe um e-mail válido.');
+            Alert.alert('Opa', 'Esse e-mail não parece válido.');
             return;
         }
 
         if (!validarSenhaForte(senha)) {
             Alert.alert(
-                'Atenção',
-                'Sua senha precisa ter no mínimo 8 caracteres.'
+                'Opa',
+                'Sua senha precisa ter pelo menos 8 caracteres.'
             );
             return;
         }
 
         const acao = await perguntarSobreDadosDeConvidado({
-            title: 'Dados de convidado encontrados',
-            message: `Você já tem dados salvos como convidado. Deseja transferi-los para a conta ${nomeFormatado} ou começar do zero?`,
-            importLabel: 'Transferir dados do convidado',
+            title: 'Achamos seus dados de convidado',
+            message: `Quer levar esses dados pra sua conta nova ou começar do zero?`,
+            importLabel: 'Levar meus dados',
             discardLabel: 'Começar do zero',
         });
 
@@ -149,25 +149,25 @@ export default function SignUpScreen({ navigation }) {
 
             await finalizarDadosDeConvidado(userCredential.user.uid, acao);
 
-            Alert.alert('Sucesso', 'Conta criada com sucesso!');
+            Alert.alert('Prontinho', 'Sua conta foi criada!');
             navigation.goBack();
         } catch (error) {
             if (error?.code === 'auth/email-already-in-use') {
-                Alert.alert('Erro', 'Este e-mail já está cadastrado. Use outro e-mail ou faça login.');
+                Alert.alert('Erro', 'Esse e-mail já tem conta. Tenta outro ou faz login.');
                 return;
             }
 
             if (error?.code === 'auth/invalid-email') {
-                Alert.alert('Erro', 'Informe um e-mail válido.');
+                Alert.alert('Erro', 'Esse e-mail não parece válido.');
                 return;
             }
 
             if (error?.code === 'auth/weak-password') {
-                Alert.alert('Erro', 'A senha informada é muito fraca. Use uma senha mais forte.');
+                Alert.alert('Erro', 'Essa senha é fraca demais. Tenta uma mais forte.');
                 return;
             }
 
-            Alert.alert('Erro', 'Não foi possível criar sua conta. Tente novamente.');
+            Alert.alert('Erro', 'Não deu pra criar sua conta. Tenta de novo.');
         } finally {
             setCarregando(false);
         }
@@ -190,7 +190,7 @@ export default function SignUpScreen({ navigation }) {
 
                     <Text style={styles.title}>Respire Livre</Text>
                     <Text style={styles.subtitle}>
-                        Crie sua conta e comece sua jornada sem vape
+                        Cria sua conta e começa agora
                     </Text>
 
                     <View style={styles.fieldGroup}>
@@ -278,7 +278,7 @@ export default function SignUpScreen({ navigation }) {
                     <View style={styles.footerRow}>
                         <Text style={styles.footerText}>Já tem uma conta? </Text>
                         <TouchableOpacity onPress={() => navigation.goBack()}>
-                            <Text style={styles.footerLink}>Faça login</Text>
+                            <Text style={styles.footerLink}>Entrar</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

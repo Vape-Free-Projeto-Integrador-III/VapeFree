@@ -31,9 +31,9 @@ const { width } = Dimensions.get('window');
 const CHART_WIDTH = width - 64;
 
 const FILTERS = [
-    { id: 'day', label: 'Por Dia', days: 7 },
-    { id: 'week', label: 'Por Semana', days: 28 },
-    { id: 'month', label: 'Por Mês', days: 90 },
+    { id: 'day', label: 'Dia', days: 7 },
+    { id: 'week', label: 'Semana', days: 28 },
+    { id: 'month', label: 'Mês', days: 90 },
 ];
 
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -155,7 +155,7 @@ export default function HistoryScreen({ navigation }) {
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
                 title="Histórico"
-                subtitle="Veja sua evolução por período"
+                subtitle="Sua evolução ao longo do tempo"
                 colors={colors}
                 isDark={isDark}
                 toggleTheme={toggleTheme}
@@ -183,7 +183,7 @@ export default function HistoryScreen({ navigation }) {
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
                 <View style={styles.cardHeader}>
                     <View>
-                        <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Gráfico por período</Text>
+                        <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Seu gráfico</Text>
                         <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
                             {filter === 'day' ? 'Mostra os últimos 7 dias com registro' : filter === 'week' ? 'Mostra as últimas 8 semanas com registro' : 'Mostra os últimos 12 meses com registro'}
                         </Text>
@@ -214,7 +214,7 @@ export default function HistoryScreen({ navigation }) {
                 ) : (
                     <View style={styles.emptyChartWrap}>
                         <Ionicons name="bar-chart-outline" size={28} color={colors.border} />
-                        <Text style={[styles.emptyChart, { color: colors.textMuted }]}>Nenhum registro nesse período.</Text>
+                        <Text style={[styles.emptyChart, { color: colors.textMuted }]}>Nada registrado nesse período ainda.</Text>
                     </View>
                 )}
                 {!records.length ? (
@@ -237,7 +237,7 @@ export default function HistoryScreen({ navigation }) {
                                     <Text style={[styles.histNone, { color: colors.primary }]}>Não usou ✓</Text>
                                 )}
                                 <Text style={[styles.histIntensity, { color: colors.textMuted }]}>
-                                    {intensityIcon(rec.intensity)} Intensidade: {rec.intensity}/10
+                                    {intensityIcon(rec.intensity)} Vontade: {rec.intensity}/10
                                 </Text>
                             </View>
                             <View style={styles.actionButtons}>
@@ -270,8 +270,8 @@ export default function HistoryScreen({ navigation }) {
                     <View style={styles.confirmOverlay}>
                         <TouchableWithoutFeedback>
                             <View style={[styles.confirmModal, { backgroundColor: colors.card }]}>
-                                <Text style={[styles.confirmTitle, { color: colors.text }]}>Confirmar exclusão</Text>
-                                <Text style={[styles.confirmText, { color: colors.textSecondary }]}>Deseja apagar este registro?</Text>
+                                <Text style={[styles.confirmTitle, { color: colors.text }]}>Apagar registro?</Text>
+                                <Text style={[styles.confirmText, { color: colors.textSecondary }]}>Isso não pode ser desfeito.</Text>
                                 <View style={styles.confirmButtons}>
                                     <TouchableOpacity style={[styles.confirmCancelBtn, { backgroundColor: colors.borderLight }]} onPress={() => setDeleteConfirmId(null)}>
                                         <Text style={[styles.confirmCancelText, { color: colors.textSecondary }]}>Cancelar</Text>
@@ -291,7 +291,7 @@ export default function HistoryScreen({ navigation }) {
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalContent, { backgroundColor: colors.modalBg }]}>
                         <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-                            <Text style={[styles.modalTitle, { color: colors.text }]}>Editar Registro</Text>
+                            <Text style={[styles.modalTitle, { color: colors.text }]}>Editar registro</Text>
                             <TouchableOpacity onPress={() => setEditingRecord(null)}>
                                 <Ionicons name="close" size={24} color={colors.textMuted} />
                             </TouchableOpacity>
@@ -299,7 +299,7 @@ export default function HistoryScreen({ navigation }) {
 
                         {editingRecord && (
                             <ScrollView style={styles.modalBody}>
-                                <Text style={[styles.fieldLabel, { color: colors.text }]}>Usou cigarro eletrônico?</Text>
+                                <Text style={[styles.fieldLabel, { color: colors.text }]}>Você usou o vape?</Text>
                                 <View style={styles.toggleRow}>
                                     {[{ val: true, label: 'Sim' }, { val: false, label: 'Não' }].map(({ val, label }) => (
                                         <TouchableOpacity
@@ -314,7 +314,7 @@ export default function HistoryScreen({ navigation }) {
 
                                 {editingRecord.used && (
                                     <>
-                                        <Text style={[styles.fieldLabel, { color: colors.text }]}>Quantidade de puxadas</Text>
+                                        <Text style={[styles.fieldLabel, { color: colors.text }]}>Quantas puxadas?</Text>
                                         <View style={styles.counterRow}>
                                             <TouchableOpacity
                                                 style={[styles.counterBtn, { borderColor: colors.primary, backgroundColor: colors.card }]}
@@ -333,7 +333,7 @@ export default function HistoryScreen({ navigation }) {
                                     </>
                                 )}
 
-                                <Text style={[styles.fieldLabel, { color: colors.text }]}>Intensidade: {editingRecord.intensity}/10</Text>
+                                <Text style={[styles.fieldLabel, { color: colors.text }]}>Vontade: {editingRecord.intensity}/10</Text>
                                 <Slider
                                     style={styles.slider}
                                     minimumValue={0}
@@ -348,7 +348,7 @@ export default function HistoryScreen({ navigation }) {
 
                                 {editingRecord.used && (
                                     <>
-                                        <Text style={[styles.fieldLabel, { color: colors.text }]}>Gatilhos</Text>
+                                        <Text style={[styles.fieldLabel, { color: colors.text }]}>O que te deu vontade?</Text>
                                         <View style={styles.chips}>
                                             {TRIGGERS.filter((t) => t.id !== 'outro').map((t) => (
                                                 <TouchableOpacity
@@ -391,7 +391,7 @@ export default function HistoryScreen({ navigation }) {
                                 )}
 
                                 <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveEdit}>
-                                    <Text style={styles.saveBtnText}>Salvar Alterações</Text>
+                                    <Text style={styles.saveBtnText}>Salvar</Text>
                                 </TouchableOpacity>
                             </ScrollView>
                         )}

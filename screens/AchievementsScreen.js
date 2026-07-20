@@ -28,7 +28,7 @@ export default function AchievementsScreen({ navigation }) {
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
                 title="Conquistas"
-                subtitle="Seu progresso em conquistas"
+                subtitle="Veja até onde você já chegou"
                 colors={colors}
                 isDark={isDark}
                 toggleTheme={toggleTheme}
@@ -39,12 +39,12 @@ export default function AchievementsScreen({ navigation }) {
                 <View style={styles.statsRow}>
                     <View style={styles.statItem}>
                         <Text style={[styles.statNum, { color: colors.primaryDark }]}>{unlockedCount}</Text>
-                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Desbloqueadas</Text>
+                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Conquistadas</Text>
                     </View>
                     <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
                     <View style={styles.statItem}>
                         <Text style={[styles.statNum, { color: colors.primaryDark }]}>{totalCount - unlockedCount}</Text>
-                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Bloqueadas</Text>
+                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Por vir</Text>
                     </View>
                     <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
                     <View style={styles.statItem}>
@@ -56,7 +56,7 @@ export default function AchievementsScreen({ navigation }) {
 
             {unlockedCount > 0 && (
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colors.text }]}>✅ Desbloqueadas</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>✅ Você já conquistou</Text>
                     {achievements.filter((a) => a.unlocked).map((achievement) => (
                         <View key={achievement.id} style={[styles.achievementCardUnlocked, { backgroundColor: colors.card, borderColor: colors.primary }, SHADOW.small]}>
                             <View style={[styles.achievementIcon, { backgroundColor: colors.primaryLight }]}>
@@ -74,7 +74,7 @@ export default function AchievementsScreen({ navigation }) {
 
             {totalCount - unlockedCount > 0 && (
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colors.text }]}>🔒 Bloqueadas</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>🔒 O que ainda vem por aí</Text>
                     {achievements.filter((a) => !a.unlocked).map((achievement) => (
                         <View key={achievement.id} style={[styles.achievementCardLocked, { backgroundColor: colors.card, borderColor: colors.border }]}>
                             <View style={[styles.achievementIconLocked, { backgroundColor: colors.borderLight }]}>

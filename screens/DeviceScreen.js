@@ -49,13 +49,13 @@ export default function DeviceScreen({ navigation }) {
     };
 
     const handleSave = async () => {
-        if (!name.trim()) { Alert.alert('Atenção', 'Informe o nome do dispositivo.'); return; }
+        if (!name.trim()) { Alert.alert('Opa', 'Coloca o nome do seu dispositivo.'); return; }
         const p = parseFloat(price.replace(',', '.'));
         const tp = parseInt(totalPuffs);
         const d = parseInt(days);
-        if (isNaN(p) || p <= 0) { Alert.alert('Atenção', 'Informe um preço válido.'); return; }
-        if (isNaN(tp) || tp <= 0) { Alert.alert('Atenção', 'Informe o total de puxadas.'); return; }
-        if (isNaN(d) || d <= 0) { Alert.alert('Atenção', 'Informe a duração em dias.'); return; }
+        if (isNaN(p) || p <= 0) { Alert.alert('Opa', 'Coloca um preço válido.'); return; }
+        if (isNaN(tp) || tp <= 0) { Alert.alert('Opa', 'Quantas puxadas ele tem no total?'); return; }
+        if (isNaN(d) || d <= 0) { Alert.alert('Opa', 'Quantos dias ele costuma durar?'); return; }
         setSaving(true);
         const device = { name: name.trim(), type, price: p, totalPuffs: tp, days: d };
         await saveDevice(device);
@@ -82,8 +82,8 @@ export default function DeviceScreen({ navigation }) {
     return (
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
             <ScreenHeader
-                title="Meu Dispositivo"
-                subtitle="Cadastre seu cigarro eletrônico"
+                title="Seu Dispositivo"
+                subtitle="Conta pra gente como ele é"
                 colors={colors}
                 isDark={isDark}
                 toggleTheme={toggleTheme}
@@ -117,21 +117,21 @@ export default function DeviceScreen({ navigation }) {
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>Preço (R$)</Text>
                 <TextInput style={inputStyle} placeholder="Ex: 39.90" placeholderTextColor={colors.textMuted} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
 
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Total de puxadas do dispositivo</Text>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>Quantas puxadas ele dá no total</Text>
                 <TextInput style={inputStyle} placeholder="Ex: 600" placeholderTextColor={colors.textMuted} value={totalPuffs} onChangeText={setTotalPuffs} keyboardType="number-pad" />
 
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Duração estimada (dias)</Text>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>Quantos dias ele costuma durar</Text>
                 <TextInput style={inputStyle} placeholder="Ex: 14" placeholderTextColor={colors.textMuted} value={days} onChangeText={setDays} keyboardType="number-pad" />
 
                 {(price || totalPuffs || days) && (
                     <View style={[styles.previewBox, { backgroundColor: colors.primaryLight }]}>
-                        <Text style={[styles.previewTitle, { color: colors.primaryDark }]}>Pré-visualização</Text>
+                        <Text style={[styles.previewTitle, { color: colors.primaryDark }]}>Prévia</Text>
                         <View style={styles.previewRow}>
                             <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>Custo por puxada</Text>
                             <Text style={[styles.previewVal, { color: colors.primaryDark }]}>{costPerPuff()}</Text>
                         </View>
                         <View style={styles.previewRow}>
-                            <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>Meta diária</Text>
+                            <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>Sua meta por dia</Text>
                             <Text style={[styles.previewVal, { color: colors.primaryDark }]}>{dailyGoal()}</Text>
                         </View>
                     </View>
@@ -143,13 +143,13 @@ export default function DeviceScreen({ navigation }) {
                     disabled={saving}
                 >
                     <Ionicons name={saving ? 'hourglass-outline' : 'save-outline'} size={20} color="#fff" />
-                    <Text style={styles.saveBtnText}>{saving ? 'Salvando...' : 'Salvar Dispositivo'}</Text>
+                    <Text style={styles.saveBtnText}>{saving ? 'Salvando...' : 'Salvar'}</Text>
                 </TouchableOpacity>
 
                 {successVisible && (
                     <Animated.View style={[styles.successBox, { backgroundColor: colors.primaryLight, borderColor: colors.primary, opacity: fadeAnim }]}>
                         <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
-                        <Text style={[styles.successText, { color: colors.primaryDark }]}>Dispositivo salvo! Cálculos atualizados. ✅</Text>
+                        <Text style={[styles.successText, { color: colors.primaryDark }]}>Salvo! Já atualizamos suas contas. ✅</Text>
                     </Animated.View>
                 )}
             </View>
@@ -157,7 +157,7 @@ export default function DeviceScreen({ navigation }) {
             <View style={[styles.infoBox, { backgroundColor: colors.primaryLight }]}>
                 <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
                 <Text style={[styles.infoText, { color: colors.primaryDark }]}>
-                    Com base nesses dados, calculamos quanto você economiza cada vez que não usa o vape, comparando com sua meta diária.
+                    Com esses dados a gente calcula quanto você economiza cada vez que resiste ao vape.
                 </Text>
             </View>
 

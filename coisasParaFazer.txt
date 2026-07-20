@@ -5,12 +5,14 @@
 
 ---- BUGS / FIXES ----
 
-[ ] Fix ter que entrar no historico apos importar conta para mostrar
-    informacoes corretas na home
+[ ] Fix ter que entrar no historico apos importar conta convidado ao
+logar/cadastrar para mostrar informacoes corretas na home, é necessario
+ao importar, as informacoes estarem corretas, sem ter que entrar no historico
+e voltar
 
 [ ] Fix gráfico da home, Y está com valores repetidos (além de feio)
 
----- URGENTE (já listado antes) ----
+---- URGENTE ----
 
 [ ] Tutorial / onboarding
     Fluxo de boas-vindas exibido na primeira abertura do app.
@@ -116,33 +118,13 @@
 
 ---- UX / INTERFACE ----
 
-[ ] Linguagem mais próxima do adolescente
-    Revisar todos os textos do app. Substituir termos muito
-    formais por linguagem mais direta e encorajadora.
-    Exemplos:
-      "Progresso de Hoje" → "Como você foi hoje?"
-      "Economizado hoje" → "Dinheiro que ficou no seu bolso"
-      "Conquistas Bloqueadas" → "O que ainda vem por aí"
-
-[ ] Tela de perfil mais completa
-    A Profile.js atual é simples. Adicionar:
-      - Data de início da jornada
-      - Resumo: total de dias sem usar, total economizado, nível atual
-      - Botão para ver todas as conquistas
-
 [ ] Feedback tátil (haptics)
     Usar expo-haptics para dar feedback ao:
       - Salvar um registro
       - Desbloquear conquista
       - Completar missão
       - Usar o botão de emergência
-    Melhora muito a sensação de resposta do app.
-
-[ ] Tema de cores mais jovem / opção de temas
-    O verde atual é ok mas pode parecer "aplicativo de saúde de adulto".
-    Considerar oferecer 2-3 opções de tema (roxo, azul, laranja)
-    que o usuário escolhe no perfil. Já existe ThemeContext —
-    seria uma extensão natural.
+    Melhora muito a sensação de resposta do app
 
 [ ] Animação de entrada nas telas
     Adicionar transições suaves ao navegar entre telas.

@@ -42,16 +42,16 @@ export const SHADOW = {
 };
 
 export const TIPS = [
-  'Cada puxada que você não dá é uma vitória. Você está no controle!',
+  'Cada puxada que você não dá já é uma vitória.',
   'Beber água pode ajudar a reduzir o desejo de usar o vape.',
   'Respirar fundo por 4 segundos pode substituir uma puxada.',
-  'Você já veio até aqui! Continue registrando seu progresso. 🎯',
+  'Você já chegou até aqui. Continua registrando! 🎯',
   'Exercício físico libera endorfinas que reduzem a vontade de usar.',
   'Converse com alguém de confiança quando a vontade aparecer.',
   'Cada dia sem usar é economia no seu bolso e na sua saúde. 💚',
-  'Sua mente é mais forte do que qualquer vício. Acredite nisso!',
+  'Você é mais forte que essa vontade.',
   'Pequenos passos todos os dias fazem uma grande diferença.',
-  'Orgulhe-se de cada registro! Você está construindo um hábito saudável.',
+  'Cada registro conta. Você tá criando um hábito novo.',
 ];
 
 export const TRIGGERS = [

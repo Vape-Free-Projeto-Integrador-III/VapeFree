@@ -109,7 +109,7 @@ export default function RegisterScreen({ navigation }) {
 
     const handleSave = async () => {
         if (used === null) {
-            Alert.alert('Atenção', `Selecione se usou ou não o cigarro eletrônico ${formatSelectedDateLabel(selectedDate)}.`);
+            Alert.alert('Opa', `Você usou o vape ${formatSelectedDateLabel(selectedDate)}? Escolhe uma opção.`);
             return;
         }
         setSaving(true);
@@ -177,7 +177,7 @@ export default function RegisterScreen({ navigation }) {
             const msg = MOTIVATIONAL_MESSAGES[Math.floor(Math.random() * MOTIVATIONAL_MESSAGES.length)];
             showSuccess(msg);
         } catch (error) {
-            Alert.alert('Erro', 'Não foi possível salvar o registro. Tente novamente.');
+            Alert.alert('Erro', 'Não deu pra salvar o registro. Tenta de novo.');
         } finally {
             setSaving(false);
         }
@@ -207,7 +207,7 @@ export default function RegisterScreen({ navigation }) {
             keyboardShouldPersistTaps="handled"
         >
             <ScreenHeader
-                title="Registrar Uso"
+                title="Como foi seu dia?"
                 subtitle={`Como foi ${selectedDateLabel}?`}
                 colors={colors}
                 isDark={isDark}
@@ -217,7 +217,7 @@ export default function RegisterScreen({ navigation }) {
 
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
                 {/* Date Selector */}
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Data do registro</Text>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>Data</Text>
                 <TouchableOpacity
                     style={[styles.dateSelector, { borderColor: colors.border, backgroundColor: colors.card }]}
                     onPress={openDatePicker}
@@ -239,7 +239,7 @@ export default function RegisterScreen({ navigation }) {
                                 <TouchableOpacity onPress={() => setShowDatePicker(false)}>
                                     <Text style={[styles.datePickerCancel, { color: colors.textMuted }]}>Cancelar</Text>
                                 </TouchableOpacity>
-                                <Text style={[styles.datePickerTitle, { color: colors.text }]}>Selecionar Data</Text>
+                                <Text style={[styles.datePickerTitle, { color: colors.text }]}>Escolher data</Text>
                                 <TouchableOpacity onPress={handleSelectDate}>
                                     <Text style={[styles.datePickerDone, { color: colors.primary }]}>Confirmar</Text>
                                 </TouchableOpacity>
@@ -273,7 +273,7 @@ export default function RegisterScreen({ navigation }) {
                 </Modal>
 
                 {/* Device Type */}
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Tipo de dispositivo</Text>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>Qual dispositivo você usa</Text>
                 <View style={styles.toggleRow}>
                     {['desc', 'rec'].map((val) => (
                         <TouchableOpacity
@@ -289,7 +289,7 @@ export default function RegisterScreen({ navigation }) {
                 </View>
 
                 {/* Used Today? */}
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Usou cigarro eletrônico {selectedDateLabel}?</Text>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>Você usou o vape {selectedDateLabel}?</Text>
                 <View style={styles.toggleRow}>
                     {[{ val: true, label: 'Sim' }, { val: false, label: 'Não' }].map(({ val, label }) => (
                         <TouchableOpacity
@@ -305,7 +305,7 @@ export default function RegisterScreen({ navigation }) {
                 {/* If used = true */}
                 {used === true && (
                     <>
-                        <Text style={[styles.fieldLabel, { color: colors.text }]}>Quantidade de puxadas</Text>
+                        <Text style={[styles.fieldLabel, { color: colors.text }]}>Quantas puxadas?</Text>
                         <View style={styles.counterRow}>
                             <TouchableOpacity
                                 style={[styles.counterBtn, { borderColor: colors.primary, backgroundColor: colors.card }]}
@@ -322,7 +322,7 @@ export default function RegisterScreen({ navigation }) {
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={[styles.fieldLabel, { color: colors.text }]}>Gatilhos</Text>
+                        <Text style={[styles.fieldLabel, { color: colors.text }]}>O que te deu vontade?</Text>
                         <View style={styles.chips}>
                             {TRIGGERS.map((t) => (
                                 <TouchableOpacity
@@ -339,7 +339,7 @@ export default function RegisterScreen({ navigation }) {
                         {triggers.includes('outro') && (
                             <TextInput
                                 style={[styles.input, { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text }]}
-                                placeholder="Descreva o gatilho..."
+                                placeholder="Conta o que rolou..."
                                 placeholderTextColor={colors.textMuted}
                                 value={triggerOutro}
                                 onChangeText={setTriggerOutro}
@@ -380,7 +380,7 @@ export default function RegisterScreen({ navigation }) {
                 {/* Intensity Slider */}
                 {used !== null && (
                     <>
-                        <Text style={[styles.fieldLabel, { color: colors.text }]}>Quanto você quis usar?</Text>
+                        <Text style={[styles.fieldLabel, { color: colors.text }]}>Quanta vontade você sentiu?</Text>
                         <View style={styles.sliderWrap}>
                             <Text style={[styles.intensityVal, { color: intensityColor }]}>{Math.round(intensity)}</Text>
                             <Slider
@@ -410,7 +410,7 @@ export default function RegisterScreen({ navigation }) {
                     disabled={saving}
                 >
                     <Ionicons name={saving ? 'hourglass-outline' : 'checkmark-circle-outline'} size={20} color="#fff" />
-                    <Text style={styles.saveBtnText}>{saving ? 'Salvando...' : 'Salvar Registro'}</Text>
+                    <Text style={styles.saveBtnText}>{saving ? 'Salvando...' : 'Salvar'}</Text>
                 </TouchableOpacity>
 
                 {/* Success Message */}

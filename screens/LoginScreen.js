@@ -103,7 +103,7 @@ export default function LoginScreen({ navigation }) {
         if (choice === 'import') {
             const imported = await migrateGuestLocalDataToUser(uid);
             if (!imported) {
-                Alert.alert('Erro', 'Não foi possível importar os dados do convidado para a conta.');
+                Alert.alert('Erro', 'Não deu pra importar seus dados de convidado. Tenta de novo.');
                 return false;
             }
         }
@@ -157,7 +157,7 @@ export default function LoginScreen({ navigation }) {
                 if (!idToken && !accessToken) {
                     Alert.alert(
                         'Erro',
-                        'Não foi possível obter o token do Google.'
+                        'Não deu pra pegar seu login do Google. Tenta de novo.'
                     );
                     return;
                 }
@@ -171,7 +171,7 @@ export default function LoginScreen({ navigation }) {
                 console.log('Erro no login com Google:', error);
                 Alert.alert(
                     'Erro',
-                    'Não foi possível fazer login com o Google.'
+                    'Não deu pra entrar com o Google agora.'
                 );
             }
         }
@@ -184,15 +184,15 @@ export default function LoginScreen({ navigation }) {
         const emailFormatado = email.trim();
 
         if (!emailFormatado || !senha) {
-            Alert.alert('Atenção', 'Preencha seu e-mail e senha para continuar.');
+            Alert.alert('Opa', 'Preenche seu e-mail e senha pra continuar.');
             return;
         }
 
         const acao = await perguntarSobreDadosDeConvidado({
-            title: 'Dados de convidado encontrados',
-            message: `Você já tem dados salvos como convidado. Deseja sobrepor os dados da conta ${emailFormatado} com os dados locais do convidado ou descartar os dados do convidado?`,
-            importLabel: 'Sobrepor dados da conta',
-            discardLabel: 'Descartar dados do convidado',
+            title: 'Achamos seus dados de convidado',
+            message: `Você tinha dados salvos como convidado. Quer usar esses dados na conta ${emailFormatado} ou começar do zero?`,
+            importLabel: 'Usar meus dados',
+            discardLabel: 'Começar do zero',
         });
 
         if (acao === 'cancel') {
@@ -207,7 +207,7 @@ export default function LoginScreen({ navigation }) {
             if (CREDENCIAIS_INVALIDAS.includes(error?.code)) {
                 Alert.alert('Erro', 'E-mail ou senha incorretos.');
             } else {
-                Alert.alert('Erro', 'Não foi possível fazer login. Tente novamente.');
+                Alert.alert('Erro', 'Não deu pra entrar. Tenta de novo.');
             }
         } finally {
             setCarregando(false);
@@ -215,7 +215,7 @@ export default function LoginScreen({ navigation }) {
     }
 
     function handleEsqueceuSenha() {
-        Alert.alert('Recuperar senha', 'Em breve você poderá redefinir sua senha por aqui.');
+        Alert.alert('Ainda não rolou', 'Em breve você vai poder trocar sua senha por aqui.');
     }
 
     function handleGoogleLogin() {
@@ -224,9 +224,9 @@ export default function LoginScreen({ navigation }) {
         }
 
         perguntarSobreDadosDeConvidado({
-            title: 'Dados de convidado encontrados',
-            message: 'Você já tem dados salvos como convidado. Se entrar com sua conta Google, deseja transferi-los para essa conta ou começar do zero?',
-            importLabel: 'Transferir dados do convidado',
+            title: 'Achamos seus dados de convidado',
+            message: 'Quer levar esses dados pra sua conta Google ou começar do zero?',
+            importLabel: 'Levar meus dados',
             discardLabel: 'Começar do zero',
         }).then((acao) => {
             if (acao === 'cancel') {
@@ -242,7 +242,7 @@ export default function LoginScreen({ navigation }) {
                     console.log(error);
                     Alert.alert(
                         'Erro',
-                        'Não foi possível fazer login com o Google.'
+                        'Não deu pra entrar com o Google.'
                     );
                     pendingGoogleGuestChoiceRef.current = 'skip';
                 })
@@ -269,7 +269,7 @@ export default function LoginScreen({ navigation }) {
 
                     <Text style={styles.title}>Respire Livre</Text>
                     <Text style={styles.subtitle}>
-                        Sua jornada para uma vida sem vape começa aqui
+                        Sua vida sem vape começa agora
                     </Text>
 
                     <View style={styles.fieldGroup}>
@@ -381,7 +381,7 @@ export default function LoginScreen({ navigation }) {
                     <View style={styles.footerRow}>
                         <Text style={styles.footerText}>Não tem uma conta? </Text>
                         <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                            <Text style={styles.footerLink}>Cadastre-se gratuitamente</Text>
+                            <Text style={styles.footerLink}>Criar conta grátis</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

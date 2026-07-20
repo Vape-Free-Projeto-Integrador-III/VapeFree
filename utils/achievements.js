@@ -4,14 +4,14 @@ export const ACHIEVEMENTS = [
   {
     id: 'first_record',
     title: 'Primeiro Passo',
-    description: 'Faça seu primeiro registro',
+    description: 'Você fez seu primeiro registro',
     icon: '📝',
     condition: (records) => records.length >= 1,
   },
   {
     id: 'streak_3',
-    title: 'Início de Jornada',
-    description: 'Complete 3 dias seguidos sem usar',
+    title: 'Começando Bem',
+    description: '3 dias seguidos sem usar',
     icon: '🔥',
     condition: (records) => {
       const streak = calcStreak(records);
@@ -21,7 +21,7 @@ export const ACHIEVEMENTS = [
   {
     id: 'streak_7',
     title: 'Uma Semana',
-    description: 'Complete 7 dias seguidos sem usar',
+    description: '7 dias seguidos sem usar',
     icon: '🌟',
     condition: (records) => {
       const streak = calcStreak(records);
@@ -31,7 +31,7 @@ export const ACHIEVEMENTS = [
   {
     id: 'streak_14',
     title: 'Duas Semanas',
-    description: 'Complete 14 dias seguidos sem usar',
+    description: '14 dias seguidos sem usar',
     icon: '💪',
     condition: (records) => {
       const streak = calcStreak(records);
@@ -41,7 +41,7 @@ export const ACHIEVEMENTS = [
   {
     id: 'streak_30',
     title: 'Um Mês',
-    description: 'Complete 30 dias seguidos sem usar',
+    description: '30 dias seguidos sem usar',
     icon: '🏆',
     condition: (records) => {
       const streak = calcStreak(records);
@@ -51,7 +51,7 @@ export const ACHIEVEMENTS = [
   {
     id: 'no_puffs_1',
     title: 'Dia Livre',
-    description: 'Não use nenhum cigarro eletrônico durante 1 dia',
+    description: 'Passou 1 dia sem usar o vape',
     icon: '✅',
     condition: (records) => {
       const today = new Date().toISOString().slice(0, 10);
@@ -62,7 +62,7 @@ export const ACHIEVEMENTS = [
   {
     id: 'no_puffs_3',
     title: 'Três Dias Limpos',
-    description: 'Não use nenhum cigarro eletrônico durante 3 dias',
+    description: 'Passou 3 dias sem usar o vape',
     icon: '🎯',
     condition: (records) => {
       const dates = [...new Set(records.map((r) => r.date))].sort().reverse();
@@ -80,8 +80,8 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'total_no_7',
-    title: 'Semana de Resistência',
-    description: '7 dias no total sem usar (não precisa ser seguido)',
+    title: 'Resistência',
+    description: '7 dias sem usar, não precisa ser seguido',
     icon: '🛡️',
     condition: (records) => {
       const noUseDays = new Set(
@@ -94,8 +94,8 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'economy_50',
-    title: 'Economista Iniciante',
-    description: 'Economize R$ 50 evitando cigarro eletrônico',
+    title: 'Primeiras Economias',
+    description: 'Você já guardou R$ 50 não usando o vape',
     icon: '💰',
     condition: (records, economy) => {
       const total = Object.values(economy || {}).reduce((a, v) => a + v, 0);
@@ -104,8 +104,8 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'economy_200',
-    title: 'Economista Expert',
-    description: 'Economize R$ 200 evitando cigarro eletrônico',
+    title: 'Economia de Verdade',
+    description: 'Você já guardou R$ 200 não usando o vape',
     icon: '💵',
     condition: (records, economy) => {
       const total = Object.values(economy || {}).reduce((a, v) => a + v, 0);
@@ -114,15 +114,15 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'records_10',
-    title: 'Consistência',
-    description: 'Faça 10 registros',
+    title: 'Constância',
+    description: 'Você já fez 10 registros',
     icon: '📊',
     condition: (records) => records.length >= 10,
   },
   {
     id: 'records_30',
     title: 'Dedicação',
-    description: 'Faça 30 registros',
+    description: 'Você já fez 30 registros',
     icon: '⭐',
     condition: (records) => records.length >= 30,
   },
