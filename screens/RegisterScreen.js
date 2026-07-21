@@ -400,7 +400,7 @@ export default function RegisterScreen({ navigation }) {
                                 maximumValue={10}
                                 step={1}
                                 value={intensity}
-                                onValueChange={setIntensity}
+                                onValueChange={(val) => setIntensity(val[0])}
                                 minimumTrackTintColor={intensityColor}
                                 maximumTrackTintColor={colors.border}
                                 thumbTintColor={intensityColor}

@@ -38,6 +38,11 @@ const FILTERS = [
     { id: 'month', label: 'Mês', days: 90 },
 ];
 
+const METRICS = [
+    { id: 'puffs', label: 'Puxadas' },
+    { id: 'intensity', label: 'Vontade' },
+];
+
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 function parseLocalDate(dateStr) {
@@ -76,7 +81,20 @@ function compareDateKeys(a, b) {
     return a.localeCompare(b);
 }
 
-function groupRecordsBy(records, getKey) {
+function groupRecordsBy(records, getKey, metric) {
+    if (metric === 'intensity') {
+        const sums = records.reduce((groups, record) => {
+            const key = getKey(record.date);
+            if (!groups[key]) groups[key] = { total: 0, count: 0 };
+            const value = Array.isArray(record.intensity) ? record.intensity[0] : record.intensity;
+            groups[key].total += Number(value) || 0;
+            groups[key].count += 1;
+            return groups;
+        }, {});
+        return Object.fromEntries(
+            Object.entries(sums).map(([key, { total, count }]) => [key, count > 0 ? Math.round((total / count) * 10) / 10 : 0])
+        );
+    }
     return records.reduce((groups, record) => {
         const key = getKey(record.date);
         if (!groups[key]) groups[key] = 0;
@@ -90,6 +108,7 @@ export default function HistoryScreen({ navigation }) {
     const { user } = useAuth();
     const [records, setRecords] = useState([]);
     const [filter, setFilter] = useState('day');
+    const [metric, setMetric] = useState('puffs');
     const [editingRecord, setEditingRecord] = useState(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [transition, setTransition] = useState({ type: 'fade', direction: 'right' });
@@ -106,24 +125,24 @@ export default function HistoryScreen({ navigation }) {
 
     const getGroupedData = () => {
         if (filter === 'day') {
-            const groupedDays = groupRecordsBy(records, (dateStr) => dateStr);
-            const chartDates = Object.keys(groupedDays).sort(compareDateKeys).slice(-7);
+            const groupedDays = groupRecordsBy(records, (dateStr) => dateStr, metric);
+            const chartDates = Object.keys(groupedDays).sort(compareDateKeys).slice(-10);
             return {
                 labels: chartDates.map(formatDayLabel),
                 data: chartDates.map((dateKey) => groupedDays[dateKey]),
             };
         }
         if (filter === 'week') {
-            const weekGroups = groupRecordsBy(records, startOfWeekKey);
-            const sortedWeeks = Object.keys(weekGroups).sort(compareDateKeys).slice(-8);
+            const weekGroups = groupRecordsBy(records, startOfWeekKey, metric);
+            const sortedWeeks = Object.keys(weekGroups).sort(compareDateKeys).slice(-6);
             return {
                 labels: sortedWeeks.map(formatWeekLabel),
                 data: sortedWeeks.map((weekKey) => weekGroups[weekKey]),
             };
         }
         if (filter === 'month') {
-            const monthGroups = groupRecordsBy(records, startOfMonthKey);
-            const sortedMonths = Object.keys(monthGroups).sort(compareDateKeys).slice(-12);
+            const monthGroups = groupRecordsBy(records, startOfMonthKey, metric);
+            const sortedMonths = Object.keys(monthGroups).sort(compareDateKeys).slice(-6);
             return { labels: sortedMonths.map(formatMonthKeyLabel), data: sortedMonths.map((m) => monthGroups[m]) };
         }
         return { labels: [], data: [] };
@@ -185,12 +204,34 @@ export default function HistoryScreen({ navigation }) {
                 ))}
             </View>
 
+            <View style={styles.filtersRow}>
+                {METRICS.map((m) => (
+                    <TouchableOpacity
+                        key={m.id}
+                        style={[
+                            styles.filterBtn,
+                            { borderColor: colors.border, backgroundColor: colors.card },
+                            metric === m.id && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+                        ]}
+                        onPress={() => setMetric(m.id)}
+                    >
+                        <Text style={[styles.filterBtnText, { color: colors.textSecondary }, metric === m.id && { color: colors.primaryDark }]}>
+                            {m.label}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
                 <View style={styles.cardHeader}>
                     <View>
-                        <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Seu gráfico</Text>
+                        <Text style={[styles.cardTitle, { color: colors.textMuted }]}>
+                            {metric === 'puffs' ? 'Puxadas' : 'Intensidade da vontade'}
+                        </Text>
                         <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-                            {filter === 'day' ? 'Mostra os últimos 7 dias com registro' : filter === 'week' ? 'Mostra as últimas 8 semanas com registro' : 'Mostra os últimos 12 meses com registro'}
+                            {metric === 'puffs'
+                                ? (filter === 'day' ? 'Total de puxadas nos últimos 10 dias com registro' : filter === 'week' ? 'Total de puxadas nas últimas 6 semanas com registro' : 'Total de puxadas nos últimos 6 meses com registro')
+                                : (filter === 'day' ? 'Vontade média nos últimos 10 dias com registro' : filter === 'week' ? 'Vontade média nas últimas 6 semanas com registro' : 'Vontade média nos últimos 6 meses com registro')}
                         </Text>
                     </View>
                 </View>
@@ -347,7 +388,7 @@ export default function HistoryScreen({ navigation }) {
                                     maximumValue={10}
                                     step={1}
                                     value={editingRecord.intensity}
-                                    onValueChange={(val) => setEditingRecord({ ...editingRecord, intensity: val })}
+                                    onValueChange={(val) => setEditingRecord({ ...editingRecord, intensity: val[0] })}
                                     minimumTrackTintColor={colors.primary}
                                     maximumTrackTintColor={colors.border}
                                     thumbTintColor={colors.primary}

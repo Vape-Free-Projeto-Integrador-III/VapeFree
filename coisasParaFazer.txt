@@ -10,8 +10,6 @@ logar/cadastrar para mostrar informacoes corretas na home, é necessario
 ao importar, as informacoes estarem corretas, sem ter que entrar no historico
 e voltar
 
-[ ] Fix gráfico da home, Y está com valores repetidos (além de feio)
-
 [ ] Fix transições bugadas com tela branca
 
 ---- URGENTE ----
