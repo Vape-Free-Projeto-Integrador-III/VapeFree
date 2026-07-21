@@ -12,6 +12,8 @@ e voltar
 
 [ ] Fix gráfico da home, Y está com valores repetidos (além de feio)
 
+[ ] Fix transições bugadas com tela branca
+
 ---- URGENTE ----
 
 [ ] Tutorial / onboarding
@@ -125,12 +127,6 @@ e voltar
       - Completar missão
       - Usar o botão de emergência
     Melhora muito a sensação de resposta do app
-
-[ ] Animação de entrada nas telas
-    Adicionar transições suaves ao navegar entre telas.
-    React Navigation suporta animações customizadas.
-    Cards da HomeScreen podem ter entrada com fade/slide.
-
 
 ---- TÉCNICO ----
 
