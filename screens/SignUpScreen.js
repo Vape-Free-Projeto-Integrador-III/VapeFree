@@ -8,8 +8,8 @@ import {
     ScrollView,
     KeyboardAvoidingView,
     Platform,
-    Alert,
 } from 'react-native';
+import Alert from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';

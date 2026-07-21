@@ -7,10 +7,10 @@ import {
     StyleSheet,
     TouchableOpacity,
     TextInput,
-    Alert,
     Animated,
     Modal,
 } from 'react-native';
+import Alert from '../utils/alert';
 import { Slider } from '@miblanchard/react-native-slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
