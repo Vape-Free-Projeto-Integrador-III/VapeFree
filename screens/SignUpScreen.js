@@ -20,6 +20,7 @@ import {
     migrateGuestLocalDataToUser,
 } from '../utils/storage';
 import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
+import AnimatedScreenContent from '../components/AnimatedScreenContent';
 
 const COLORS = {
     background: '#FFFFFF',
@@ -174,6 +175,7 @@ export default function SignUpScreen({ navigation }) {
     }
 
     return (
+        <AnimatedScreenContent type="fade" backgroundColor={COLORS.background}>
         <KeyboardAvoidingView
             style={styles.flex}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -297,6 +299,7 @@ export default function SignUpScreen({ navigation }) {
                 />
             ) : null}
         </KeyboardAvoidingView>
+        </AnimatedScreenContent>
     );
 }
 

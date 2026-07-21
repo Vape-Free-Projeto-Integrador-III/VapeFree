@@ -25,6 +25,7 @@ import {
     migrateGuestLocalDataToUser,
 } from '../utils/storage';
 import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
+import AnimatedScreenContent from '../components/AnimatedScreenContent';
 
 /*Inicio import pro login do google*/
 import React, { useState, useEffect } from 'react';
@@ -253,6 +254,7 @@ export default function LoginScreen({ navigation }) {
     }
 
     return (
+        <AnimatedScreenContent type="fade" backgroundColor={COLORS.background}>
         <KeyboardAvoidingView
             style={styles.flex}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -400,6 +402,7 @@ export default function LoginScreen({ navigation }) {
                 />
             ) : null}
         </KeyboardAvoidingView>
+        </AnimatedScreenContent>
     );
 }
 

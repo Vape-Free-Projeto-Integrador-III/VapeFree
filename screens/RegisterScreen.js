@@ -1,5 +1,5 @@
 // src/screens/RegisterScreen.js
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Slider } from '@miblanchard/react-native-slider';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     saveRecord,
     updateRecord,
@@ -31,6 +32,8 @@ import {
 } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
+import AnimatedScreenContent from '../components/AnimatedScreenContent';
+import { computeTabTransition } from '../utils/tabTransition';
 
 function formatSelectedDateLabel(dateStr) {
     if (dateStr === todayString()) return 'hoje';
@@ -53,6 +56,13 @@ export default function RegisterScreen({ navigation }) {
     const [selectedDate, setSelectedDate] = useState(todayString());
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [existingRecord, setExistingRecord] = useState(null);
+    const [transition, setTransition] = useState({ type: 'fade', direction: 'right' });
+
+    useFocusEffect(
+        useCallback(() => {
+            setTransition(computeTabTransition('Register'));
+        }, [])
+    );
 
     const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
     const [pickerMonth, setPickerMonth] = useState(new Date().getMonth() + 1);
@@ -201,6 +211,7 @@ export default function RegisterScreen({ navigation }) {
     const selectedDateLabel = formatSelectedDateLabel(selectedDate);
 
     return (
+        <AnimatedScreenContent type={transition.type} direction={transition.direction} backgroundColor={colors.background}>
         <ScrollView
             style={[styles.scroll, { backgroundColor: colors.background }]}
             contentContainerStyle={styles.container}
@@ -424,6 +435,7 @@ export default function RegisterScreen({ navigation }) {
 
             <View style={{ height: 24 }} />
         </ScrollView>
+        </AnimatedScreenContent>
     );
 }
 

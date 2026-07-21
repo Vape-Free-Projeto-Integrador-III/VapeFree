@@ -24,6 +24,8 @@ import { RADIUS, SHADOW, TIPS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import ScreenHeader from '../components/ScreenHeader';
+import AnimatedScreenContent from '../components/AnimatedScreenContent';
+import { computeTabTransition } from '../utils/tabTransition';
 
 const { width } = Dimensions.get('window');
 const CHART_WIDTH = width - 64;
@@ -35,6 +37,13 @@ export default function HomeScreen({ navigation }) {
     const [device, setDevice] = useState(null);
     const [economy, setEconomy] = useState({});
     const [refreshing, setRefreshing] = useState(false);
+    const [transition, setTransition] = useState({ type: 'fade', direction: 'right' });
+
+    useFocusEffect(
+        useCallback(() => {
+            setTransition(computeTabTransition('Home'));
+        }, [])
+    );
 
     const load = useCallback(async () => {
         const [r, d, e] = await Promise.all([getRecords(), getDevice(), getEconomy()]);
@@ -83,6 +92,7 @@ export default function HomeScreen({ navigation }) {
     const welcomeName = user?.displayName?.trim();
 
     return (
+        <AnimatedScreenContent type={transition.type} direction={transition.direction} backgroundColor={colors.background}>
         <ScrollView
             style={[styles.scroll, { backgroundColor: colors.background }]}
             contentContainerStyle={styles.container}
@@ -187,6 +197,7 @@ export default function HomeScreen({ navigation }) {
                 <Ionicons name="chevron-forward" size={16} color={colors.primary} />
             </TouchableOpacity>
         </ScrollView>
+        </AnimatedScreenContent>
     );
 }
 

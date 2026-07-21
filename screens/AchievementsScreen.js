@@ -8,10 +8,13 @@ import { checkAchievements } from '../utils/achievements';
 import { RADIUS, SHADOW } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
+import AnimatedScreenContent from '../components/AnimatedScreenContent';
+import { computeTabTransition } from '../utils/tabTransition';
 
 export default function AchievementsScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const [achievements, setAchievements] = useState([]);
+    const [transition, setTransition] = useState({ type: 'fade', direction: 'right' });
 
     const load = useCallback(async () => {
         const [records, economy, savedAchievements] = await Promise.all([getRecords(), getEconomy(), getAchievements()]);
@@ -20,11 +23,13 @@ export default function AchievementsScreen({ navigation }) {
     }, []);
 
     useFocusEffect(useCallback(() => { load(); }, [load]));
+    useFocusEffect(useCallback(() => { setTransition(computeTabTransition('Achievements')); }, []));
 
     const unlockedCount = achievements.filter((a) => a.unlocked).length;
     const totalCount = achievements.length;
 
     return (
+        <AnimatedScreenContent type={transition.type} direction={transition.direction} backgroundColor={colors.background}>
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
                 title="Conquistas"
@@ -91,6 +96,7 @@ export default function AchievementsScreen({ navigation }) {
 
             <View style={{ height: 24 }} />
         </ScrollView>
+        </AnimatedScreenContent>
     );
 }
 

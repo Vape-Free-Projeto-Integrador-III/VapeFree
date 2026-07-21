@@ -29,6 +29,7 @@ function HomeTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        animation: 'none',
         tabBarStyle: {
           backgroundColor: colors.tabBar,
           borderTopWidth: 0.5,
@@ -66,7 +67,7 @@ function HomeTabs() {
 // o AppNavigator trocar automaticamente para a AuthStack abaixo.
 function MainStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
       <Stack.Screen name="Main" component={HomeTabs} />
       <Stack.Screen name="Device" component={DeviceScreen} />
       <Stack.Screen name="Profile" component={Profile} />
@@ -77,7 +78,7 @@ function MainStack() {
 // Stack exibida quando NÃO existe usuário autenticado.
 function AuthStack({ initialRouteName = 'Login' }) {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
+    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }} initialRouteName={initialRouteName}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
     </Stack.Navigator>

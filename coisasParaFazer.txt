@@ -131,12 +131,6 @@ e voltar
     React Navigation suporta animações customizadas.
     Cards da HomeScreen podem ter entrada com fade/slide.
 
-[ ] Estado vazio mais engajante
-    Quando não há registros, as telas mostram texto simples.
-    Substituir por ilustrações simples + CTA claro.
-    Ex na Home: ilustração + "Começa registrando seu primeiro dia! 👇"
-    com botão direto para RegisterScreen.
-
 
 ---- TÉCNICO ----
 
