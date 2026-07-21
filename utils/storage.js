@@ -35,6 +35,7 @@ const KEYS = {
   DEVICE: '@vapefree_device',
   ECONOMY: '@vapefree_economy',
   ACHIEVEMENTS: '@vapefree_achievements',
+  CRISIS: '@vapefree_crisis',
 };
 
 async function readJson(key, fallback) {
@@ -52,11 +53,12 @@ function getUid() {
 }
 
 export async function getGuestLocalData() {
-  const [records, device, economy, achievements] = await Promise.all([
+  const [records, device, economy, achievements, crisisSessions] = await Promise.all([
     readJson(KEYS.RECORDS, []),
     readJson(KEYS.DEVICE, null),
     readJson(KEYS.ECONOMY, {}),
     readJson(KEYS.ACHIEVEMENTS, []),
+    readJson(KEYS.CRISIS, []),
   ]);
 
   return {
@@ -64,6 +66,7 @@ export async function getGuestLocalData() {
     device: device ?? null,
     economy: economy && typeof economy === 'object' ? economy : {},
     achievements: Array.isArray(achievements) ? achievements : [],
+    crisisSessions: Array.isArray(crisisSessions) ? crisisSessions : [],
   };
 }
 
@@ -73,7 +76,8 @@ export async function hasGuestLocalData() {
     data.records.length > 0 ||
     data.device !== null ||
     Object.keys(data.economy).length > 0 ||
-    data.achievements.length > 0
+    data.achievements.length > 0 ||
+    data.crisisSessions.length > 0
   );
 }
 
@@ -115,6 +119,7 @@ export async function migrateGuestLocalDataToUser(uid = getUid()) {
 
   await replaceCollectionDocs(uid, 'records', data.records);
   await replaceCollectionDocs(uid, 'achievements', data.achievements);
+  await replaceCollectionDocs(uid, 'crisisSessions', data.crisisSessions);
   await clearGuestLocalData();
   return true;
 }
@@ -364,6 +369,45 @@ export async function saveAchievement(achievementId, unlockedAt) {
       achievements.push(entry);
       await AsyncStorage.setItem(KEYS.ACHIEVEMENTS, JSON.stringify(achievements));
     }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Crisis Sessions ─────────────────────────────────────────────────────────
+// Cada vez que o usuário abre o modo crise ("Estou com vontade") vira uma
+// sessão aqui. Modo conta: subcoleção users/{uid}/crisisSessions. Modo
+// convidado: array no AsyncStorage.
+//
+// Shape: { id, date, time, method, durationSec, completed, outcome, note }
+//   method  -> 'respiracao' | 'timer' | 'distracao' | null
+//   outcome -> 'passou' | 'diminuiu' | 'usei' | null (usuário pulou o feedback)
+
+export async function getCrisisSessions() {
+  const uid = getUid();
+  try {
+    if (uid) {
+      const snap = await getDocs(collection(db, 'users', uid, 'crisisSessions'));
+      return snap.docs.map((d) => d.data());
+    }
+    const raw = await AsyncStorage.getItem(KEYS.CRISIS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveCrisisSession(session) {
+  const uid = getUid();
+  try {
+    if (uid) {
+      await setDoc(doc(db, 'users', uid, 'crisisSessions', String(session.id)), session);
+      return true;
+    }
+    const sessions = await getCrisisSessions();
+    sessions.push(session);
+    await AsyncStorage.setItem(KEYS.CRISIS, JSON.stringify(sessions));
     return true;
   } catch {
     return false;

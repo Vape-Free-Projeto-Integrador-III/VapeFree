@@ -74,6 +74,27 @@ export const HELPS = [
   { id: 'outro', label: 'Outro', emoji: '➕' },
 ];
 
+// Distrações rápidas do modo crise. "detail" é a instrução concreta —
+// vontade forte não combina com texto vago.
+export const DISTRACTIONS = [
+  { id: 'agua', label: 'Beber um copo de água', emoji: '💧', detail: 'Devagar, gole por gole. Ocupa a boca e as mãos.' },
+  { id: 'caminhar', label: 'Dar uma volta de 5 min', emoji: '🚶', detail: 'Sai do ambiente onde a vontade apareceu.' },
+  { id: 'musica', label: 'Ouvir uma música inteira', emoji: '🎧', detail: 'Uma música dura mais que o pico da fissura.' },
+  { id: 'ligar', label: 'Ligar pra alguém', emoji: '📞', detail: 'Não precisa nem falar do vape. Só conversa.' },
+  { id: 'banho', label: 'Tomar um banho frio', emoji: '🚿', detail: 'Choque de temperatura corta o ciclo da ansiedade.' },
+  { id: 'mao', label: 'Ocupar as mãos', emoji: '🤲', detail: 'Lavar louça, arrumar algo, apertar uma bolinha.' },
+];
+
+// Frases do topo da tela de crise, para quando ainda não dá pra
+// personalizar pelo gatilho mais comum (poucos registros).
+export const CRISIS_MESSAGES = [
+  'A vontade é uma onda: sobe, quebra e passa. Geralmente em 3 a 5 minutos.',
+  'Você não precisa aguentar pra sempre. Só os próximos minutos.',
+  'Estar aqui já é escolher diferente. Isso conta.',
+  'Essa vontade não é uma ordem. É só um impulso passando.',
+  'Você já passou por isso antes e continuou aqui.',
+];
+
 export const MOTIVATIONAL_MESSAGES = [
   'Ótimo! Continue assim! 💪',
   'Incrível! Você é mais forte do que pensa! 🌟',

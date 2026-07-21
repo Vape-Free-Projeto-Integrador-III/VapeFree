@@ -107,6 +107,20 @@ export default function HomeScreen({ navigation }) {
                 onProfilePress={openProfile}
             />
 
+            <TouchableOpacity
+                style={[styles.crisisCard, { backgroundColor: colors.card, borderLeftColor: colors.warning }, SHADOW.medium]}
+                onPress={() => navigation.navigate('Crisis')}
+            >
+                <Ionicons name="hand-left" size={26} color={colors.warning} />
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.crisisTitle, { color: colors.text }]}>Estou com vontade</Text>
+                    <Text style={[styles.crisisSubtitle, { color: colors.textSecondary }]}>
+                        Toca aqui — a gente passa por isso junto
+                    </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
                 <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Como você foi hoje?</Text>
                 <View style={styles.statRow}>
@@ -221,6 +235,18 @@ const styles = StyleSheet.create({
         letterSpacing: 0.8,
         marginBottom: 14,
     },
+    crisisCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        borderRadius: RADIUS.lg,
+        borderLeftWidth: 4,
+        padding: 16,
+        marginHorizontal: 16,
+        marginTop: 14,
+    },
+    crisisTitle: { fontSize: 16, fontWeight: '800' },
+    crisisSubtitle: { fontSize: 12, marginTop: 2 },
     statRow: { flexDirection: 'row', gap: 8 },
     statBox: {
         flex: 1,

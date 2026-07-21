@@ -20,17 +20,25 @@ Nota: usa paleta de cores própria hardcoded (`#2F6FED` etc.), não vem de `useT
 
 ## `InsightsCard` (`components/InsightsCard.js`)
 
-Card "Seus padrões" da tela de Histórico, renderizado entre o gráfico e a lista de registros. Props: `records`, `colors`.
+Card "Seus padrões" da tela de Histórico, renderizado entre o gráfico e a lista de registros. Props: `records`, `crisisSessions` (default `[]`), `colors`.
 
 Componente de apresentação puro — todo o cálculo vive em `computeInsights` (`utils/insights.js`), que é função pura sobre a lista de registros. Três estados:
 
 - Menos de `MIN_RECORDS_FOR_INSIGHTS` (7) registros → card compacto "Registre por mais X dias para ver seus padrões."
-- Registros suficientes e algum padrão qualificado → título + até 4 linhas (emoji, título, detalhe).
+- Registros suficientes e algum padrão qualificado → seção "Seus padrões" com até 4 linhas (emoji, título, detalhe).
 - Registros suficientes mas nenhum padrão qualificado (ex.: só dias sem usar, sem gatilho marcado) → `return null`, nada renderiza.
+
+Insights do modo crise (`computeCrisisInsights`, ids com prefixo `crise_`) aparecem numa segunda seção, "No modo crise", e **não** dependem do mínimo de 7 registros — quem usou o modo crise já gerou dado próprio. Se só houver esses, o card mostra só essa seção.
 
 Insight novo = função nova em `utils/insights.js` devolvendo `{ id, icon, title, detail }`, somada ao array de `computeInsights`. O componente não precisa mudar.
 
 Nenhum insight usa o campo `time` do registro: ele guarda a hora em que o formulário foi salvo, não a hora do uso (o registro pode ser retroativo).
+
+## `CrisisOutcomeModal` (`components/CrisisOutcomeModal.js`)
+
+Modal central usado só pela `CrisisScreen`, ao encerrar uma sessão de modo crise. Pergunta "E aí, como foi?" com três chips (Passou / Diminuiu / Acabei usando) + nota opcional. Props: `visible`, `colors`, `onSubmit(outcome, note)`, `onSkip`.
+
+É um dos poucos casos legítimos de `Modal` em vez de `Alert` (escolha de dados + texto livre). A resposta vira o campo `outcome` da `CrisisSession` e alimenta `recommendedCrisisMethod` — sem ela, o app não tem como aprender qual método funciona pra aquele usuário. O texto de "Acabei usando" é deliberadamente sem julgamento.
 
 ## Padrões de UI repetidos entre telas (não componentizados)
 

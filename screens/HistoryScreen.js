@@ -26,6 +26,7 @@ import {
     getDevice,
     recalcEconomy,
     getEconomy,
+    getCrisisSessions,
 } from '../utils/storage';
 import { RADIUS, SHADOW, TRIGGERS, HELPS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
@@ -104,6 +105,7 @@ export default function HistoryScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const { user } = useAuth();
     const [records, setRecords] = useState([]);
+    const [crisisSessions, setCrisisSessions] = useState([]);
     const [filter, setFilter] = useState('day');
     const [metric, setMetric] = useState('puffs');
     const [editingRecord, setEditingRecord] = useState(null);
@@ -113,8 +115,9 @@ export default function HistoryScreen({ navigation }) {
     const uid = user?.uid ?? null;
 
     const load = async (activeUid = uid) => {
-        const r = await getRecords(activeUid);
+        const [r, sessions] = await Promise.all([getRecords(activeUid), getCrisisSessions()]);
         setRecords(r);
+        setCrisisSessions(sessions);
     };
 
     useFocusEffect(useCallback(() => { load(uid); }, [uid]));
@@ -267,7 +270,7 @@ export default function HistoryScreen({ navigation }) {
                 ) : null}
             </View>
 
-            <InsightsCard records={records} colors={colors} />
+            <InsightsCard records={records} crisisSessions={crisisSessions} colors={colors} />
 
             {records.length > 0 ? (
                 allRecords.map((rec) => (

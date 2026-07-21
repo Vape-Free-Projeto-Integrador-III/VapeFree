@@ -13,7 +13,7 @@ function getUid() {
 ```
 
 - **Logado** (`uid` existe) → Cloud Firestore, sob `users/{uid}/...`.
-- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_economy`, `@vapefree_achievements`).
+- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`).
 
 Não há cache/estado duplicado entre as duas fontes — cada chamada relê a fonte atual.
 
@@ -37,13 +37,15 @@ Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
 **Achievement (desbloqueada)**: `{ id, unlockedAt }`. Firestore: subcoleção `users/{uid}/achievements`, doc id = `String(achievementId)`. Convidado: array em `@vapefree_achievements`. Lista completa de conquistas possíveis (não persistida, é código) está em `utils/achievements.js` — ver `ACHIEVEMENTS`.
 
+**CrisisSession** (modo crise): `{ id, date, time, method, durationSec, completed, outcome, note }`. `id` = `Date.now()`, `method` ∈ `'respiracao' | 'timer' | 'distracao' | null`, `outcome` ∈ `'passou' | 'diminuiu' | 'usei' | null` (null = usuário pulou o feedback). Firestore: subcoleção `users/{uid}/crisisSessions`. Convidado: array em `@vapefree_crisis`. Salva sempre que o usuário encerra a `CrisisScreen`, mesmo sem responder o feedback — ter pedido ajuda já é dado. Lido por `recommendedCrisisMethod` (`utils/insights.js`) para sugerir na próxima crise o método que já funcionou.
+
 ## Cálculo de economia
 
 `recalcEconomy(records, device)`: `costPerPuff = device.price / device.totalPuffs`, `dailyGoal = device.totalPuffs / device.days`. Para cada dia com registro, `economia = max(0, dailyGoal - puffsUsados) * costPerPuff`. Grava o mapa inteiro via `setEconomy`. Chamado depois de qualquer `saveRecord`/`updateRecord`/`deleteRecord` e depois de salvar um `device` novo.
 
 ## Migração convidado → conta
 
-`migrateGuestLocalDataToUser(uid)`: lê tudo do `AsyncStorage`, grava `device`/`economy` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records` e `achievements` (apaga os docs existentes na conta antes de escrever — é uma sobreposição, não um merge de listas), depois limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
+`migrateGuestLocalDataToUser(uid)`: lê tudo do `AsyncStorage`, grava `device`/`economy` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements` e `crisisSessions` (apaga os docs existentes na conta antes de escrever — é uma sobreposição, não um merge de listas), depois limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
 
 ## Helpers puros (sem I/O)
 

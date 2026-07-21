@@ -3,7 +3,7 @@
 ========================================
 
 
----- BUGS / FIXES ----
+---- BUGS / FIXES / CHECKS ----
 
 [ ] Fix ter que entrar no historico apos importar conta convidado ao
 logar/cadastrar para mostrar informacoes corretas na home, é necessario
@@ -11,6 +11,8 @@ ao importar, as informacoes estarem corretas, sem ter que entrar no historico
 e voltar
 
 [ ] Fix transições bugadas com tela branca
+
+[ ] Verificar modo crise e arrumar insights dela
 
 ---- URGENTE ----
 
@@ -77,27 +79,6 @@ e voltar
     O usuário ganha 1 escudo após 7 dias de streak.
     Se esquecer de registrar um dia, o escudo é consumido
     e o streak é mantido. Exibir ícone de escudo na HomeScreen.
-
-
----- MODO CRISE ----
-
-[ ] Botão de emergência / modo crise
-    Botão flutuante ou card destacado na Home: "Estou com vontade".
-    Ao tocar, abre uma tela com recursos imediatos:
-      - Exercício de respiração guiada (4-7-8 ou box breathing)
-        com animação visual e timer
-      - Lista de distrações rápidas (beber água, dar uma volta,
-        ouvir música, ligar para alguém)
-      - Mensagem motivacional personalizada baseada nos triggers
-        mais frequentes do usuário
-      - Timer de "aguente X minutos" — a vontade passa em 3-5 min
-    Registrar automaticamente quando o modo crise foi usado.
-
-[ ] Respiração guiada como tela própria
-    Animação de círculo que expande e contrai.
-    Fases: inspirar (4s) → segurar (4s) → expirar (4s) → segurar (4s).
-    Opção de escolher duração da sessão (1min, 3min, 5min).
-    Integrar com o modo crise e também como atividade das missões.
 
 ---- SOCIAL ----
 

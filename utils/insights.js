@@ -74,6 +74,14 @@ function mostCommonTrigger(usedRecords) {
   };
 }
 
+// Só o rótulo do gatilho mais comum — usado pela tela de crise para a
+// mensagem personalizada, sem precisar do pacote inteiro de insights.
+export function topTriggerLabel(records) {
+  const used = (Array.isArray(records) ? records : []).filter((r) => r.used);
+  const top = topEntry(countLabels(used, 'triggers'));
+  return top ? top.label : null;
+}
+
 function riskiestWeekday(records) {
   const byWeekday = {};
   records.forEach((record) => {
@@ -143,10 +151,145 @@ function bestHelp(freeRecords) {
   };
 }
 
-export function computeInsights(records) {
+// ─── Modo crise ──────────────────────────────────────────────────────────────
+
+export const CRISIS_METHODS = {
+  respiracao: { label: 'Respiração guiada', emoji: '🧘' },
+  timer: { label: 'Aguentar alguns minutos', emoji: '⏱️' },
+  distracao: { label: 'Distrações rápidas', emoji: '💧' },
+};
+
+// "Passou" vale 1, "diminuiu" vale meio ponto — diminuir também é vitória,
+// só não do mesmo tamanho. "usei" vale 0.
+const OUTCOME_WEIGHT = { passou: 1, diminuiu: 0.5, usei: 0 };
+
+// Qual método já funcionou melhor PRA ESTE usuário. Só considera método com
+// pelo menos 2 sessões avaliadas — uma sessão é sorte, não padrão (mesma
+// regra de riskiestWeekday e strongestTrigger).
+export function recommendedCrisisMethod(sessions) {
+  const list = Array.isArray(sessions) ? sessions : [];
+  const stats = {};
+
+  list.forEach((session) => {
+    const weight = OUTCOME_WEIGHT[session.outcome];
+    if (weight === undefined || !CRISIS_METHODS[session.method]) return;
+    if (!stats[session.method]) stats[session.method] = { total: 0, count: 0 };
+    stats[session.method].total += weight;
+    stats[session.method].count += 1;
+  });
+
+  const candidates = Object.entries(stats)
+    .filter(([, { count }]) => count >= 2)
+    .map(([method, { total, count }]) => ({ method, successRate: total / count }))
+    .filter(({ successRate }) => successRate > 0);
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => b.successRate - a.successRate);
+  return candidates[0];
+}
+
+// Períodos do dia. Diferente do campo "time" do registro (que é a hora em
+// que o formulário foi salvo), o "time" da sessão de crise é a hora real em
+// que a vontade bateu — então aqui insight de horário faz sentido.
+const DAY_PERIODS = [
+  { id: 'madrugada', label: 'de madrugada', from: 0, to: 5 },
+  { id: 'manha', label: 'de manhã', from: 6, to: 11 },
+  { id: 'tarde', label: 'à tarde', from: 12, to: 17 },
+  { id: 'noite', label: 'à noite', from: 18, to: 23 },
+];
+
+function periodOf(timeStr) {
+  const hour = Number(String(timeStr || '').slice(0, 2));
+  if (Number.isNaN(hour)) return null;
+  return DAY_PERIODS.find((p) => hour >= p.from && hour <= p.to) || null;
+}
+
+function crisisCount(sessions) {
+  const survived = sessions.filter((s) => s.outcome === 'passou' || s.outcome === 'diminuiu');
+  if (survived.length < 2) return null;
+
+  return {
+    id: 'crise_superadas',
+    icon: '🛟',
+    title: `Você superou ${survived.length} ${survived.length === 1 ? 'crise' : 'crises'}`,
+    detail: `Foram ${sessions.length} ${sessions.length === 1 ? 'vez' : 'vezes'} que você abriu o modo crise em vez de simplesmente usar.`,
+  };
+}
+
+function crisisBestMethod(sessions) {
+  const best = recommendedCrisisMethod(sessions);
+  if (!best) return null;
+
+  const percent = Math.round(best.successRate * 100);
+  return {
+    id: 'crise_metodo',
+    icon: CRISIS_METHODS[best.method].emoji,
+    title: `${CRISIS_METHODS[best.method].label} é o que mais te segura`,
+    detail: `Nas crises em que você usou esse método, ${percent}% terminaram sem uso ou com a vontade menor.`,
+  };
+}
+
+function crisisSuccessRate(sessions) {
+  const answered = sessions.filter((s) => s.outcome);
+  if (answered.length < 3) return null;
+
+  const held = answered.filter((s) => s.outcome !== 'usei');
+  const percent = Math.round((held.length / answered.length) * 100);
+  if (percent === 0) return null;
+
+  return {
+    id: 'crise_taxa',
+    icon: '💪',
+    title: `Você aguenta ${percent}% das crises`,
+    detail: `${held.length} de ${answered.length} vezes a vontade passou ou diminuiu sem você usar.`,
+  };
+}
+
+function crisisPeriod(sessions) {
+  const counts = {};
+  sessions.forEach((session) => {
+    const period = periodOf(session.time);
+    if (period) counts[period.id] = (counts[period.id] || 0) + 1;
+  });
+
+  const top = topEntry(counts);
+  // Menos de 3 crises no mesmo período é coincidência, não horário de risco.
+  if (!top || top.count < 3) return null;
+
+  const period = DAY_PERIODS.find((p) => p.id === top.label);
+  return {
+    id: 'crise_horario',
+    icon: '🕒',
+    title: `Sua vontade bate mais ${period.label}`,
+    detail: `${top.count} das suas crises começaram nesse período. Vale se preparar antes dessa hora.`,
+  };
+}
+
+// Insights do modo crise. Não dependem de MIN_RECORDS_FOR_INSIGHTS: quem
+// usou o modo crise já gerou dado próprio, mesmo com poucos registros.
+export function computeCrisisInsights(crisisSessions) {
+  const sessions = Array.isArray(crisisSessions) ? crisisSessions : [];
+  if (sessions.length === 0) return [];
+
+  return [
+    crisisCount(sessions),
+    crisisSuccessRate(sessions),
+    crisisBestMethod(sessions),
+    crisisPeriod(sessions),
+  ].filter(Boolean);
+}
+
+export function computeInsights(records, crisisSessions = []) {
   const list = Array.isArray(records) ? records : [];
+  const crisisItems = computeCrisisInsights(crisisSessions);
 
   if (list.length < MIN_RECORDS_FOR_INSIGHTS) {
+    // Ainda sem registros suficientes pros padrões de uso, mas se já tem
+    // insight de crise vale mostrar em vez de esconder tudo.
+    if (crisisItems.length > 0) {
+      return { ready: true, missing: MIN_RECORDS_FOR_INSIGHTS - list.length, items: crisisItems };
+    }
     return { ready: false, missing: MIN_RECORDS_FOR_INSIGHTS - list.length, items: [] };
   }
 
@@ -164,7 +307,8 @@ export function computeInsights(records) {
 
   const items = [common, riskiestWeekday(list), strongest, bestHelp(freeRecords)]
     .filter(Boolean)
-    .slice(0, 4);
+    .slice(0, 4)
+    .concat(crisisItems);
 
   return { ready: true, missing: 0, items };
 }

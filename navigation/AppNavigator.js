@@ -12,6 +12,8 @@ import HistoryScreen from '../screens/HistoryScreen';
 import AchievementsScreen from '../screens/AchievementsScreen';
 import DeviceScreen from '../screens/DeviceScreen';
 import Profile from '../screens/Profile';
+import CrisisScreen from '../screens/CrisisScreen';
+import BreathingScreen from '../screens/BreathingScreen';
 import { SHADOW } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -71,6 +73,8 @@ function MainStack() {
       <Stack.Screen name="Main" component={HomeTabs} />
       <Stack.Screen name="Device" component={DeviceScreen} />
       <Stack.Screen name="Profile" component={Profile} />
+      <Stack.Screen name="Crisis" component={CrisisScreen} />
+      <Stack.Screen name="Breathing" component={BreathingScreen} />
     </Stack.Navigator>
   );
 }

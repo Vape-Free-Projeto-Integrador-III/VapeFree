@@ -10,8 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { RADIUS, SHADOW } from '../utils/theme';
 import { computeInsights } from '../utils/insights';
 
-export default function InsightsCard({ records, colors }) {
-  const { ready, missing, items } = computeInsights(records);
+export default function InsightsCard({ records, crisisSessions = [], colors }) {
+  const { ready, missing, items } = computeInsights(records, crisisSessions);
 
   if (!ready) {
     return (
@@ -26,24 +26,47 @@ export default function InsightsCard({ records, colors }) {
 
   if (items.length === 0) return null;
 
+  // Insights do modo crise (id com prefixo "crise_") ganham seção própria —
+  // falam de outro momento (a fissura), não do padrão de uso.
+  const patternItems = items.filter((item) => !item.id.startsWith('crise'));
+  const crisisItems = items.filter((item) => item.id.startsWith('crise'));
+
+  const renderRow = (item, index) => (
+    <View
+      key={item.id}
+      style={[styles.row, index > 0 && { borderTopWidth: 1, borderTopColor: colors.borderLight }]}
+    >
+      <Text style={styles.rowIcon}>{item.icon}</Text>
+      <View style={styles.rowBody}>
+        <Text style={[styles.rowTitle, { color: colors.text }]}>{item.title}</Text>
+        <Text style={[styles.rowDetail, { color: colors.textSecondary }]}>{item.detail}</Text>
+      </View>
+    </View>
+  );
+
   return (
     <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
-      <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Seus padrões</Text>
-      {items.map((item, index) => (
-        <View
-          key={item.id}
-          style={[
-            styles.row,
-            index > 0 && { borderTopWidth: 1, borderTopColor: colors.borderLight },
-          ]}
-        >
-          <Text style={styles.rowIcon}>{item.icon}</Text>
-          <View style={styles.rowBody}>
-            <Text style={[styles.rowTitle, { color: colors.text }]}>{item.title}</Text>
-            <Text style={[styles.rowDetail, { color: colors.textSecondary }]}>{item.detail}</Text>
-          </View>
-        </View>
-      ))}
+      {patternItems.length > 0 ? (
+        <>
+          <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Seus padrões</Text>
+          {patternItems.map(renderRow)}
+        </>
+      ) : null}
+
+      {crisisItems.length > 0 ? (
+        <>
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.textMuted },
+              patternItems.length > 0 && styles.sectionSpacing,
+            ]}
+          >
+            No modo crise
+          </Text>
+          {crisisItems.map(renderRow)}
+        </>
+      ) : null}
     </View>
   );
 }
@@ -53,6 +76,7 @@ const styles = StyleSheet.create({
   waitingCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
   waitingText: { fontSize: 12, flex: 1 },
   cardTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
+  sectionSpacing: { marginTop: 16 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12 },
   rowIcon: { fontSize: 18, lineHeight: 22 },
   rowBody: { flex: 1 },

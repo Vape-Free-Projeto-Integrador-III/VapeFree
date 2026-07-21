@@ -13,8 +13,10 @@ AppNavigator
 │    │    ├─ Register      (RegisterScreen)     label "Registrar"
 │    │    ├─ History       (HistoryScreen)      label "Histórico"
 │    │    └─ Achievements  (AchievementsScreen)  label "Conquistas"
-│    ├─ Device  (DeviceScreen)
-│    └─ Profile (Profile)
+│    ├─ Device    (DeviceScreen)
+│    ├─ Profile   (Profile)
+│    ├─ Crisis    (CrisisScreen)     modo crise, a partir do card da Home
+│    └─ Breathing (BreathingScreen)  respiração guiada
 └─ else                      → AuthStack (Stack.Navigator, headerShown: false)
      ├─ Login  (LoginScreen)
      └─ SignUp (SignUpScreen)
@@ -26,7 +28,12 @@ A troca `MainStack` ↔ `AuthStack` é automática: acontece porque `user`/`isGu
 
 ## Params entre telas
 
-Nenhuma tela hoje recebe `route.params` — toda navegação é `navigation.navigate('NomeDaRota')` sem payload. `Device` e `Profile` são acessíveis a partir de qualquer tab via `onProfilePress`/botões dedicados (não fazem parte das tabs, ficam como telas de stack "por cima").
+Só o par `Crisis` ↔ `Breathing` usa `route.params`:
+
+- `Crisis` → `navigate('Breathing', { fromCrisis: true })`.
+- `Breathing` → `navigate('Crisis', { completedMethod: 'respiracao', durationSec, completed })` ao terminar ou parar. Como `Crisis` já está na stack, isso volta pra ela com os params novos, e ela abre o modal de "como foi?". A `CrisisScreen` limpa esses params com `navigation.setParams({ completedMethod: undefined, ... })` logo que os consome — senão reabriria o modal a cada foco.
+
+O resto da navegação é `navigation.navigate('NomeDaRota')` sem payload. `Device` e `Profile` são acessíveis a partir de qualquer tab via `onProfilePress`/botões dedicados (não fazem parte das tabs, ficam como telas de stack "por cima").
 
 ## Ícones das tabs
 
