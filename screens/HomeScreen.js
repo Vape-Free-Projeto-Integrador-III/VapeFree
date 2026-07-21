@@ -159,10 +159,12 @@ export default function HomeScreen({ navigation }) {
                     <LineChart
                         data={{
                             labels: chartLabels,
-                            datasets: [{ data: chartData.map((v) => (v === 0 ? 0 : v)) }],
+                            datasets: [{ data: chartData }],
                         }}
                         width={CHART_WIDTH}
                         height={180}
+                        fromZero
+                        segments={Math.max(1, Math.min(4, Math.max(...chartData)))}
                         chartConfig={{
                             backgroundColor: colors.card,
                             backgroundGradientFrom: colors.card,
@@ -172,6 +174,7 @@ export default function HomeScreen({ navigation }) {
                             labelColor: () => colors.textSecondary,
                             propsForDots: { r: '4', strokeWidth: '2', stroke: colors.primaryDark },
                             propsForBackgroundLines: { stroke: colors.borderLight },
+                            formatYLabel: (v) => `${Math.round(Number(v))}`,
                         }}
                         bezier
                         style={styles.chart}

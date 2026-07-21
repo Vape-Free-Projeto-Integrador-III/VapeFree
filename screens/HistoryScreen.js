@@ -202,6 +202,7 @@ export default function HistoryScreen({ navigation }) {
                         height={180}
                         fromZero
                         showValuesOnTopOfBars
+                        segments={Math.max(1, Math.min(4, Math.max(...chartData)))}
                         chartConfig={{
                             backgroundColor: colors.card,
                             backgroundGradientFrom: colors.card,
@@ -213,6 +214,7 @@ export default function HistoryScreen({ navigation }) {
                             barPercentage: 0.65,
                             fillShadowGradient: colors.primary,
                             fillShadowGradientOpacity: 1,
+                            formatYLabel: (v) => `${Math.round(Number(v))}`,
                         }}
                         style={styles.chart}
                     />
