@@ -99,14 +99,6 @@ e voltar
     Opção de escolher duração da sessão (1min, 3min, 5min).
     Integrar com o modo crise e também como atividade das missões.
 
-[ ] Análise de triggers personalizada
-    Com dados suficientes, mostrar na tela de Histórico ou Perfil:
-      - "Seu gatilho mais comum é Ansiedade (60% das vezes)"
-      - "Você usa mais às quartas-feiras"
-      - "Seu horário de maior risco é entre 18h e 21h"
-    Usar os campos trigger e intensity já salvos nos registros.
-
-
 ---- SOCIAL ----
 
 [ ] Compartilhar conquista

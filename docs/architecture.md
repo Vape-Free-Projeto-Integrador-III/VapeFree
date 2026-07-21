@@ -10,6 +10,8 @@ utils/storage.js    → única porta de entrada para dados (decide AsyncStorage 
 services/firebase.*  → inicialização do SDK Firebase
 ```
 
+Ao lado de `utils/storage.js` existem os **módulos puros de derivação** — `utils/achievements.js` (quais conquistas o histórico desbloqueia) e `utils/insights.js` (quais padrões o histórico revela). Eles não leem nem escrevem nada: recebem `records` já carregados e devolvem o resultado calculado. Lógica nova que só transforma registros em informação deve entrar nesse formato, não dentro da tela.
+
 Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda função de `utils/storage.js` (`getRecords`, `saveDevice`, etc.) decide isso internamente olhando `auth.currentUser`. Isso é o que torna o app "isomórfico" entre os dois modos sem duplicar telas. Detalhe do modelo de dados em [database.md](database.md).
 
 ## Entry point e providers

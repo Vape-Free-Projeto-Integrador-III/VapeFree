@@ -1,6 +1,6 @@
 # Componentes e padrões de UI
 
-`components/` tem só dois componentes compartilhados hoje — a maioria da UI é escrita direto em cada `screens/*.js` (não há biblioteca de design system própria além do que está descrito aqui).
+`components/` tem poucos componentes compartilhados hoje — a maioria da UI é escrita direto em cada `screens/*.js` (não há biblioteca de design system própria além do que está descrito aqui).
 
 ## `ScreenHeader` (`components/ScreenHeader.js`)
 
@@ -17,6 +17,20 @@ Toda tela nova deve renderizar `<ScreenHeader>` como primeiro filho do `ScrollVi
 Modal genérico de 3 botões (Importar / Descartar / Cancelar) usado só no fluxo de login/cadastro quando existem dados de convidado a resolver. Props: `visible`, `title`, `message`, `importLabel`, `discardLabel`, `cancelLabel` (default `'Cancelar'`), `onImport`, `onDiscard`, `onCancel`. Ver uso em [auth.md](auth.md).
 
 Nota: usa paleta de cores própria hardcoded (`#2F6FED` etc.), não vem de `useTheme()` — é intencionalmente neutro/fora do tema claro-escuro do resto do app.
+
+## `InsightsCard` (`components/InsightsCard.js`)
+
+Card "Seus padrões" da tela de Histórico, renderizado entre o gráfico e a lista de registros. Props: `records`, `colors`.
+
+Componente de apresentação puro — todo o cálculo vive em `computeInsights` (`utils/insights.js`), que é função pura sobre a lista de registros. Três estados:
+
+- Menos de `MIN_RECORDS_FOR_INSIGHTS` (7) registros → card compacto "Registre por mais X dias para ver seus padrões."
+- Registros suficientes e algum padrão qualificado → título + até 4 linhas (emoji, título, detalhe).
+- Registros suficientes mas nenhum padrão qualificado (ex.: só dias sem usar, sem gatilho marcado) → `return null`, nada renderiza.
+
+Insight novo = função nova em `utils/insights.js` devolvendo `{ id, icon, title, detail }`, somada ao array de `computeInsights`. O componente não precisa mudar.
+
+Nenhum insight usa o campo `time` do registro: ele guarda a hora em que o formulário foi salvo, não a hora do uso (o registro pode ser retroativo).
 
 ## Padrões de UI repetidos entre telas (não componentizados)
 

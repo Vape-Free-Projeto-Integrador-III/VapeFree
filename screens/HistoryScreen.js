@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import ScreenHeader from '../components/ScreenHeader';
 import AnimatedScreenContent from '../components/AnimatedScreenContent';
+import InsightsCard from '../components/InsightsCard';
+import { normalizeIntensity, parseLocalDate } from '../utils/insights';
 import { computeTabTransition } from '../utils/tabTransition';
 import { useFocusEffect } from '@react-navigation/native';
 import { BarChart } from 'react-native-chart-kit';
@@ -44,10 +46,6 @@ const METRICS = [
 ];
 
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-function parseLocalDate(dateStr) {
-    return new Date(`${dateStr}T12:00:00`);
-}
 
 function formatDayLabel(dateStr) {
     const date = parseLocalDate(dateStr);
@@ -86,8 +84,7 @@ function groupRecordsBy(records, getKey, metric) {
         const sums = records.reduce((groups, record) => {
             const key = getKey(record.date);
             if (!groups[key]) groups[key] = { total: 0, count: 0 };
-            const value = Array.isArray(record.intensity) ? record.intensity[0] : record.intensity;
-            groups[key].total += Number(value) || 0;
+            groups[key].total += normalizeIntensity(record.intensity);
             groups[key].count += 1;
             return groups;
         }, {});
@@ -269,6 +266,8 @@ export default function HistoryScreen({ navigation }) {
                     <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>Que tal registrar agora? 😊</Text>
                 ) : null}
             </View>
+
+            <InsightsCard records={records} colors={colors} />
 
             {records.length > 0 ? (
                 allRecords.map((rec) => (
