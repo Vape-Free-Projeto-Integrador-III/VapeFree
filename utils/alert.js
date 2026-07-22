@@ -1,28 +1,30 @@
 // src/utils/alert.js
+// Mantém a assinatura de Alert.alert do React Native de propósito: é um
+// drop-in do componente nativo, só que funcionando também na web.
 import { Alert, Platform } from 'react-native';
 
-function showAlert(title, message, buttons) {
+function mostrarAlerta(titulo, mensagem, botoes) {
     if (Platform.OS !== 'web') {
-        Alert.alert(title, message, buttons);
+        Alert.alert(titulo, mensagem, botoes);
         return;
     }
 
-    const text = message ? `${title}\n\n${message}` : title;
+    const texto = mensagem ? `${titulo}\n\n${mensagem}` : titulo;
 
-    if (!buttons || buttons.length <= 1) {
-        window.alert(text);
-        buttons?.[0]?.onPress?.();
+    if (!botoes || botoes.length <= 1) {
+        window.alert(texto);
+        botoes?.[0]?.onPress?.();
         return;
     }
 
-    const cancelButton = buttons.find((b) => b.style === 'cancel');
-    const confirmButton = buttons.find((b) => b !== cancelButton) || buttons[buttons.length - 1];
+    const botaoCancelar = botoes.find((b) => b.style === 'cancel');
+    const botaoConfirmar = botoes.find((b) => b !== botaoCancelar) || botoes[botoes.length - 1];
 
-    if (window.confirm(text)) {
-        confirmButton?.onPress?.();
+    if (window.confirm(texto)) {
+        botaoConfirmar?.onPress?.();
     } else {
-        cancelButton?.onPress?.();
+        botaoCancelar?.onPress?.();
     }
 }
 
-export default { alert: showAlert };
+export default { alert: mostrarAlerta };

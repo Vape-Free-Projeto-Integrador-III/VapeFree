@@ -1,8 +1,8 @@
 // src/utils/storage.js
 //
-// Camada de dados do app. As funções exportadas aqui (getRecords,
-// saveRecord, getDevice, etc.) têm a MESMA assinatura de antes — as telas
-// (HomeScreen, DeviceScreen, HistoryScreen, AchievementsScreen,
+// Camada de dados do app. As funções exportadas aqui (obterRegistros,
+// salvarRegistro, obterAparelho, etc.) são o único caminho de leitura/escrita
+// — as telas (HomeScreen, DeviceScreen, HistoryScreen, AchievementsScreen,
 // RegisterScreen) não precisam saber ou se importar com ONDE os dados
 // estão sendo guardados.
 //
@@ -15,6 +15,10 @@
 //
 // Isso é decidido olhando "auth.currentUser" no momento da chamada — não
 // existe nenhum estado duplicado pra manter sincronizado.
+//
+// IMPORTANTE: os NOMES DOS CAMPOS gravados (date, puffs, used, triggers,
+// price, totalPuffs, unlockedAt, ...) e as chaves do AsyncStorage continuam
+// em inglês de propósito — já existe dado salvo com eles.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -26,203 +30,207 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { checkAchievements, calcStreak, findStreakBreakDate } from './achievements';
-import { buildMissionContext, checkMissions } from './missions';
-import { normalizeRecord, sumPuffs } from './records';
-import { getXpSummary } from './xp';
+import { verificarConquistas, calcularStreak, encontrarDataDeQuebraDeStreak } from './achievements';
+import { montarContextoDeMissoes, verificarMissoes } from './missions';
+import { normalizarRegistro, somarPuxadas } from './records';
+import { resumoDeXp } from './xp';
 
-export { calcStreak };
+export { calcularStreak };
 
-const KEYS = {
-  RECORDS: '@vapefree_records',
-  DEVICE: '@vapefree_device',
-  ECONOMY: '@vapefree_economy',
-  ACHIEVEMENTS: '@vapefree_achievements',
-  CRISIS: '@vapefree_crisis',
-  MISSIONS: '@vapefree_missions',
+const CHAVES = {
+  REGISTROS: '@vapefree_records',
+  APARELHO: '@vapefree_device',
+  ECONOMIA: '@vapefree_economy',
+  CONQUISTAS: '@vapefree_achievements',
+  CRISE: '@vapefree_crisis',
+  MISSOES: '@vapefree_missions',
   XP: '@vapefree_xp',
-  APP_OPENS: '@vapefree_app_opens',
-  STREAK_SHIELD: '@vapefree_streak_shield',
+  ABERTURAS: '@vapefree_app_opens',
+  ESCUDO_DE_STREAK: '@vapefree_streak_shield',
 };
 
 // Quantos dias de abertura do app ficam guardados. 60 cobre com folga a
 // maior conquista de presença diária (7 dias seguidos).
-const APP_OPENS_LIMIT = 60;
+const LIMITE_DE_ABERTURAS = 60;
 
-async function readJson(key, fallback) {
+async function lerJson(chave, padrao) {
   try {
-    const raw = await AsyncStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
+    const bruto = await AsyncStorage.getItem(chave);
+    return bruto ? JSON.parse(bruto) : padrao;
   } catch {
-    return fallback;
+    return padrao;
   }
 }
 
 // Retorna o uid do usuário logado, ou null se estiver em modo convidado.
-function getUid() {
+function obterUid() {
   return auth.currentUser ? auth.currentUser.uid : null;
 }
 
-export async function getGuestLocalData() {
+export async function obterDadosLocaisDoConvidado() {
   const [
-    records,
-    device,
-    economy,
-    achievements,
-    crisisSessions,
-    missions,
+    registros,
+    aparelho,
+    economia,
+    conquistas,
+    sessoesDeCrise,
+    missoes,
     xp,
-    appOpenDays,
-    streakShield,
+    diasDeAbertura,
+    escudoDeStreak,
   ] = await Promise.all([
-    readJson(KEYS.RECORDS, []),
-    readJson(KEYS.DEVICE, null),
-    readJson(KEYS.ECONOMY, {}),
-    readJson(KEYS.ACHIEVEMENTS, []),
-    readJson(KEYS.CRISIS, []),
-    readJson(KEYS.MISSIONS, []),
-    readJson(KEYS.XP, null),
-    readJson(KEYS.APP_OPENS, []),
-    readJson(KEYS.STREAK_SHIELD, null),
+    lerJson(CHAVES.REGISTROS, []),
+    lerJson(CHAVES.APARELHO, null),
+    lerJson(CHAVES.ECONOMIA, {}),
+    lerJson(CHAVES.CONQUISTAS, []),
+    lerJson(CHAVES.CRISE, []),
+    lerJson(CHAVES.MISSOES, []),
+    lerJson(CHAVES.XP, null),
+    lerJson(CHAVES.ABERTURAS, []),
+    lerJson(CHAVES.ESCUDO_DE_STREAK, null),
   ]);
 
   return {
-    records: Array.isArray(records) ? records : [],
-    device: device ?? null,
-    economy: economy && typeof economy === 'object' ? economy : {},
-    achievements: Array.isArray(achievements) ? achievements : [],
-    crisisSessions: Array.isArray(crisisSessions) ? crisisSessions : [],
-    missions: Array.isArray(missions) ? missions : [],
+    registros: Array.isArray(registros) ? registros : [],
+    aparelho: aparelho ?? null,
+    economia: economia && typeof economia === 'object' ? economia : {},
+    conquistas: Array.isArray(conquistas) ? conquistas : [],
+    sessoesDeCrise: Array.isArray(sessoesDeCrise) ? sessoesDeCrise : [],
+    missoes: Array.isArray(missoes) ? missoes : [],
     xp: xp && typeof xp === 'object' ? xp : null,
-    appOpenDays: Array.isArray(appOpenDays) ? appOpenDays : [],
-    streakShield: streakShield && typeof streakShield === 'object' ? streakShield : null,
+    diasDeAbertura: Array.isArray(diasDeAbertura) ? diasDeAbertura : [],
+    escudoDeStreak:
+      escudoDeStreak && typeof escudoDeStreak === 'object' ? escudoDeStreak : null,
   };
 }
 
-export async function hasGuestLocalData() {
-  const data = await getGuestLocalData();
+export async function temDadosLocaisDoConvidado() {
+  const dados = await obterDadosLocaisDoConvidado();
   return (
-    data.records.length > 0 ||
-    data.device !== null ||
-    Object.keys(data.economy).length > 0 ||
-    data.achievements.length > 0 ||
-    data.crisisSessions.length > 0 ||
-    data.missions.length > 0
+    dados.registros.length > 0 ||
+    dados.aparelho !== null ||
+    Object.keys(dados.economia).length > 0 ||
+    dados.conquistas.length > 0 ||
+    dados.sessoesDeCrise.length > 0 ||
+    dados.missoes.length > 0
   );
 }
 
-export async function clearGuestLocalData() {
-  await Promise.all(Object.values(KEYS).map((key) => AsyncStorage.removeItem(key)));
+export async function limparDadosLocaisDoConvidado() {
+  await Promise.all(Object.values(CHAVES).map((chave) => AsyncStorage.removeItem(chave)));
 }
 
-async function replaceCollectionDocs(uid, subcollection, entries) {
-  const snap = await getDocs(collection(db, 'users', uid, subcollection));
+async function substituirDocsDaColecao(uid, subcolecao, entradas) {
+  const snap = await getDocs(collection(db, 'users', uid, subcolecao));
 
   await Promise.all(snap.docs.map((item) => deleteDoc(item.ref)));
 
-  if (!Array.isArray(entries) || entries.length === 0) {
+  if (!Array.isArray(entradas) || entradas.length === 0) {
     return;
   }
 
   await Promise.all(
-    entries.map((entry) =>
-      setDoc(doc(db, 'users', uid, subcollection, String(entry.id)), entry)
+    entradas.map((entrada) =>
+      setDoc(doc(db, 'users', uid, subcolecao, String(entrada.id)), entrada)
     )
   );
 }
 
-export async function migrateGuestLocalDataToUser(uid = getUid()) {
+export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
   if (!uid) {
     return false;
   }
 
-  const data = await getGuestLocalData();
+  const dados = await obterDadosLocaisDoConvidado();
 
   await setDoc(
     doc(db, 'users', uid),
     {
-      device: data.device ?? null,
-      economy: data.economy && typeof data.economy === 'object' ? data.economy : {},
-      xp: data.xp ?? null,
-      appOpenDays: data.appOpenDays,
-      streakShield: data.streakShield ?? null,
+      device: dados.aparelho ?? null,
+      economy: dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
+      xp: dados.xp ?? null,
+      appOpenDays: dados.diasDeAbertura,
+      streakShield: dados.escudoDeStreak ?? null,
     },
     { merge: true }
   );
 
-  await replaceCollectionDocs(uid, 'records', data.records);
-  await replaceCollectionDocs(uid, 'achievements', data.achievements);
-  await replaceCollectionDocs(uid, 'crisisSessions', data.crisisSessions);
-  await replaceCollectionDocs(uid, 'missions', data.missions);
-  await clearGuestLocalData();
+  await substituirDocsDaColecao(uid, 'records', dados.registros);
+  await substituirDocsDaColecao(uid, 'achievements', dados.conquistas);
+  await substituirDocsDaColecao(uid, 'crisisSessions', dados.sessoesDeCrise);
+  await substituirDocsDaColecao(uid, 'missions', dados.missoes);
+  await limparDadosLocaisDoConvidado();
   return true;
 }
 
-// ─── Records ────────────────────────────────────────────────────────────────
+// ─── Registros ──────────────────────────────────────────────────────────────
 // Modo conta: subcoleção users/{uid}/records, um documento por registro
 // (id do documento = id do registro). Modo convidado: array no AsyncStorage,
 // como já era antes.
 
-export async function getRecords() {
-  const uid = getUid();
+export async function obterRegistros() {
+  const uid = obterUid();
   try {
     if (uid) {
       const snap = await getDocs(collection(db, 'users', uid, 'records'));
       return snap.docs.map((d) => d.data());
     }
-    const raw = await AsyncStorage.getItem(KEYS.RECORDS);
-    return raw ? JSON.parse(raw) : [];
+    const bruto = await AsyncStorage.getItem(CHAVES.REGISTROS);
+    return bruto ? JSON.parse(bruto) : [];
   } catch {
     return [];
   }
 }
 
-export async function saveRecord(newRecord) {
-  const uid = getUid();
-  const record = normalizeRecord(newRecord);
+export async function salvarRegistro(novoRegistro) {
+  const uid = obterUid();
+  const registro = normalizarRegistro(novoRegistro);
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid, 'records', String(record.id)), record);
+      await setDoc(doc(db, 'users', uid, 'records', String(registro.id)), registro);
       return true;
     }
-    const records = await getRecords();
-    records.push(record);
-    await AsyncStorage.setItem(KEYS.RECORDS, JSON.stringify(records));
+    const registros = await obterRegistros();
+    registros.push(registro);
+    await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(registros));
     return true;
   } catch {
     return false;
   }
 }
 
-export async function deleteRecord(id) {
-  const uid = getUid();
+export async function excluirRegistro(id) {
+  const uid = obterUid();
   try {
     if (uid) {
       await deleteDoc(doc(db, 'users', uid, 'records', String(id)));
       return true;
     }
-    const records = await getRecords();
-    const updated = records.filter((r) => r.id !== id);
-    await AsyncStorage.setItem(KEYS.RECORDS, JSON.stringify(updated));
+    const registros = await obterRegistros();
+    const restantes = registros.filter((r) => r.id !== id);
+    await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
     return true;
   } catch {
     return false;
   }
 }
 
-export async function updateRecord(record) {
-  const uid = getUid();
-  const updatedRecord = normalizeRecord(record);
+export async function atualizarRegistro(registro) {
+  const uid = obterUid();
+  const registroAtualizado = normalizarRegistro(registro);
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid, 'records', String(updatedRecord.id)), updatedRecord);
+      await setDoc(
+        doc(db, 'users', uid, 'records', String(registroAtualizado.id)),
+        registroAtualizado
+      );
       return true;
     }
-    const records = await getRecords();
-    const index = records.findIndex((r) => r.id === updatedRecord.id);
-    if (index !== -1) {
-      records[index] = updatedRecord;
-      await AsyncStorage.setItem(KEYS.RECORDS, JSON.stringify(records));
+    const registros = await obterRegistros();
+    const indice = registros.findIndex((r) => r.id === registroAtualizado.id);
+    if (indice !== -1) {
+      registros[indice] = registroAtualizado;
+      await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(registros));
       return true;
     }
     return false;
@@ -231,197 +239,197 @@ export async function updateRecord(record) {
   }
 }
 
-// ─── Device ─────────────────────────────────────────────────────────────────
+// ─── Aparelho ───────────────────────────────────────────────────────────────
 // Modo conta: campo "device" dentro do documento users/{uid}.
 // Modo convidado: AsyncStorage, como já era antes.
 
-export async function getDevice() {
-  const uid = getUid();
+export async function obterAparelho() {
+  const uid = obterUid();
   try {
     if (uid) {
       const snap = await getDoc(doc(db, 'users', uid));
       return snap.exists() ? snap.data().device ?? null : null;
     }
-    const raw = await AsyncStorage.getItem(KEYS.DEVICE);
-    return raw ? JSON.parse(raw) : null;
+    const bruto = await AsyncStorage.getItem(CHAVES.APARELHO);
+    return bruto ? JSON.parse(bruto) : null;
   } catch {
     return null;
   }
 }
 
-export async function saveDevice(device) {
-  const uid = getUid();
+export async function salvarAparelho(aparelho) {
+  const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid), { device }, { merge: true });
+      await setDoc(doc(db, 'users', uid), { device: aparelho }, { merge: true });
       return true;
     }
-    await AsyncStorage.setItem(KEYS.DEVICE, JSON.stringify(device));
+    await AsyncStorage.setItem(CHAVES.APARELHO, JSON.stringify(aparelho));
     return true;
   } catch {
     return false;
   }
 }
 
-// ─── Economy ────────────────────────────────────────────────────────────────
+// ─── Economia ───────────────────────────────────────────────────────────────
 // Modo conta: campo "economy" dentro do documento users/{uid}.
 // Modo convidado: AsyncStorage, como já era antes.
 
-export async function getEconomy() {
-  const uid = getUid();
+export async function obterEconomia() {
+  const uid = obterUid();
   try {
     if (uid) {
       const snap = await getDoc(doc(db, 'users', uid));
       return snap.exists() ? snap.data().economy ?? {} : {};
     }
-    const raw = await AsyncStorage.getItem(KEYS.ECONOMY);
-    return raw ? JSON.parse(raw) : {};
+    const bruto = await AsyncStorage.getItem(CHAVES.ECONOMIA);
+    return bruto ? JSON.parse(bruto) : {};
   } catch {
     return {};
   }
 }
 
-export async function setEconomy(economyMap) {
-  const uid = getUid();
+export async function definirEconomia(mapaDeEconomia) {
+  const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid), { economy: economyMap }, { merge: true });
+      await setDoc(doc(db, 'users', uid), { economy: mapaDeEconomia }, { merge: true });
       return true;
     }
-    await AsyncStorage.setItem(KEYS.ECONOMY, JSON.stringify(economyMap));
+    await AsyncStorage.setItem(CHAVES.ECONOMIA, JSON.stringify(mapaDeEconomia));
     return true;
   } catch {
     return false;
   }
 }
 
-// ─── Economy Calculation ─────────────────────────────────────────────────────
-// Função pura de cálculo, igual antes — não muda entre conta/convidado.
+// ─── Cálculo da economia ─────────────────────────────────────────────────────
+// Função pura de cálculo — não muda entre conta/convidado.
 
-export async function recalcEconomy(records, device) {
-  if (!device) return {};
-  const costPerPuff = device.price / device.totalPuffs;
-  const dailyGoal = device.totalPuffs / device.days;
+export async function recalcularEconomia(registros, aparelho) {
+  if (!aparelho) return {};
+  const custoPorPuxada = aparelho.price / aparelho.totalPuffs;
+  const metaDiaria = aparelho.totalPuffs / aparelho.days;
 
-  // Group records by date
-  const byDate = {};
-  records.forEach((r) => {
-    if (!byDate[r.date]) byDate[r.date] = [];
-    byDate[r.date].push(r);
+  // Agrupa os registros por data
+  const porData = {};
+  registros.forEach((r) => {
+    if (!porData[r.date]) porData[r.date] = [];
+    porData[r.date].push(r);
   });
 
-  const economyMap = {};
-  Object.entries(byDate).forEach(([date, recs]) => {
-    const usedToday = sumPuffs(recs);
-    const notGiven = Math.max(0, dailyGoal - usedToday);
-    economyMap[date] = parseFloat((notGiven * costPerPuff).toFixed(2));
+  const mapaDeEconomia = {};
+  Object.entries(porData).forEach(([data, registrosDoDia]) => {
+    const usadasHoje = somarPuxadas(registrosDoDia);
+    const naoDadas = Math.max(0, metaDiaria - usadasHoje);
+    mapaDeEconomia[data] = parseFloat((naoDadas * custoPorPuxada).toFixed(2));
   });
 
-  await setEconomy(economyMap);
-  return economyMap;
+  await definirEconomia(mapaDeEconomia);
+  return mapaDeEconomia;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-// Funções puras (sem leitura/escrita de dados) — continuam exatamente iguais.
+// Funções puras (sem leitura/escrita de dados).
 
-export function todayString() {
+export function dataDeHoje() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function getLastNDays(n) {
-  const days = [];
+export function ultimosNDias(n) {
+  const dias = [];
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    days.push(d.toISOString().slice(0, 10));
+    dias.push(d.toISOString().slice(0, 10));
   }
-  return days;
+  return dias;
 }
 
-export function getLastNWeeks(n) {
-  const weeks = [];
-  const today = new Date();
+export function ultimasNSemanas(n) {
+  const semanas = [];
+  const hoje = new Date();
   for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(today);
+    const d = new Date(hoje);
     d.setDate(d.getDate() - i * 7);
-    weeks.push(d.toISOString().slice(0, 10));
+    semanas.push(d.toISOString().slice(0, 10));
   }
-  return weeks;
+  return semanas;
 }
 
-export function getLastNMonths(n) {
-  const months = [];
-  const today = new Date();
+export function ultimosNMeses(n) {
+  const meses = [];
+  const hoje = new Date();
   for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    months.push(d.toISOString().slice(0, 10));
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    meses.push(d.toISOString().slice(0, 10));
   }
-  return months;
+  return meses;
 }
 
-export function getWeekLabel(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d.setDate(diff));
-  return `${monday.toISOString().slice(5, 10)}`;
+export function rotuloSemana(dataStr) {
+  const d = new Date(dataStr + 'T00:00:00');
+  const diaDaSemana = d.getDay();
+  const diff = d.getDate() - diaDaSemana + (diaDaSemana === 0 ? -6 : 1);
+  const segunda = new Date(d.setDate(diff));
+  return `${segunda.toISOString().slice(5, 10)}`;
 }
 
-export function getMonthLabel(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  return `${months[d.getMonth()]} ${d.getFullYear()}`;
+export function rotuloMes(dataStr) {
+  const d = new Date(dataStr + 'T00:00:00');
+  const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  return `${meses[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-// ─── App Opens ───────────────────────────────────────────────────────────────
+// ─── Aberturas do app ────────────────────────────────────────────────────────
 // Lista de datas 'YYYY-MM-DD' em que o app foi aberto (uma entrada por dia,
-// no máximo APP_OPENS_LIMIT dias). Só serve pra conquista de presença diária.
-// Modo conta: campo "appOpenDays" no documento users/{uid}. Convidado:
-// AsyncStorage.
+// no máximo LIMITE_DE_ABERTURAS dias). Só serve pra conquista de presença
+// diária. Modo conta: campo "appOpenDays" no documento users/{uid}.
+// Convidado: AsyncStorage.
 
-export async function getAppOpenDays() {
-  const uid = getUid();
+export async function obterDiasDeAbertura() {
+  const uid = obterUid();
   try {
     if (uid) {
       const snap = await getDoc(doc(db, 'users', uid));
-      const days = snap.exists() ? snap.data().appOpenDays : null;
-      return Array.isArray(days) ? days : [];
+      const dias = snap.exists() ? snap.data().appOpenDays : null;
+      return Array.isArray(dias) ? dias : [];
     }
-    const raw = await AsyncStorage.getItem(KEYS.APP_OPENS);
-    return raw ? JSON.parse(raw) : [];
+    const bruto = await AsyncStorage.getItem(CHAVES.ABERTURAS);
+    return bruto ? JSON.parse(bruto) : [];
   } catch {
     return [];
   }
 }
 
 // Marca hoje como dia aberto. Idempotente dentro do mesmo dia.
-export async function registerAppOpen() {
-  const uid = getUid();
+export async function registrarAberturaDoApp() {
+  const uid = obterUid();
   try {
-    const today = todayString();
-    const days = await getAppOpenDays();
-    if (days.includes(today)) {
-      return days;
+    const hoje = dataDeHoje();
+    const dias = await obterDiasDeAbertura();
+    if (dias.includes(hoje)) {
+      return dias;
     }
-    const updated = [...days, today].sort().slice(-APP_OPENS_LIMIT);
+    const atualizados = [...dias, hoje].sort().slice(-LIMITE_DE_ABERTURAS);
 
     if (uid) {
-      await setDoc(doc(db, 'users', uid), { appOpenDays: updated }, { merge: true });
+      await setDoc(doc(db, 'users', uid), { appOpenDays: atualizados }, { merge: true });
     } else {
-      await AsyncStorage.setItem(KEYS.APP_OPENS, JSON.stringify(updated));
+      await AsyncStorage.setItem(CHAVES.ABERTURAS, JSON.stringify(atualizados));
     }
-    return updated;
+    return atualizados;
   } catch {
     return [];
   }
 }
 
-// ─── Streak Shield ───────────────────────────────────────────────────────────
-// Escudo de streak (mecânica tipo Duolingo): a cada SHIELD_STREAK_STEP dias de
-// sequência o usuário ganha 1 escudo (máximo MAX_SHIELDS guardados). Quando um
-// dia quebra o streak — porque ficou sem registro OU porque o registro teve
-// `used === true` — o escudo é consumido e aquele dia entra em `usedDates`,
-// passando a contar como dia limpo pro `calcStreak`.
+// ─── Escudo de streak ────────────────────────────────────────────────────────
+// Escudo de streak (mecânica tipo Duolingo): a cada PASSO_DE_STREAK_DO_ESCUDO
+// dias de sequência o usuário ganha 1 escudo (máximo MAX_ESCUDOS guardados).
+// Quando um dia quebra o streak — porque ficou sem registro OU porque o
+// registro teve `used === true` — o escudo é consumido e aquele dia entra em
+// `usedDates`, passando a contar como dia limpo pro `calcularStreak`.
 //
 // Estado: { count, usedDates: ['YYYY-MM-DD'], earnedMilestone, earnedAt }.
 // `earnedMilestone` é o múltiplo de 7 que já rendeu escudo (evita ganhar duas
@@ -432,46 +440,46 @@ export async function registerAppOpen() {
 // Modo conta: campo "streakShield" no documento users/{uid}. Convidado:
 // AsyncStorage.
 
-const MAX_SHIELDS = 1;
-const SHIELD_STREAK_STEP = 7;
+const MAX_ESCUDOS = 1;
+const PASSO_DE_STREAK_DO_ESCUDO = 7;
 
-const EMPTY_SHIELD = { count: 0, usedDates: [], earnedMilestone: 0, earnedAt: null };
+const ESCUDO_VAZIO = { count: 0, usedDates: [], earnedMilestone: 0, earnedAt: null };
 
-function normalizeShield(state) {
-  if (!state || typeof state !== 'object') {
-    return { ...EMPTY_SHIELD };
+function normalizarEscudo(estado) {
+  if (!estado || typeof estado !== 'object') {
+    return { ...ESCUDO_VAZIO };
   }
   return {
-    count: Number.isFinite(state.count) ? state.count : 0,
-    usedDates: Array.isArray(state.usedDates) ? state.usedDates : [],
-    earnedMilestone: Number.isFinite(state.earnedMilestone) ? state.earnedMilestone : 0,
-    earnedAt: state.earnedAt ?? null,
+    count: Number.isFinite(estado.count) ? estado.count : 0,
+    usedDates: Array.isArray(estado.usedDates) ? estado.usedDates : [],
+    earnedMilestone: Number.isFinite(estado.earnedMilestone) ? estado.earnedMilestone : 0,
+    earnedAt: estado.earnedAt ?? null,
   };
 }
 
-export async function getStreakShield() {
-  const uid = getUid();
+export async function obterEscudoDeStreak() {
+  const uid = obterUid();
   try {
     if (uid) {
       const snap = await getDoc(doc(db, 'users', uid));
-      return normalizeShield(snap.exists() ? snap.data().streakShield : null);
+      return normalizarEscudo(snap.exists() ? snap.data().streakShield : null);
     }
-    const raw = await AsyncStorage.getItem(KEYS.STREAK_SHIELD);
-    return normalizeShield(raw ? JSON.parse(raw) : null);
+    const bruto = await AsyncStorage.getItem(CHAVES.ESCUDO_DE_STREAK);
+    return normalizarEscudo(bruto ? JSON.parse(bruto) : null);
   } catch {
-    return { ...EMPTY_SHIELD };
+    return { ...ESCUDO_VAZIO };
   }
 }
 
-export async function saveStreakShield(state) {
-  const uid = getUid();
+export async function salvarEscudoDeStreak(estado) {
+  const uid = obterUid();
   try {
-    const entry = { ...normalizeShield(state), updatedAt: new Date().toISOString() };
+    const entrada = { ...normalizarEscudo(estado), updatedAt: new Date().toISOString() };
     if (uid) {
-      await setDoc(doc(db, 'users', uid), { streakShield: entry }, { merge: true });
+      await setDoc(doc(db, 'users', uid), { streakShield: entrada }, { merge: true });
       return true;
     }
-    await AsyncStorage.setItem(KEYS.STREAK_SHIELD, JSON.stringify(entry));
+    await AsyncStorage.setItem(CHAVES.ESCUDO_DE_STREAK, JSON.stringify(entrada));
     return true;
   } catch {
     return false;
@@ -479,90 +487,94 @@ export async function saveStreakShield(state) {
 }
 
 // Consome escudo nos dias que quebraram o streak e concede escudo novo quando
-// a sequência bate um múltiplo de SHIELD_STREAK_STEP. Devolve o estado já
-// atualizado (com `consumedDates`: os dias protegidos agora, pra tela avisar).
-export async function syncStreakShield(records) {
+// a sequência bate um múltiplo de PASSO_DE_STREAK_DO_ESCUDO. Devolve o estado
+// já atualizado (com `diasConsumidos`: os dias protegidos agora, pra tela
+// avisar).
+export async function sincronizarEscudoDeStreak(registros) {
   try {
-    const recs = records ?? (await getRecords());
-    const state = await getStreakShield();
-    let { count, usedDates, earnedMilestone, earnedAt } = state;
-    const consumedDates = [];
+    const regs = registros ?? (await obterRegistros());
+    const estado = await obterEscudoDeStreak();
+    let { count, usedDates, earnedMilestone, earnedAt } = estado;
+    const diasConsumidos = [];
 
     while (count > 0) {
-      const breakDate = findStreakBreakDate(recs, usedDates);
+      const dataDaQuebra = encontrarDataDeQuebraDeStreak(regs, usedDates);
       // Sem dia pra proteger, ou quebra anterior ao escudo: não gasta.
-      if (!breakDate || !earnedAt || breakDate < earnedAt) {
+      if (!dataDaQuebra || !earnedAt || dataDaQuebra < earnedAt) {
         break;
       }
-      usedDates = [...usedDates, breakDate].sort();
-      consumedDates.push(breakDate);
+      usedDates = [...usedDates, dataDaQuebra].sort();
+      diasConsumidos.push(dataDaQuebra);
       count -= 1;
     }
 
-    const streak = calcStreak(recs, usedDates);
-    const milestone = Math.floor(streak / SHIELD_STREAK_STEP);
-    let earned = false;
-    if (milestone < earnedMilestone) {
+    const streak = calcularStreak(regs, usedDates);
+    const marco = Math.floor(streak / PASSO_DE_STREAK_DO_ESCUDO);
+    let ganhou = false;
+    if (marco < earnedMilestone) {
       // Streak quebrou de vez (sem escudo pra cobrir): o próximo marco de 7
       // dias volta a valer escudo.
-      earnedMilestone = milestone;
-    } else if (milestone > earnedMilestone) {
-      earnedMilestone = milestone;
-      if (count < MAX_SHIELDS) {
+      earnedMilestone = marco;
+    } else if (marco > earnedMilestone) {
+      earnedMilestone = marco;
+      if (count < MAX_ESCUDOS) {
         count += 1;
-        earnedAt = todayString();
-        earned = true;
+        earnedAt = dataDeHoje();
+        ganhou = true;
       }
     }
 
-    const updated = { count, usedDates, earnedMilestone, earnedAt };
-    const changed =
-      consumedDates.length > 0 ||
-      earned ||
-      updated.earnedMilestone !== state.earnedMilestone;
+    const atualizado = { count, usedDates, earnedMilestone, earnedAt };
+    const mudou =
+      diasConsumidos.length > 0 ||
+      ganhou ||
+      atualizado.earnedMilestone !== estado.earnedMilestone;
 
-    if (changed) {
-      await saveStreakShield(updated);
+    if (mudou) {
+      await salvarEscudoDeStreak(atualizado);
     }
 
-    return { ...updated, consumedDates, earned, streak };
+    return { ...atualizado, diasConsumidos, ganhou, streak };
   } catch {
-    const fallback = await getStreakShield();
-    return { ...fallback, consumedDates: [], earned: false, streak: 0 };
+    const reserva = await obterEscudoDeStreak();
+    return { ...reserva, diasConsumidos: [], ganhou: false, streak: 0 };
   }
 }
 
-// ─── Achievements ────────────────────────────────────────────────────────────
+// ─── Conquistas ──────────────────────────────────────────────────────────────
 // Modo conta: subcoleção users/{uid}/achievements, um documento por
 // conquista desbloqueada (id do documento = id da conquista). Modo
 // convidado: array no AsyncStorage, como já era antes.
 
-export async function getAchievements() {
-  const uid = getUid();
+export async function obterConquistas() {
+  const uid = obterUid();
   try {
     if (uid) {
       const snap = await getDocs(collection(db, 'users', uid, 'achievements'));
       return snap.docs.map((d) => d.data());
     }
-    const raw = await AsyncStorage.getItem(KEYS.ACHIEVEMENTS);
-    return raw ? JSON.parse(raw) : [];
+    const bruto = await AsyncStorage.getItem(CHAVES.CONQUISTAS);
+    return bruto ? JSON.parse(bruto) : [];
   } catch {
     return [];
   }
 }
 
-export async function saveAchievement(achievementId, unlockedAt) {
-  const uid = getUid();
+export async function salvarConquista(idDaConquista, desbloqueadaEm) {
+  const uid = obterUid();
   try {
-    const entry = { id: achievementId, unlockedAt: unlockedAt || new Date().toISOString() };
+    const entrada = {
+      id: idDaConquista,
+      unlockedAt: desbloqueadaEm || new Date().toISOString(),
+    };
     if (uid) {
-      await setDoc(doc(db, 'users', uid, 'achievements', String(achievementId)), entry);
+      await setDoc(doc(db, 'users', uid, 'achievements', String(idDaConquista)), entrada);
       return true;
     }
-    const achievements = await getAchievements();
-    if (!achievements.find((a) => a.id === achievementId)) {
-      achievements.push(entry);
-      await AsyncStorage.setItem(KEYS.ACHIEVEMENTS, JSON.stringify(achievements));
+    const conquistas = await obterConquistas();
+    if (!conquistas.find((c) => c.id === idDaConquista)) {
+      conquistas.push(entrada);
+      await AsyncStorage.setItem(CHAVES.CONQUISTAS, JSON.stringify(conquistas));
     }
     return true;
   } catch {
@@ -576,28 +588,28 @@ export async function saveAchievement(achievementId, unlockedAt) {
 // quem precisa do XP sem carregar registros e conquistas (ex: notificações).
 // Modo conta: campo "xp" no documento users/{uid}. Convidado: AsyncStorage.
 
-export async function getXpState() {
-  const uid = getUid();
+export async function obterEstadoDeXp() {
+  const uid = obterUid();
   try {
     if (uid) {
       const snap = await getDoc(doc(db, 'users', uid));
       return snap.exists() ? snap.data().xp ?? null : null;
     }
-    const raw = await AsyncStorage.getItem(KEYS.XP);
-    return raw ? JSON.parse(raw) : null;
+    const bruto = await AsyncStorage.getItem(CHAVES.XP);
+    return bruto ? JSON.parse(bruto) : null;
   } catch {
     return null;
   }
 }
 
-export async function saveXpState(state) {
-  const uid = getUid();
+export async function salvarEstadoDeXp(estado) {
+  const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid), { xp: state }, { merge: true });
+      await setDoc(doc(db, 'users', uid), { xp: estado }, { merge: true });
       return true;
     }
-    await AsyncStorage.setItem(KEYS.XP, JSON.stringify(state));
+    await AsyncStorage.setItem(CHAVES.XP, JSON.stringify(estado));
     return true;
   } catch {
     return false;
@@ -605,26 +617,26 @@ export async function saveXpState(state) {
 }
 
 // Recalcula o XP a partir dos registros/conquistas/missões atuais, salva o
-// snapshot e devolve { xp, level, gained }. "gained" é a diferença pro
+// snapshot e devolve { xp, nivel, ganho }. "ganho" é a diferença pro
 // snapshot anterior — é o que a tela usa pra mostrar o toast de "+X XP".
-export async function refreshXp(records, unlockedAchievements, completedMissions) {
-  const recs = records ?? (await getRecords());
-  const achievements = unlockedAchievements ?? (await getAchievements());
-  const missions = completedMissions ?? (await getMissions());
-  const previous = await getXpState();
-  const summary = getXpSummary(recs, achievements, missions);
+export async function atualizarXp(registros, conquistasDesbloqueadas, missoesConcluidas) {
+  const regs = registros ?? (await obterRegistros());
+  const conquistas = conquistasDesbloqueadas ?? (await obterConquistas());
+  const missoes = missoesConcluidas ?? (await obterMissoes());
+  const anterior = await obterEstadoDeXp();
+  const resumo = resumoDeXp(regs, conquistas, missoes);
 
-  await saveXpState({
-    xp: summary.xp,
-    level: summary.level.number,
-    levelName: summary.level.name,
+  await salvarEstadoDeXp({
+    xp: resumo.xp,
+    level: resumo.nivel.numero,
+    levelName: resumo.nivel.nome,
     updatedAt: new Date().toISOString(),
   });
 
-  return { ...summary, gained: summary.xp - (previous?.xp ?? summary.xp) };
+  return { ...resumo, ganho: resumo.xp - (anterior?.xp ?? resumo.xp) };
 }
 
-// ─── Crisis Sessions ─────────────────────────────────────────────────────────
+// ─── Sessões de crise ────────────────────────────────────────────────────────
 // Cada vez que o usuário abre o modo crise ("Estou com vontade") vira uma
 // sessão aqui. Modo conta: subcoleção users/{uid}/crisisSessions. Modo
 // convidado: array no AsyncStorage.
@@ -633,37 +645,37 @@ export async function refreshXp(records, unlockedAchievements, completedMissions
 //   method  -> 'respiracao' | 'timer' | 'distracao' | null
 //   outcome -> 'passou' | 'diminuiu' | 'usei' | null (usuário pulou o feedback)
 
-export async function getCrisisSessions() {
-  const uid = getUid();
+export async function obterSessoesDeCrise() {
+  const uid = obterUid();
   try {
     if (uid) {
       const snap = await getDocs(collection(db, 'users', uid, 'crisisSessions'));
       return snap.docs.map((d) => d.data());
     }
-    const raw = await AsyncStorage.getItem(KEYS.CRISIS);
-    return raw ? JSON.parse(raw) : [];
+    const bruto = await AsyncStorage.getItem(CHAVES.CRISE);
+    return bruto ? JSON.parse(bruto) : [];
   } catch {
     return [];
   }
 }
 
-export async function saveCrisisSession(session) {
-  const uid = getUid();
+export async function salvarSessaoDeCrise(sessao) {
+  const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid, 'crisisSessions', String(session.id)), session);
+      await setDoc(doc(db, 'users', uid, 'crisisSessions', String(sessao.id)), sessao);
       return true;
     }
-    const sessions = await getCrisisSessions();
-    sessions.push(session);
-    await AsyncStorage.setItem(KEYS.CRISIS, JSON.stringify(sessions));
+    const sessoes = await obterSessoesDeCrise();
+    sessoes.push(sessao);
+    await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(sessoes));
     return true;
   } catch {
     return false;
   }
 }
 
-// ─── Missions ────────────────────────────────────────────────────────────────
+// ─── Missões ─────────────────────────────────────────────────────────────────
 // Só as missões CONCLUÍDAS ficam salvas (a lista de missões possíveis é
 // código, em utils/missions.js). Id da entrada = `${missionId}_${periodKey}`,
 // o que torna a gravação idempotente dentro do período. Modo conta:
@@ -671,31 +683,31 @@ export async function saveCrisisSession(session) {
 //
 // Shape: { id, missionId, period, periodKey, xp, completedAt }
 
-export async function getMissions() {
-  const uid = getUid();
+export async function obterMissoes() {
+  const uid = obterUid();
   try {
     if (uid) {
       const snap = await getDocs(collection(db, 'users', uid, 'missions'));
       return snap.docs.map((d) => d.data());
     }
-    const raw = await AsyncStorage.getItem(KEYS.MISSIONS);
-    return raw ? JSON.parse(raw) : [];
+    const bruto = await AsyncStorage.getItem(CHAVES.MISSOES);
+    return bruto ? JSON.parse(bruto) : [];
   } catch {
     return [];
   }
 }
 
-export async function saveMission(entry) {
-  const uid = getUid();
+export async function salvarMissao(entrada) {
+  const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid, 'missions', String(entry.id)), entry);
+      await setDoc(doc(db, 'users', uid, 'missions', String(entrada.id)), entrada);
       return true;
     }
-    const missions = await getMissions();
-    if (!missions.find((m) => m.id === entry.id)) {
-      missions.push(entry);
-      await AsyncStorage.setItem(KEYS.MISSIONS, JSON.stringify(missions));
+    const missoes = await obterMissoes();
+    if (!missoes.find((m) => m.id === entrada.id)) {
+      missoes.push(entrada);
+      await AsyncStorage.setItem(CHAVES.MISSOES, JSON.stringify(missoes));
     }
     return true;
   } catch {
@@ -705,61 +717,72 @@ export async function saveMission(entry) {
 
 // Avalia as missões do período atual, salva as que acabaram de ser concluídas
 // e devolve só essas novas (pra tela mostrar o toast de XP).
-export async function checkAndCompleteMissions(records, economy, crisisSessions) {
+export async function verificarEConcluirMissoes(registros, economia, sessoesDeCrise) {
   try {
-    const recs = records ?? (await getRecords());
-    const eco = economy ?? (await getEconomy());
-    const sessions = crisisSessions ?? (await getCrisisSessions());
-    const completed = await getMissions();
-    const completedIds = new Set(completed.map((m) => m.id));
+    const regs = registros ?? (await obterRegistros());
+    const eco = economia ?? (await obterEconomia());
+    const sessoes = sessoesDeCrise ?? (await obterSessoesDeCrise());
+    const concluidas = await obterMissoes();
+    const idsConcluidas = new Set(concluidas.map((m) => m.id));
 
-    const context = buildMissionContext(recs, eco, sessions);
-    const results = checkMissions(context, completed);
-    const newCompletions = [];
+    const contexto = montarContextoDeMissoes(regs, eco, sessoes);
+    const resultados = verificarMissoes(contexto, concluidas);
+    const novasConclusoes = [];
 
-    for (const result of results) {
-      if (result.completed && !completedIds.has(result.id)) {
-        const entry = {
-          id: result.id,
-          missionId: result.missionId,
-          period: result.period,
-          periodKey: result.periodKey,
-          xp: result.xp,
-          completedAt: result.completedAt || new Date().toISOString(),
+    for (const resultado of resultados) {
+      if (resultado.concluida && !idsConcluidas.has(resultado.id)) {
+        const entrada = {
+          id: resultado.id,
+          missionId: resultado.missionId,
+          period: resultado.period,
+          periodKey: resultado.periodKey,
+          xp: resultado.xp,
+          completedAt: resultado.completedAt || new Date().toISOString(),
         };
-        await saveMission(entry);
-        newCompletions.push(result);
+        await salvarMissao(entrada);
+        novasConclusoes.push(resultado);
       }
     }
-    return newCompletions;
+    return novasConclusoes;
   } catch (e) {
-    console.log('Error checking missions:', e);
+    console.log('Erro ao verificar missões:', e);
     return [];
   }
 }
 
-export async function checkAndUnlockAchievements(records, economy, completedMissions, context) {
+export async function verificarEDesbloquearConquistas(
+  registros,
+  economia,
+  missoesConcluidas,
+  contexto
+) {
   try {
-    const unlocked = await getAchievements();
-    const unlockedIds = new Set(unlocked.map((u) => u.id));
-    const missions = completedMissions ?? (await getMissions());
-    const ctx = context ?? {
-      crisisSessions: await getCrisisSessions(),
-      appOpenDays: await getAppOpenDays(),
-      shieldDates: (await getStreakShield()).usedDates,
+    const desbloqueadas = await obterConquistas();
+    const idsDesbloqueadas = new Set(desbloqueadas.map((c) => c.id));
+    const missoes = missoesConcluidas ?? (await obterMissoes());
+    const ctx = contexto ?? {
+      sessoesDeCrise: await obterSessoesDeCrise(),
+      diasDeAbertura: await obterDiasDeAbertura(),
+      diasComEscudo: (await obterEscudoDeStreak()).usedDates,
     };
-    const newUnlocks = [];
+    const novasDesbloqueadas = [];
 
-    const results = await checkAchievements(records, economy, unlocked, missions, ctx);
-    for (const result of results) {
-      if (result.unlocked && !unlockedIds.has(result.id)) {
-        await saveAchievement(result.id, result.unlockedAt);
-        newUnlocks.push(result);
+    const resultados = await verificarConquistas(
+      registros,
+      economia,
+      desbloqueadas,
+      missoes,
+      ctx
+    );
+    for (const resultado of resultados) {
+      if (resultado.desbloqueada && !idsDesbloqueadas.has(resultado.id)) {
+        await salvarConquista(resultado.id, resultado.desbloqueadaEm);
+        novasDesbloqueadas.push(resultado);
       }
     }
-    return newUnlocks;
+    return novasDesbloqueadas;
   } catch (e) {
-    console.log('Error checking achievements:', e);
+    console.log('Erro ao verificar conquistas:', e);
     return [];
   }
 }

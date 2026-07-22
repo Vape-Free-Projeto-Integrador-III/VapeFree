@@ -11,153 +11,153 @@ import {
 } from 'react-native';
 import Alert from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
-import { getDevice, saveDevice, getRecords, recalcEconomy } from '../utils/storage';
-import { RADIUS, SHADOW } from '../utils/theme';
-import { useTheme } from '../context/ThemeContext';
+import { obterAparelho, salvarAparelho, obterRegistros, recalcularEconomia } from '../utils/storage';
+import { RAIO, SOMBRA } from '../utils/theme';
+import { usarTema } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 
 export default function DeviceScreen({ navigation }) {
-    const { colors, isDark, toggleTheme } = useTheme();
-    const [name, setName] = useState('');
-    const [type, setType] = useState('desc');
-    const [price, setPrice] = useState('');
-    const [totalPuffs, setTotalPuffs] = useState('');
-    const [days, setDays] = useState('');
-    const [saving, setSaving] = useState(false);
-    const [successVisible, setSuccessVisible] = useState(false);
-    const fadeAnim = useState(new Animated.Value(0))[0];
+    const { cores, estaEscuro, alternarTema } = usarTema();
+    const [nome, setNome] = useState('');
+    const [tipo, setTipo] = useState('desc');
+    const [preco, setPreco] = useState('');
+    const [totalDePuxadas, setTotalDePuxadas] = useState('');
+    const [dias, setDias] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [sucessoVisivel, setSucessoVisivel] = useState(false);
+    const animacaoDeFade = useState(new Animated.Value(0))[0];
 
     useEffect(() => {
-        getDevice().then((d) => {
-            if (d) {
-                setName(d.name || '');
-                setType(d.type || 'desc');
-                setPrice(d.price?.toString() || '');
-                setTotalPuffs(d.totalPuffs?.toString() || '');
-                setDays(d.days?.toString() || '');
+        obterAparelho().then((a) => {
+            if (a) {
+                setNome(a.name || '');
+                setTipo(a.type || 'desc');
+                setPreco(a.price?.toString() || '');
+                setTotalDePuxadas(a.totalPuffs?.toString() || '');
+                setDias(a.days?.toString() || '');
             }
         });
     }, []);
 
-    const showSuccess = () => {
-        setSuccessVisible(true);
+    const mostrarSucesso = () => {
+        setSucessoVisivel(true);
         Animated.sequence([
-            Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.timing(animacaoDeFade, { toValue: 1, duration: 300, useNativeDriver: true }),
             Animated.delay(2000),
-            Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        ]).start(() => setSuccessVisible(false));
+            Animated.timing(animacaoDeFade, { toValue: 0, duration: 300, useNativeDriver: true }),
+        ]).start(() => setSucessoVisivel(false));
     };
 
-    const handleSave = async () => {
-        if (!name.trim()) { Alert.alert('Opa', 'Coloca o nome do seu dispositivo.'); return; }
-        const p = parseFloat(price.replace(',', '.'));
-        const tp = parseInt(totalPuffs);
-        const d = parseInt(days);
+    const salvar = async () => {
+        if (!nome.trim()) { Alert.alert('Opa', 'Coloca o nome do seu dispositivo.'); return; }
+        const p = parseFloat(preco.replace(',', '.'));
+        const tp = parseInt(totalDePuxadas);
+        const d = parseInt(dias);
         if (isNaN(p) || p <= 0) { Alert.alert('Opa', 'Coloca um preço válido.'); return; }
         if (isNaN(tp) || tp <= 0) { Alert.alert('Opa', 'Quantas puxadas ele tem no total?'); return; }
         if (isNaN(d) || d <= 0) { Alert.alert('Opa', 'Quantos dias ele costuma durar?'); return; }
-        setSaving(true);
-        const device = { name: name.trim(), type, price: p, totalPuffs: tp, days: d };
-        await saveDevice(device);
-        const allRecords = await getRecords();
-        await recalcEconomy(allRecords, device);
-        setSaving(false);
-        showSuccess();
+        setSalvando(true);
+        const aparelho = { name: nome.trim(), type: tipo, price: p, totalPuffs: tp, days: d };
+        await salvarAparelho(aparelho);
+        const todosRegistros = await obterRegistros();
+        await recalcularEconomia(todosRegistros, aparelho);
+        setSalvando(false);
+        mostrarSucesso();
     };
 
-    const costPerPuff = () => {
-        const p = parseFloat(price.replace(',', '.'));
-        const tp = parseInt(totalPuffs);
+    const custoPorPuxada = () => {
+        const p = parseFloat(preco.replace(',', '.'));
+        const tp = parseInt(totalDePuxadas);
         return (!isNaN(p) && !isNaN(tp) && tp > 0) ? `R$ ${(p / tp).toFixed(4)}` : '—';
     };
 
-    const dailyGoal = () => {
-        const tp = parseInt(totalPuffs);
-        const d = parseInt(days);
+    const metaDiaria = () => {
+        const tp = parseInt(totalDePuxadas);
+        const d = parseInt(dias);
         return (!isNaN(tp) && !isNaN(d) && d > 0) ? `${Math.round(tp / d)} puxadas/dia` : '—';
     };
 
-    const inputStyle = [styles.input, { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text }];
+    const estiloDoInput = [styles.input, { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text }];
 
     return (
-        <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <View style={{ flex: 1, backgroundColor: cores.background }}>
+        <ScrollView style={[styles.scroll, { backgroundColor: cores.background }]} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
             <ScreenHeader
-                title="Seu Dispositivo"
-                subtitle="Conta pra gente como ele é"
-                colors={colors}
-                isDark={isDark}
-                toggleTheme={toggleTheme}
-                onBackPress={() => navigation.goBack()}
-                onProfilePress={() => navigation.navigate('Profile')}
+                titulo="Seu Dispositivo"
+                subtitulo="Conta pra gente como ele é"
+                cores={cores}
+                estaEscuro={estaEscuro}
+                alternarTema={alternarTema}
+                aoPressionarVoltar={() => navigation.goBack()}
+                aoPressionarPerfil={() => navigation.navigate('Profile')}
             />
 
-            <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Nome / Modelo</Text>
+            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                <Text style={[styles.fieldLabel, { color: cores.text }]}>Nome / Modelo</Text>
                 <TextInput
-                    style={inputStyle}
+                    style={estiloDoInput}
                     placeholder="Ex: Vape Pod – Mint"
-                    placeholderTextColor={colors.textMuted}
-                    value={name}
-                    onChangeText={setName}
+                    placeholderTextColor={cores.textMuted}
+                    value={nome}
+                    onChangeText={setNome}
                 />
 
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Tipo</Text>
+                <Text style={[styles.fieldLabel, { color: cores.text }]}>Tipo</Text>
                 <View style={styles.toggleRow}>
                     {[{ val: 'desc', label: 'Descartável' }, { val: 'rec', label: 'Recarregável' }].map(({ val, label }) => (
                         <TouchableOpacity
                             key={val}
-                            style={[styles.toggleBtn, { borderColor: colors.border, backgroundColor: colors.card }, type === val && { borderColor: colors.primary, backgroundColor: colors.primary }]}
-                            onPress={() => setType(val)}
+                            style={[styles.toggleBtn, { borderColor: cores.border, backgroundColor: cores.card }, tipo === val && { borderColor: cores.primary, backgroundColor: cores.primary }]}
+                            onPress={() => setTipo(val)}
                         >
-                            <Text style={[styles.toggleBtnText, { color: colors.textSecondary }, type === val && { color: '#fff' }]}>{label}</Text>
+                            <Text style={[styles.toggleBtnText, { color: cores.textSecondary }, tipo === val && { color: '#fff' }]}>{label}</Text>
                         </TouchableOpacity>
                     ))}
                 </View>
 
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Preço (R$)</Text>
-                <TextInput style={inputStyle} placeholder="Ex: 39.90" placeholderTextColor={colors.textMuted} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+                <Text style={[styles.fieldLabel, { color: cores.text }]}>Preço (R$)</Text>
+                <TextInput style={estiloDoInput} placeholder="Ex: 39.90" placeholderTextColor={cores.textMuted} value={preco} onChangeText={setPreco} keyboardType="decimal-pad" />
 
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Quantas puxadas ele dá no total</Text>
-                <TextInput style={inputStyle} placeholder="Ex: 600" placeholderTextColor={colors.textMuted} value={totalPuffs} onChangeText={setTotalPuffs} keyboardType="number-pad" />
+                <Text style={[styles.fieldLabel, { color: cores.text }]}>Quantas puxadas ele dá no total</Text>
+                <TextInput style={estiloDoInput} placeholder="Ex: 600" placeholderTextColor={cores.textMuted} value={totalDePuxadas} onChangeText={setTotalDePuxadas} keyboardType="number-pad" />
 
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>Quantos dias ele costuma durar</Text>
-                <TextInput style={inputStyle} placeholder="Ex: 14" placeholderTextColor={colors.textMuted} value={days} onChangeText={setDays} keyboardType="number-pad" />
+                <Text style={[styles.fieldLabel, { color: cores.text }]}>Quantos dias ele costuma durar</Text>
+                <TextInput style={estiloDoInput} placeholder="Ex: 14" placeholderTextColor={cores.textMuted} value={dias} onChangeText={setDias} keyboardType="number-pad" />
 
-                {(price || totalPuffs || days) && (
-                    <View style={[styles.previewBox, { backgroundColor: colors.primaryLight }]}>
-                        <Text style={[styles.previewTitle, { color: colors.primaryDark }]}>Prévia</Text>
+                {(preco || totalDePuxadas || dias) && (
+                    <View style={[styles.previewBox, { backgroundColor: cores.primaryLight }]}>
+                        <Text style={[styles.previewTitle, { color: cores.primaryDark }]}>Prévia</Text>
                         <View style={styles.previewRow}>
-                            <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>Custo por puxada</Text>
-                            <Text style={[styles.previewVal, { color: colors.primaryDark }]}>{costPerPuff()}</Text>
+                            <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Custo por puxada</Text>
+                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>{custoPorPuxada()}</Text>
                         </View>
                         <View style={styles.previewRow}>
-                            <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>Sua meta por dia</Text>
-                            <Text style={[styles.previewVal, { color: colors.primaryDark }]}>{dailyGoal()}</Text>
+                            <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Sua meta por dia</Text>
+                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>{metaDiaria()}</Text>
                         </View>
                     </View>
                 )}
 
                 <TouchableOpacity
-                    style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
-                    onPress={handleSave}
-                    disabled={saving}
+                    style={[styles.saveBtn, { backgroundColor: cores.primary }, salvando && styles.saveBtnDisabled]}
+                    onPress={salvar}
+                    disabled={salvando}
                 >
-                    <Ionicons name={saving ? 'hourglass-outline' : 'save-outline'} size={20} color="#fff" />
-                    <Text style={styles.saveBtnText}>{saving ? 'Salvando...' : 'Salvar'}</Text>
+                    <Ionicons name={salvando ? 'hourglass-outline' : 'save-outline'} size={20} color="#fff" />
+                    <Text style={styles.saveBtnText}>{salvando ? 'Salvando...' : 'Salvar'}</Text>
                 </TouchableOpacity>
 
-                {successVisible && (
-                    <Animated.View style={[styles.successBox, { backgroundColor: colors.primaryLight, borderColor: colors.primary, opacity: fadeAnim }]}>
-                        <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
-                        <Text style={[styles.successText, { color: colors.primaryDark }]}>Salvo! Já atualizamos suas contas. ✅</Text>
+                {sucessoVisivel && (
+                    <Animated.View style={[styles.successBox, { backgroundColor: cores.primaryLight, borderColor: cores.primary, opacity: animacaoDeFade }]}>
+                        <Ionicons name="checkmark-circle" size={22} color={cores.primary} />
+                        <Text style={[styles.successText, { color: cores.primaryDark }]}>Salvo! Já atualizamos suas contas. ✅</Text>
                     </Animated.View>
                 )}
             </View>
 
-            <View style={[styles.infoBox, { backgroundColor: colors.primaryLight }]}>
-                <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
-                <Text style={[styles.infoText, { color: colors.primaryDark }]}>
+            <View style={[styles.infoBox, { backgroundColor: cores.primaryLight }]}>
+                <Ionicons name="information-circle-outline" size={18} color={cores.primary} />
+                <Text style={[styles.infoText, { color: cores.primaryDark }]}>
                     Com esses dados a gente calcula quanto você economiza cada vez que resiste ao vape.
                 </Text>
             </View>
@@ -171,22 +171,22 @@ export default function DeviceScreen({ navigation }) {
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
-    card: { borderRadius: RADIUS.lg, padding: 18, marginHorizontal: 16, marginTop: 16 },
+    card: { borderRadius: RAIO.lg, padding: 18, marginHorizontal: 16, marginTop: 16 },
     fieldLabel: { fontSize: 14, fontWeight: '700', marginBottom: 8, marginTop: 4 },
-    input: { borderWidth: 1.5, borderRadius: RADIUS.md, padding: 12, fontSize: 15, marginBottom: 14 },
+    input: { borderWidth: 1.5, borderRadius: RAIO.md, padding: 12, fontSize: 15, marginBottom: 14 },
     toggleRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
-    toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: RADIUS.md, borderWidth: 1.5, alignItems: 'center' },
+    toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: RAIO.md, borderWidth: 1.5, alignItems: 'center' },
     toggleBtnText: { fontSize: 14, fontWeight: '600' },
-    previewBox: { borderRadius: RADIUS.md, padding: 14, marginBottom: 16 },
+    previewBox: { borderRadius: RAIO.md, padding: 14, marginBottom: 16 },
     previewTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
     previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
     previewLabel: { fontSize: 13 },
     previewVal: { fontSize: 13, fontWeight: '700' },
-    saveBtn: { borderRadius: RADIUS.md, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    saveBtn: { borderRadius: RAIO.md, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
     saveBtnDisabled: { opacity: 0.7 },
     saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-    successBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: RADIUS.md, padding: 14, marginTop: 12 },
+    successBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: RAIO.md, padding: 14, marginTop: 12 },
     successText: { fontSize: 14, fontWeight: '600', flex: 1 },
-    infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginHorizontal: 16, marginTop: 14, borderRadius: RADIUS.md, padding: 14 },
+    infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginHorizontal: 16, marginTop: 14, borderRadius: RAIO.md, padding: 14 },
     infoText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

@@ -11,70 +11,70 @@ import Alert from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { RADIUS, SHADOW } from '../utils/theme';
-import { getRecords, getEconomy, calcStreak, getStreakShield } from '../utils/storage';
+import { usarAuth } from '../context/AuthContext';
+import { usarTema } from '../context/ThemeContext';
+import { RAIO, SOMBRA } from '../utils/theme';
+import { obterRegistros, obterEconomia, calcularStreak, obterEscudoDeStreak } from '../utils/storage';
 import ScreenHeader from '../components/ScreenHeader';
 
-function getInitials(name, email) {
-    const source = (name || email || '').trim();
-    if (!source) return 'U';
+function obterIniciais(nome, email) {
+    const origem = (nome || email || '').trim();
+    if (!origem) return 'U';
 
-    const parts = source.split(/\s+/).filter(Boolean);
-    if (parts.length === 1) {
-        return parts[0].slice(0, 2).toUpperCase();
+    const partes = origem.split(/\s+/).filter(Boolean);
+    if (partes.length === 1) {
+        return partes[0].slice(0, 2).toUpperCase();
     }
 
-    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    return `${partes[0][0]}${partes[partes.length - 1][0]}`.toUpperCase();
 }
 
 export default function Profile({ navigation }) {
-    const { colors, isDark, toggleTheme } = useTheme();
-    const { user, isGuest, logout } = useAuth();
-    const [busy, setBusy] = React.useState(false);
-    const [records, setRecords] = useState([]);
-    const [economy, setEconomy] = useState({});
-    const [shieldDates, setShieldDates] = useState([]);
+    const { cores, estaEscuro, alternarTema } = usarTema();
+    const { usuario, ehConvidado, sair } = usarAuth();
+    const [ocupado, setOcupado] = React.useState(false);
+    const [registros, setRegistros] = useState([]);
+    const [economia, setEconomia] = useState({});
+    const [datasDoEscudo, setDatasDoEscudo] = useState([]);
 
-    const displayName = isGuest ? 'Convidado' : user?.displayName?.trim() || 'Usuário';
-    const email = user?.email?.trim() || 'Sem e-mail cadastrado';
-    const initials = getInitials(user?.displayName, user?.email);
+    const nomeExibido = ehConvidado ? 'Convidado' : usuario?.displayName?.trim() || 'Usuário';
+    const email = usuario?.email?.trim() || 'Sem e-mail cadastrado';
+    const iniciais = obterIniciais(usuario?.displayName, usuario?.email);
 
-    const load = useCallback(async () => {
-        const [recs, eco, shield] = await Promise.all([getRecords(), getEconomy(), getStreakShield()]);
-        setRecords(recs);
-        setEconomy(eco);
-        setShieldDates(shield.usedDates);
+    const carregar = useCallback(async () => {
+        const [regs, eco, escudo] = await Promise.all([obterRegistros(), obterEconomia(), obterEscudoDeStreak()]);
+        setRegistros(regs);
+        setEconomia(eco);
+        setDatasDoEscudo(escudo.usedDates);
     }, []);
 
     useFocusEffect(
         useCallback(() => {
-            load();
-        }, [load])
+            carregar();
+        }, [carregar])
     );
 
-    const streak = calcStreak(records, shieldDates);
-    const totalSaved = Object.values(economy).reduce((a, v) => a + v, 0);
-    const startDate = records.length
-        ? [...records].map((r) => r.date).sort()[0]
+    const streak = calcularStreak(registros, datasDoEscudo);
+    const totalEconomizado = Object.values(economia).reduce((a, v) => a + v, 0);
+    const dataDeInicio = registros.length
+        ? [...registros].map((r) => r.date).sort()[0]
         : null;
-    const startDateLabel = startDate
+    const rotuloDataDeInicio = dataDeInicio
         ? (() => {
-              const [year, month, day] = startDate.split('-');
-              return `${day}/${month}/${year}`;
+              const [ano, mes, dia] = dataDeInicio.split('-');
+              return `${dia}/${mes}/${ano}`;
           })()
         : '—';
 
-    function handleBack() {
+    function handleVoltar() {
         navigation.goBack();
     }
 
-    function handleLogout() {
+    function handleSair() {
         if (Platform.OS === 'web') {
-            const confirmed = window.confirm('Quer mesmo sair da sua conta?');
-            if (confirmed) {
-                performLogout('Login');
+            const confirmado = window.confirm('Quer mesmo sair da sua conta?');
+            if (confirmado) {
+                executarSaida('Login');
             }
             return;
         }
@@ -84,193 +84,193 @@ export default function Profile({ navigation }) {
             {
                 text: 'Sair',
                 style: 'destructive',
-                onPress: () => performLogout('Login'),
+                onPress: () => executarSaida('Login'),
             },
         ]);
     }
 
-    async function performLogout(nextAuthScreen) {
-        setBusy(true);
+    async function executarSaida(proximaTelaDeAuth) {
+        setOcupado(true);
         try {
-            await logout(nextAuthScreen);
+            await sair(proximaTelaDeAuth);
         } finally {
-            setBusy(false);
+            setOcupado(false);
         }
     }
 
-    async function openAuthScreen(nextAuthScreen) {
-        if (busy) {
+    async function abrirTelaDeAuth(proximaTelaDeAuth) {
+        if (ocupado) {
             return;
         }
 
-        await performLogout(nextAuthScreen);
+        await executarSaida(proximaTelaDeAuth);
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
+        <View style={{ flex: 1, backgroundColor: cores.background }}>
+        <ScrollView style={[styles.scroll, { backgroundColor: cores.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
-                title="Perfil"
-                subtitle={isGuest ? 'Você tá no modo convidado' : 'Seus dados'}
-                colors={colors}
-                isDark={isDark}
-                toggleTheme={toggleTheme}
-                onBackPress={handleBack}
-                showProfile={false}
+                titulo="Perfil"
+                subtitulo={ehConvidado ? 'Você tá no modo convidado' : 'Seus dados'}
+                cores={cores}
+                estaEscuro={estaEscuro}
+                alternarTema={alternarTema}
+                aoPressionarVoltar={handleVoltar}
+                mostrarPerfil={false}
             />
 
-            {isGuest ? (
+            {ehConvidado ? (
                 <>
-                    <View style={[styles.profileCard, { backgroundColor: colors.card }, SHADOW.medium]}>
-                        <View style={[styles.avatar, { backgroundColor: colors.primaryLight }]}>
-                            <Text style={[styles.avatarText, { color: colors.primaryDark }]}>G</Text>
+                    <View style={[styles.profileCard, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <View style={[styles.avatar, { backgroundColor: cores.primaryLight }]}>
+                            <Text style={[styles.avatarText, { color: cores.primaryDark }]}>G</Text>
                         </View>
 
-                        <Text style={[styles.name, { color: colors.text }]}>Você tá como convidado</Text>
-                        <Text style={[styles.guestText, { color: colors.textMuted }]}>Entra ou cria uma conta pra não perder seu progresso — seus dados ficam salvos na nuvem.</Text>
+                        <Text style={[styles.name, { color: cores.text }]}>Você tá como convidado</Text>
+                        <Text style={[styles.guestText, { color: cores.textMuted }]}>Entra ou cria uma conta pra não perder seu progresso — seus dados ficam salvos na nuvem.</Text>
                     </View>
 
                     <View style={styles.guestActions}>
                         <TouchableOpacity
-                            style={[styles.primaryAction, { backgroundColor: colors.primary }, SHADOW.small]}
-                            onPress={() => openAuthScreen('Login')}
-                            disabled={busy}
+                            style={[styles.primaryAction, { backgroundColor: cores.primary }, SOMBRA.pequena]}
+                            onPress={() => abrirTelaDeAuth('Login')}
+                            disabled={ocupado}
                         >
                             <Text style={styles.primaryActionText}>Entrar</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[styles.secondaryAction, { borderColor: colors.primary, backgroundColor: colors.card }, SHADOW.small]}
-                            onPress={() => openAuthScreen('SignUp')}
-                            disabled={busy}
+                            style={[styles.secondaryAction, { borderColor: cores.primary, backgroundColor: cores.card }, SOMBRA.pequena]}
+                            onPress={() => abrirTelaDeAuth('SignUp')}
+                            disabled={ocupado}
                         >
-                            <Text style={[styles.secondaryActionText, { color: colors.primaryDark }]}>Cadastrar</Text>
+                            <Text style={[styles.secondaryActionText, { color: cores.primaryDark }]}>Cadastrar</Text>
                         </TouchableOpacity>
                     </View>
 
-                    <View style={[styles.infoCard, { backgroundColor: colors.card }, SHADOW.small]}>
+                    <View style={[styles.infoCard, { backgroundColor: cores.card }, SOMBRA.pequena]}>
                         <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-                                <Ionicons name="cloud-outline" size={18} color={colors.primaryDark} />
+                            <View style={[styles.infoIcon, { backgroundColor: cores.primaryLight }]}>
+                                <Ionicons name="cloud-outline" size={18} color={cores.primaryDark} />
                             </View>
                             <View style={styles.infoTextWrap}>
-                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Modo convidado</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>Seus dados ficam só neste aparelho até você entrar numa conta.</Text>
+                                <Text style={[styles.infoLabel, { color: cores.textMuted }]}>Modo convidado</Text>
+                                <Text style={[styles.infoValue, { color: cores.text }]}>Seus dados ficam só neste aparelho até você entrar numa conta.</Text>
                             </View>
                         </View>
                     </View>
 
-                    <View style={[styles.infoCard, { backgroundColor: colors.card }, SHADOW.small]}>
+                    <View style={[styles.infoCard, { backgroundColor: cores.card }, SOMBRA.pequena]}>
                         <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-                                <Ionicons name="calendar-outline" size={18} color={colors.primaryDark} />
+                            <View style={[styles.infoIcon, { backgroundColor: cores.primaryLight }]}>
+                                <Ionicons name="calendar-outline" size={18} color={cores.primaryDark} />
                             </View>
                             <View style={styles.infoTextWrap}>
-                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Início da jornada</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>{startDateLabel}</Text>
+                                <Text style={[styles.infoLabel, { color: cores.textMuted }]}>Início da jornada</Text>
+                                <Text style={[styles.infoValue, { color: cores.text }]}>{rotuloDataDeInicio}</Text>
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                        <View style={[styles.divider, { backgroundColor: cores.border }]} />
 
                         <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-                                <Ionicons name="flame-outline" size={18} color={colors.primaryDark} />
+                            <View style={[styles.infoIcon, { backgroundColor: cores.primaryLight }]}>
+                                <Ionicons name="flame-outline" size={18} color={cores.primaryDark} />
                             </View>
                             <View style={styles.infoTextWrap}>
-                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Dias sem usar</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>{streak}</Text>
+                                <Text style={[styles.infoLabel, { color: cores.textMuted }]}>Dias sem usar</Text>
+                                <Text style={[styles.infoValue, { color: cores.text }]}>{streak}</Text>
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                        <View style={[styles.divider, { backgroundColor: cores.border }]} />
 
                         <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-                                <Ionicons name="cash-outline" size={18} color={colors.primaryDark} />
+                            <View style={[styles.infoIcon, { backgroundColor: cores.primaryLight }]}>
+                                <Ionicons name="cash-outline" size={18} color={cores.primaryDark} />
                             </View>
                             <View style={styles.infoTextWrap}>
-                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Total economizado</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>R$ {totalSaved.toFixed(2)}</Text>
+                                <Text style={[styles.infoLabel, { color: cores.textMuted }]}>Total economizado</Text>
+                                <Text style={[styles.infoValue, { color: cores.text }]}>R$ {totalEconomizado.toFixed(2)}</Text>
                             </View>
                         </View>
                     </View>
                 </>
             ) : (
                 <>
-                    <View style={[styles.profileCard, { backgroundColor: colors.card }, SHADOW.medium]}>
-                        <View style={[styles.avatar, { backgroundColor: colors.primaryLight }]}>
-                            <Text style={[styles.avatarText, { color: colors.primaryDark }]}>{initials}</Text>
+                    <View style={[styles.profileCard, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <View style={[styles.avatar, { backgroundColor: cores.primaryLight }]}>
+                            <Text style={[styles.avatarText, { color: cores.primaryDark }]}>{iniciais}</Text>
                         </View>
 
-                        <Text style={[styles.name, { color: colors.text }]}>{displayName}</Text>
-                        <Text style={[styles.email, { color: colors.textMuted }]}>{email}</Text>
+                        <Text style={[styles.name, { color: cores.text }]}>{nomeExibido}</Text>
+                        <Text style={[styles.email, { color: cores.textMuted }]}>{email}</Text>
                     </View>
 
-                    <View style={[styles.infoCard, { backgroundColor: colors.card }, SHADOW.small]}>
+                    <View style={[styles.infoCard, { backgroundColor: cores.card }, SOMBRA.pequena]}>
                         <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-                                <Ionicons name="person-outline" size={18} color={colors.primaryDark} />
+                            <View style={[styles.infoIcon, { backgroundColor: cores.primaryLight }]}>
+                                <Ionicons name="person-outline" size={18} color={cores.primaryDark} />
                             </View>
                             <View style={styles.infoTextWrap}>
-                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Nome</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>{displayName}</Text>
+                                <Text style={[styles.infoLabel, { color: cores.textMuted }]}>Nome</Text>
+                                <Text style={[styles.infoValue, { color: cores.text }]}>{nomeExibido}</Text>
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                        <View style={[styles.divider, { backgroundColor: cores.border }]} />
 
                         <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-                                <Ionicons name="mail-outline" size={18} color={colors.primaryDark} />
+                            <View style={[styles.infoIcon, { backgroundColor: cores.primaryLight }]}>
+                                <Ionicons name="mail-outline" size={18} color={cores.primaryDark} />
                             </View>
                             <View style={styles.infoTextWrap}>
-                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>E-mail</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>{email}</Text>
+                                <Text style={[styles.infoLabel, { color: cores.textMuted }]}>E-mail</Text>
+                                <Text style={[styles.infoValue, { color: cores.text }]}>{email}</Text>
                             </View>
                         </View>
                     </View>
 
-                    <View style={[styles.infoCard, { backgroundColor: colors.card }, SHADOW.small]}>
+                    <View style={[styles.infoCard, { backgroundColor: cores.card }, SOMBRA.pequena]}>
                         <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-                                <Ionicons name="calendar-outline" size={18} color={colors.primaryDark} />
+                            <View style={[styles.infoIcon, { backgroundColor: cores.primaryLight }]}>
+                                <Ionicons name="calendar-outline" size={18} color={cores.primaryDark} />
                             </View>
                             <View style={styles.infoTextWrap}>
-                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Início da jornada</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>{startDateLabel}</Text>
+                                <Text style={[styles.infoLabel, { color: cores.textMuted }]}>Início da jornada</Text>
+                                <Text style={[styles.infoValue, { color: cores.text }]}>{rotuloDataDeInicio}</Text>
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                        <View style={[styles.divider, { backgroundColor: cores.border }]} />
 
                         <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-                                <Ionicons name="flame-outline" size={18} color={colors.primaryDark} />
+                            <View style={[styles.infoIcon, { backgroundColor: cores.primaryLight }]}>
+                                <Ionicons name="flame-outline" size={18} color={cores.primaryDark} />
                             </View>
                             <View style={styles.infoTextWrap}>
-                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Dias sem usar</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>{streak}</Text>
+                                <Text style={[styles.infoLabel, { color: cores.textMuted }]}>Dias sem usar</Text>
+                                <Text style={[styles.infoValue, { color: cores.text }]}>{streak}</Text>
                             </View>
                         </View>
 
-                        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                        <View style={[styles.divider, { backgroundColor: cores.border }]} />
 
                         <View style={styles.infoRow}>
-                            <View style={[styles.infoIcon, { backgroundColor: colors.primaryLight }]}>
-                                <Ionicons name="cash-outline" size={18} color={colors.primaryDark} />
+                            <View style={[styles.infoIcon, { backgroundColor: cores.primaryLight }]}>
+                                <Ionicons name="cash-outline" size={18} color={cores.primaryDark} />
                             </View>
                             <View style={styles.infoTextWrap}>
-                                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Total economizado</Text>
-                                <Text style={[styles.infoValue, { color: colors.text }]}>R$ {totalSaved.toFixed(2)}</Text>
+                                <Text style={[styles.infoLabel, { color: cores.textMuted }]}>Total economizado</Text>
+                                <Text style={[styles.infoValue, { color: cores.text }]}>R$ {totalEconomizado.toFixed(2)}</Text>
                             </View>
                         </View>
                     </View>
 
                     <TouchableOpacity
-                        style={[styles.logoutBtn, { backgroundColor: colors.danger }, SHADOW.small]}
-                        onPress={handleLogout}
-                        disabled={busy}
+                        style={[styles.logoutBtn, { backgroundColor: cores.danger }, SOMBRA.pequena]}
+                        onPress={handleSair}
+                        disabled={ocupado}
                     >
                         <Ionicons name="log-out-outline" size={20} color="#fff" />
                         <Text style={styles.logoutText}>Sair</Text>
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     profileCard: {
         marginHorizontal: 16,
         marginTop: 16,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         padding: 20,
         alignItems: 'center',
     },
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     infoCard: {
         marginHorizontal: 16,
         marginTop: 14,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         paddingHorizontal: 16,
         paddingVertical: 6,
     },
@@ -339,14 +339,14 @@ const styles = StyleSheet.create({
     },
     primaryAction: {
         minHeight: 48,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         alignItems: 'center',
         justifyContent: 'center',
     },
     primaryActionText: { color: '#fff', fontSize: 15, fontWeight: '700' },
     secondaryAction: {
         minHeight: 48,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
     logoutBtn: {
         marginHorizontal: 16,
         marginTop: 18,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         paddingVertical: 14,
         paddingHorizontal: 16,
         flexDirection: 'row',

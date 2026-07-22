@@ -5,23 +5,23 @@ import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './navigation/AppNavigator';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ThemeProvider, usarTema } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { XpToastProvider } from './context/XpToastContext';
-import { configureNotificationHandler } from './utils/notifications';
+import { configurarHandlerDeNotificacoes } from './utils/notifications';
 import './services/firebase';
 
 LogBox.ignoreLogs([
     'expo-notifications: Android Push notifications (remote notifications)',
 ]);
 
-configureNotificationHandler();
+configurarHandlerDeNotificacoes();
 
 function AppContent() {
-    const { isDark } = useTheme();
+    const { estaEscuro } = usarTema();
     return (
         <SafeAreaProvider>
-            <StatusBar style={isDark ? 'light' : 'light'} />
+            <StatusBar style={estaEscuro ? 'light' : 'light'} />
             <XpToastProvider>
                 <AppNavigator />
             </XpToastProvider>

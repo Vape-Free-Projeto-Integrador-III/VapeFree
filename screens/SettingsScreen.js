@@ -2,46 +2,46 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useTheme } from '../context/ThemeContext';
-import { RADIUS, SHADOW } from '../utils/theme';
+import { usarTema } from '../context/ThemeContext';
+import { RAIO, SOMBRA } from '../utils/theme';
 import ScreenHeader from '../components/ScreenHeader';
 
 export default function SettingsScreen({ navigation }) {
-    const { colors, isDark, toggleTheme } = useTheme();
+    const { cores, estaEscuro, alternarTema } = usarTema();
 
     return (
-        <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
+        <View style={{ flex: 1, backgroundColor: cores.background }}>
+        <ScrollView style={[styles.scroll, { backgroundColor: cores.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
-                title="Configurações"
-                subtitle="Ajuste o app do seu jeito"
-                colors={colors}
-                isDark={isDark}
-                onBackPress={() => navigation.goBack()}
-                showProfile={false}
-                showTheme={false}
+                titulo="Configurações"
+                subtitulo="Ajuste o app do seu jeito"
+                cores={cores}
+                estaEscuro={estaEscuro}
+                aoPressionarVoltar={() => navigation.goBack()}
+                mostrarPerfil={false}
+                mostrarTema={false}
             />
 
-            <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.small]}>
+            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}>
                 <TouchableOpacity
                     style={styles.row}
                     onPress={() => navigation.navigate('Profile')}
                 >
-                    <View style={[styles.icon, { backgroundColor: colors.primaryLight }]}>
-                        <Ionicons name="person-circle-outline" size={20} color={colors.primaryDark} />
+                    <View style={[styles.icon, { backgroundColor: cores.primaryLight }]}>
+                        <Ionicons name="person-circle-outline" size={20} color={cores.primaryDark} />
                     </View>
-                    <Text style={[styles.rowLabel, { color: colors.text }]}>Perfil</Text>
-                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                    <Text style={[styles.rowLabel, { color: cores.text }]}>Perfil</Text>
+                    <Ionicons name="chevron-forward" size={18} color={cores.textMuted} />
                 </TouchableOpacity>
 
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <View style={[styles.divider, { backgroundColor: cores.border }]} />
 
                 <View style={styles.row}>
-                    <View style={[styles.icon, { backgroundColor: colors.primaryLight }]}>
-                        <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primaryDark} />
+                    <View style={[styles.icon, { backgroundColor: cores.primaryLight }]}>
+                        <Ionicons name={estaEscuro ? 'sunny-outline' : 'moon-outline'} size={20} color={cores.primaryDark} />
                     </View>
-                    <Text style={[styles.rowLabel, { color: colors.text }]}>Modo escuro</Text>
-                    <Switch value={isDark} onValueChange={toggleTheme} />
+                    <Text style={[styles.rowLabel, { color: cores.text }]}>Modo escuro</Text>
+                    <Switch value={estaEscuro} onValueChange={alternarTema} />
                 </View>
             </View>
         </ScrollView>
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     card: {
         marginHorizontal: 16,
         marginTop: 16,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         paddingHorizontal: 16,
     },
     row: {

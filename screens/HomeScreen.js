@@ -13,300 +13,297 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import {
-    getRecords,
-    getDevice,
-    getEconomy,
-    getLastNDays,
-    getCrisisSessions,
-    getMissions,
-    checkAndCompleteMissions,
-    checkAndUnlockAchievements,
-    refreshXp,
-    calcStreak,
-    todayString,
-    registerAppOpen,
-    syncStreakShield,
+    obterRegistros,
+    obterAparelho,
+    obterEconomia,
+    ultimosNDias,
+    obterSessoesDeCrise,
+    obterMissoes,
+    verificarEConcluirMissoes,
+    verificarEDesbloquearConquistas,
+    atualizarXp,
+    calcularStreak,
+    dataDeHoje,
+    registrarAberturaDoApp,
+    sincronizarEscudoDeStreak,
 } from '../utils/storage';
-import { sumPuffs } from '../utils/records';
-import { getLevel } from '../utils/xp';
-import { buildMissionContext, checkMissions } from '../utils/missions';
-import { RADIUS, SHADOW, TIPS } from '../utils/theme';
-import { useTheme } from '../context/ThemeContext';
-import { useAuth } from '../context/AuthContext';
-import { useXpToast } from '../context/XpToastContext';
+import { somarPuxadas } from '../utils/records';
+import { obterNivel } from '../utils/xp';
+import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
+import { RAIO, SOMBRA, DICAS } from '../utils/theme';
+import { usarTema } from '../context/ThemeContext';
+import { usarToastDeXp } from '../context/XpToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 import MissionsCard from '../components/MissionsCard';
 
 const { width } = Dimensions.get('window');
-const CHART_WIDTH = width - 64;
+const LARGURA_DO_GRAFICO = width - 64;
 
 export default function HomeScreen({ navigation }) {
-    const { colors, isDark, toggleTheme } = useTheme();
-    const { user } = useAuth();
-    const { showRewards } = useXpToast();
-    const [records, setRecords] = useState([]);
-    const [device, setDevice] = useState(null);
-    const [economy, setEconomy] = useState({});
-    const [missions, setMissions] = useState([]);
+    const { cores, estaEscuro, alternarTema } = usarTema();
+    const { mostrarRecompensas } = usarToastDeXp();
+    const [registros, setRegistros] = useState([]);
+    const [aparelho, setAparelho] = useState(null);
+    const [economia, setEconomia] = useState({});
+    const [missoes, setMissoes] = useState([]);
     const [xp, setXp] = useState(0);
-    const [shield, setShield] = useState({ count: 0, usedDates: [] });
-    const [refreshing, setRefreshing] = useState(false);
+    const [escudo, setEscudo] = useState({ count: 0, usedDates: [] });
+    const [atualizando, setAtualizando] = useState(false);
 
-    const load = useCallback(async () => {
+    const carregar = useCallback(async () => {
         // Home é a porta de entrada do app — marcar aqui o dia de abertura
         // alimenta a conquista de presença diária (app_open_7).
-        const appOpenDays = await registerAppOpen();
+        const diasDeAbertura = await registrarAberturaDoApp();
         const [r, d, e, c] = await Promise.all([
-            getRecords(),
-            getDevice(),
-            getEconomy(),
-            getCrisisSessions(),
+            obterRegistros(),
+            obterAparelho(),
+            obterEconomia(),
+            obterSessoesDeCrise(),
         ]);
-        setRecords(r);
-        setDevice(d);
-        setEconomy(e);
+        setRegistros(r);
+        setAparelho(d);
+        setEconomia(e);
 
         // Antes de qualquer contagem de streak: consome/concede escudo.
-        const shieldState = await syncStreakShield(r);
-        setShield(shieldState);
+        const estadoDoEscudo = await sincronizarEscudoDeStreak(r);
+        setEscudo(estadoDoEscudo);
 
-        const newMissions = await checkAndCompleteMissions(r, e, c);
-        const completedMissions = await getMissions();
-        setMissions(checkMissions(buildMissionContext(r, e, c, todayString()), completedMissions));
+        const novasMissoes = await verificarEConcluirMissoes(r, e, c);
+        const missoesConcluidas = await obterMissoes();
+        setMissoes(verificarMissoes(montarContextoDeMissoes(r, e, c, dataDeHoje()), missoesConcluidas));
 
         // Concluir missão pode desbloquear conquista (ex: first_mission).
-        const newAchievements = await checkAndUnlockAchievements(r, e, completedMissions, {
-            crisisSessions: c,
-            appOpenDays,
-            shieldDates: shieldState.usedDates,
+        const novasConquistas = await verificarEDesbloquearConquistas(r, e, missoesConcluidas, {
+            sessoesDeCrise: c,
+            diasDeAbertura,
+            diasComEscudo: estadoDoEscudo.usedDates,
         });
-        const summary = await refreshXp(r, null, completedMissions);
-        setXp(summary.xp);
-        showRewards({ achievements: newAchievements, missions: newMissions, gained: summary.gained });
-    }, [showRewards]);
+        const resumo = await atualizarXp(r, null, missoesConcluidas);
+        setXp(resumo.xp);
+        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
+    }, [mostrarRecompensas]);
 
     useFocusEffect(
         useCallback(() => {
-            load();
-        }, [load])
+            carregar();
+        }, [carregar])
     );
 
-    const onRefresh = async () => {
-        setRefreshing(true);
-        await load();
-        setRefreshing(false);
+    const aoAtualizar = async () => {
+        setAtualizando(true);
+        await carregar();
+        setAtualizando(false);
     };
 
-    function openSettings() {
+    function abrirConfiguracoes() {
         navigation.navigate('Settings');
     }
 
-    const today = todayString();
-    const todayRecs = records.filter((r) => r.date === today);
-    const todayPuffs = sumPuffs(todayRecs);
-    const streak = calcStreak(records, shield.usedDates);
-    const last7 = getLastNDays(7);
-    const weekPuffs = last7.reduce((sum, d) => {
-        return sum + sumPuffs(records.filter((r) => r.date === d));
+    const hoje = dataDeHoje();
+    const registrosDeHoje = registros.filter((r) => r.date === hoje);
+    const puxadasDeHoje = somarPuxadas(registrosDeHoje);
+    const streak = calcularStreak(registros, escudo.usedDates);
+    const ultimos7Dias = ultimosNDias(7);
+    const puxadasDaSemana = ultimos7Dias.reduce((soma, d) => {
+        return soma + somarPuxadas(registros.filter((r) => r.date === d));
     }, 0);
 
-    const chartLabels = last7.map((d) => {
-        const [, month, day] = d.split('-');
-        return `${day}/${month}`;
+    const rotulosDoGrafico = ultimos7Dias.map((d) => {
+        const [, mes, dia] = d.split('-');
+        return `${dia}/${mes}`;
     });
-    const chartData = last7.map((d) => sumPuffs(records.filter((r) => r.date === d)));
+    const dadosDoGrafico = ultimos7Dias.map((d) => somarPuxadas(registros.filter((r) => r.date === d)));
 
-    const todayEco = economy[today] || 0;
-    const totalEco = Object.values(economy).reduce((a, v) => a + v, 0);
+    const economiaDeHoje = economia[hoje] || 0;
+    const economiaTotal = Object.values(economia).reduce((a, v) => a + v, 0);
 
     // Escudo: protege 1 dia perdido (sem registro ou com uso) por vez.
-    const hasShield = shield.count > 0;
-    const lastShieldUse = (shield.usedDates || [])[(shield.usedDates || []).length - 1];
-    const shieldMessage = (() => {
-        if (shield.consumedDates?.length > 0) {
-            const [, month, day] = shield.consumedDates[shield.consumedDates.length - 1].split('-');
-            return `Escudo usado em ${day}/${month} — sua sequência continua! 💪`;
+    const temEscudo = escudo.count > 0;
+    const ultimoUsoDoEscudo = (escudo.usedDates || [])[(escudo.usedDates || []).length - 1];
+    const mensagemDoEscudo = (() => {
+        if (escudo.diasConsumidos?.length > 0) {
+            const [, mes, dia] = escudo.diasConsumidos[escudo.diasConsumidos.length - 1].split('-');
+            return `Escudo usado em ${dia}/${mes} — sua sequência continua! 💪`;
         }
-        if (hasShield) {
+        if (temEscudo) {
             return 'Escudo pronto: se você falhar um dia, a sequência não zera';
         }
-        if (lastShieldUse) {
+        if (ultimoUsoDoEscudo) {
             return 'Escudo gasto. Complete mais 7 dias seguidos pra ganhar outro';
         }
         return 'Complete 7 dias seguidos pra ganhar um escudo de sequência';
     })();
 
-    const level = getLevel(xp);
-    const tip = TIPS[new Date().getDate() % TIPS.length];
-    const welcomeName = user?.displayName?.trim();
+    const nivel = obterNivel(xp);
+    const dica = DICAS[new Date().getDate() % DICAS.length];
 
     return (
-        <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={{ flex: 1, backgroundColor: cores.background }}>
         <ScrollView
-            style={[styles.scroll, { backgroundColor: colors.background }]}
+            style={[styles.scroll, { backgroundColor: cores.background }]}
             contentContainerStyle={styles.container}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+            refreshControl={<RefreshControl refreshing={atualizando} onRefresh={aoAtualizar} tintColor={cores.primary} />}
         >
             <ScreenHeader
-                title="VapeFree"
-                subtitle="Vamos deixar o vape pra trás"
-                colors={colors}
-                showSettings
-                onSettingsPress={openSettings}
+                titulo="VapeFree"
+                subtitulo="Vamos deixar o vape pra trás"
+                cores={cores}
+                mostrarConfiguracoes
+                aoPressionarConfiguracoes={abrirConfiguracoes}
             />
 
             <TouchableOpacity
-                style={[styles.crisisCard, { backgroundColor: colors.card, borderLeftColor: colors.warning }, SHADOW.medium]}
+                style={[styles.crisisCard, { backgroundColor: cores.card, borderLeftColor: cores.warning }, SOMBRA.media]}
                 onPress={() => navigation.navigate('Crisis')}
             >
-                <Ionicons name="hand-left" size={26} color={colors.warning} />
+                <Ionicons name="hand-left" size={26} color={cores.warning} />
                 <View style={{ flex: 1 }}>
-                    <Text style={[styles.crisisTitle, { color: colors.text }]}>Estou com vontade</Text>
-                    <Text style={[styles.crisisSubtitle, { color: colors.textSecondary }]}>
+                    <Text style={[styles.crisisTitle, { color: cores.text }]}>Estou com vontade</Text>
+                    <Text style={[styles.crisisSubtitle, { color: cores.textSecondary }]}>
                         Toca aqui — a gente passa por isso junto
                     </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                <Ionicons name="chevron-forward" size={18} color={cores.textMuted} />
             </TouchableOpacity>
 
-            <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
-                <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Como você foi hoje?</Text>
+            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Como você foi hoje?</Text>
                 <View style={styles.statRow}>
-                    <View style={[styles.statBox, { backgroundColor: colors.primaryLight }]}>
-                        <Text style={[styles.statNum, { color: colors.primaryDark }]}>{todayPuffs}</Text>
-                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Puxadas{'\n'}hoje</Text>
+                    <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
+                        <Text style={[styles.statNum, { color: cores.primaryDark }]}>{puxadasDeHoje}</Text>
+                        <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Puxadas{'\n'}hoje</Text>
                     </View>
-                    <View style={[styles.statBox, { backgroundColor: colors.primaryLight }]}>
-                        <Text style={[styles.statNum, { color: colors.primaryDark }]}>{streak}</Text>
-                         <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dias{'\n'}registrados{'\n'}sem uso</Text>
+                    <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
+                        <Text style={[styles.statNum, { color: cores.primaryDark }]}>{streak}</Text>
+                         <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Dias{'\n'}registrados{'\n'}sem uso</Text>
                     </View>
-                    <View style={[styles.statBox, { backgroundColor: colors.primaryLight }]}>
-                        <Text style={[styles.statNum, { color: colors.primaryDark }]}>{weekPuffs}</Text>
-                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Esta{'\n'}semana</Text>
+                    <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
+                        <Text style={[styles.statNum, { color: cores.primaryDark }]}>{puxadasDaSemana}</Text>
+                        <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Esta{'\n'}semana</Text>
                     </View>
                 </View>
 
                 <View
                     style={[
                         styles.shieldRow,
-                        { backgroundColor: colors.primaryLight, borderColor: hasShield ? colors.primary : colors.borderLight },
+                        { backgroundColor: cores.primaryLight, borderColor: temEscudo ? cores.primary : cores.borderLight },
                     ]}
                 >
                     <Ionicons
-                        name={hasShield ? 'shield-checkmark' : 'shield-outline'}
+                        name={temEscudo ? 'shield-checkmark' : 'shield-outline'}
                         size={20}
-                        color={hasShield ? colors.primary : colors.textMuted}
+                        color={temEscudo ? cores.primary : cores.textMuted}
                     />
-                    <Text style={[styles.shieldText, { color: hasShield ? colors.primaryDark : colors.textSecondary }]}>
-                        {shieldMessage}
+                    <Text style={[styles.shieldText, { color: temEscudo ? cores.primaryDark : cores.textSecondary }]}>
+                        {mensagemDoEscudo}
                     </Text>
                 </View>
             </View>
 
-            <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
+            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
                 <View style={styles.xpHeader}>
-                    <Text style={styles.xpIcon}>{level.icon}</Text>
+                    <Text style={styles.xpIcon}>{nivel.icone}</Text>
                     <View style={{ flex: 1 }}>
-                        <Text style={[styles.xpLevel, { color: colors.text }]}>
-                            Nível {level.number} · {level.name}
+                        <Text style={[styles.xpLevel, { color: cores.text }]}>
+                            Nível {nivel.numero} · {nivel.nome}
                         </Text>
-                        <Text style={[styles.xpSub, { color: colors.textSecondary }]}>
-                            {level.nextName
-                                ? `${level.xpToNext} XP pra virar ${level.nextName}`
+                        <Text style={[styles.xpSub, { color: cores.textSecondary }]}>
+                            {nivel.nomeDoProximo
+                                ? `${nivel.xpParaProximo} XP pra virar ${nivel.nomeDoProximo}`
                                 : 'Nível máximo — você é lenda 👑'}
                         </Text>
                     </View>
-                    <Text style={[styles.xpTotal, { color: colors.primaryDark }]}>{xp} XP</Text>
+                    <Text style={[styles.xpTotal, { color: cores.primaryDark }]}>{xp} XP</Text>
                 </View>
-                <View style={[styles.xpTrack, { backgroundColor: colors.primaryLight }]}>
+                <View style={[styles.xpTrack, { backgroundColor: cores.primaryLight }]}>
                     <View
                         style={[
                             styles.xpFill,
-                            { backgroundColor: colors.primary, width: `${Math.round(level.progress * 100)}%` },
+                            { backgroundColor: cores.primary, width: `${Math.round(nivel.progresso * 100)}%` },
                         ]}
                     />
                 </View>
             </View>
 
             <MissionsCard
-                missions={missions.filter((mission) => mission.period === 'daily')}
-                colors={colors}
-                onPress={() => navigation.navigate('Missions')}
+                missoes={missoes.filter((missao) => missao.period === 'daily')}
+                cores={cores}
+                aoPressionar={() => navigation.navigate('Missions')}
             />
 
-            <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
-                <Text style={[styles.cardTitle, { color: colors.textMuted }]}>💰 Economia</Text>
-                {device ? (
+            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>💰 Economia</Text>
+                {aparelho ? (
                     <View style={styles.moneyRow}>
-                        <View style={[styles.moneyBox, { backgroundColor: colors.primaryLight }]}>
+                        <View style={[styles.moneyBox, { backgroundColor: cores.primaryLight }]}>
                             <Text style={styles.moneyIcon}>💰</Text>
-                            <Text style={[styles.moneyVal, { color: colors.primaryDark }]}>R$ {todayEco.toFixed(2)}</Text>
-                            <Text style={[styles.moneyLabel, { color: colors.textSecondary }]}>Ficou no seu bolso hoje</Text>
+                            <Text style={[styles.moneyVal, { color: cores.primaryDark }]}>R$ {economiaDeHoje.toFixed(2)}</Text>
+                            <Text style={[styles.moneyLabel, { color: cores.textSecondary }]}>Ficou no seu bolso hoje</Text>
                         </View>
-                        <View style={[styles.moneyBox, { backgroundColor: colors.primaryLight }]}>
+                        <View style={[styles.moneyBox, { backgroundColor: cores.primaryLight }]}>
                             <Text style={styles.moneyIcon}>💵</Text>
-                            <Text style={[styles.moneyVal, { color: colors.primaryDark }]}>R$ {totalEco.toFixed(2)}</Text>
-                            <Text style={[styles.moneyLabel, { color: colors.textSecondary }]}>Total no bolso</Text>
+                            <Text style={[styles.moneyVal, { color: cores.primaryDark }]}>R$ {economiaTotal.toFixed(2)}</Text>
+                            <Text style={[styles.moneyLabel, { color: cores.textSecondary }]}>Total no bolso</Text>
                         </View>
                     </View>
                 ) : (
                     <TouchableOpacity
-                        style={[styles.devicePrompt, { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}
+                        style={[styles.devicePrompt, { backgroundColor: cores.primaryLight, borderColor: cores.primary }]}
                         onPress={() => navigation.navigate('Device')}
                     >
-                        <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-                        <Text style={[styles.devicePromptText, { color: colors.primaryDark }]}>
+                        <Ionicons name="add-circle-outline" size={20} color={cores.primary} />
+                        <Text style={[styles.devicePromptText, { color: cores.primaryDark }]}>
                             Cadastra seu dispositivo pra ver quanto você tá economizando 💡
                         </Text>
                     </TouchableOpacity>
                 )}
             </View>
 
-            <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
-                <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Últimos 7 dias</Text>
-                {records.length > 0 ? (
+            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Últimos 7 dias</Text>
+                {registros.length > 0 ? (
                     <LineChart
                         data={{
-                            labels: chartLabels,
-                            datasets: [{ data: chartData }],
+                            labels: rotulosDoGrafico,
+                            datasets: [{ data: dadosDoGrafico }],
                         }}
-                        width={CHART_WIDTH}
+                        width={LARGURA_DO_GRAFICO}
                         height={180}
                         fromZero
-                        segments={Math.max(1, Math.min(4, Math.max(...chartData)))}
+                        segments={Math.max(1, Math.min(4, Math.max(...dadosDoGrafico)))}
                         chartConfig={{
-                            backgroundColor: colors.card,
-                            backgroundGradientFrom: colors.card,
-                            backgroundGradientTo: colors.card,
+                            backgroundColor: cores.card,
+                            backgroundGradientFrom: cores.card,
+                            backgroundGradientTo: cores.card,
                             decimalPlaces: 0,
                             color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
-                            labelColor: () => colors.textSecondary,
-                            propsForDots: { r: '4', strokeWidth: '2', stroke: colors.primaryDark },
-                            propsForBackgroundLines: { stroke: colors.borderLight },
+                            labelColor: () => cores.textSecondary,
+                            propsForDots: { r: '4', strokeWidth: '2', stroke: cores.primaryDark },
+                            propsForBackgroundLines: { stroke: cores.borderLight },
                             formatYLabel: (v) => `${Math.round(Number(v))}`,
                         }}
                         bezier
                         style={styles.chart}
                     />
                 ) : (
-                    <Text style={[styles.emptyChart, { color: colors.textMuted }]}>Ainda não tem nada por aqui. Bora começar? 📝</Text>
+                    <Text style={[styles.emptyChart, { color: cores.textMuted }]}>Ainda não tem nada por aqui. Bora começar? 📝</Text>
                 )}
             </View>
 
-            <View style={[styles.tipCard, { backgroundColor: colors.card, borderLeftColor: colors.primary }, SHADOW.small]}>
-                <Ionicons name="bulb-outline" size={24} color={colors.primary} style={{ marginRight: 10 }} />
-                <Text style={[styles.tipText, { color: colors.text }]}>{tip}</Text>
+            <View style={[styles.tipCard, { backgroundColor: cores.card, borderLeftColor: cores.primary }, SOMBRA.pequena]}>
+                <Ionicons name="bulb-outline" size={24} color={cores.primary} style={{ marginRight: 10 }} />
+                <Text style={[styles.tipText, { color: cores.text }]}>{dica}</Text>
             </View>
 
             <TouchableOpacity
-                style={[styles.deviceBtn, { backgroundColor: colors.card, borderColor: colors.primary }, SHADOW.small]}
+                style={[styles.deviceBtn, { backgroundColor: cores.card, borderColor: cores.primary }, SOMBRA.pequena]}
                 onPress={() => navigation.navigate('Device')}
             >
-                <Ionicons name="phone-portrait-outline" size={18} color={colors.primary} />
-                <Text style={[styles.deviceBtnText, { color: colors.primaryDark }]}>
-                    {device ? `Seu dispositivo: ${device.name}` : 'Cadastrar meu dispositivo'}
+                <Ionicons name="phone-portrait-outline" size={18} color={cores.primary} />
+                <Text style={[styles.deviceBtnText, { color: cores.primaryDark }]}>
+                    {aparelho ? `Seu dispositivo: ${aparelho.name}` : 'Cadastrar meu dispositivo'}
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                <Ionicons name="chevron-forward" size={16} color={cores.primary} />
             </TouchableOpacity>
         </ScrollView>
         </View>
@@ -318,7 +315,7 @@ const styles = StyleSheet.create({
     container: { paddingBottom: 24 },
     welcomeText: { fontSize: 14, fontWeight: '700', color: '#fff', marginTop: 6 },
     card: {
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         padding: 16,
         marginHorizontal: 16,
         marginTop: 14,
@@ -334,7 +331,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         borderLeftWidth: 4,
         padding: 16,
         marginHorizontal: 16,
@@ -345,7 +342,7 @@ const styles = StyleSheet.create({
     statRow: { flexDirection: 'row', gap: 8 },
     statBox: {
         flex: 1,
-        borderRadius: RADIUS.md,
+        borderRadius: RAIO.md,
         padding: 12,
         alignItems: 'center',
     },
@@ -355,7 +352,7 @@ const styles = StyleSheet.create({
         gap: 8,
         marginTop: 10,
         padding: 10,
-        borderRadius: RADIUS.md,
+        borderRadius: RAIO.md,
         borderWidth: 1,
     },
     shieldText: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 16 },
@@ -366,12 +363,12 @@ const styles = StyleSheet.create({
     xpLevel: { fontSize: 15, fontWeight: '800' },
     xpSub: { fontSize: 12, marginTop: 2 },
     xpTotal: { fontSize: 16, fontWeight: '800' },
-    xpTrack: { height: 10, borderRadius: RADIUS.md, overflow: 'hidden' },
-    xpFill: { height: '100%', borderRadius: RADIUS.md },
+    xpTrack: { height: 10, borderRadius: RAIO.md, overflow: 'hidden' },
+    xpFill: { height: '100%', borderRadius: RAIO.md },
     moneyRow: { flexDirection: 'row', gap: 10 },
     moneyBox: {
         flex: 1,
-        borderRadius: RADIUS.md,
+        borderRadius: RAIO.md,
         padding: 14,
     },
     moneyIcon: { fontSize: 22, marginBottom: 4 },
@@ -382,15 +379,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 8,
         padding: 12,
-        borderRadius: RADIUS.md,
+        borderRadius: RAIO.md,
         borderWidth: 1.5,
         borderStyle: 'dashed',
     },
     devicePromptText: { flex: 1, fontSize: 13, fontWeight: '500' },
-    chart: { borderRadius: RADIUS.md, marginTop: 4 },
+    chart: { borderRadius: RAIO.md, marginTop: 4 },
     emptyChart: { fontSize: 13, textAlign: 'center', padding: 20 },
     tipCard: {
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         padding: 16,
         marginHorizontal: 16,
         marginTop: 14,
@@ -403,7 +400,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         padding: 14,
         marginHorizontal: 16,
         marginTop: 14,

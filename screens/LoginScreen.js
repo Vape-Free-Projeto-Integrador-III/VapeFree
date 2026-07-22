@@ -18,11 +18,11 @@ import {
 } from 'firebase/auth';
 
 import { auth } from '../services/firebase';
-import { useAuth } from '../context/AuthContext';
+import { usarAuth } from '../context/AuthContext';
 import {
-    hasGuestLocalData,
-    clearGuestLocalData,
-    migrateGuestLocalDataToUser,
+    temDadosLocaisDoConvidado,
+    limparDadosLocaisDoConvidado,
+    migrarDadosDoConvidadoParaConta,
 } from '../utils/storage';
 import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
 
@@ -37,7 +37,7 @@ import * as AuthSession from 'expo-auth-session';
 WebBrowser.maybeCompleteAuthSession();
 /*Fim import pro login do google*/
 
-const COLORS = {
+const CORES = {
     background: '#FFFFFF',
     iconCircleBg: '#98FE98',
     iconCheck: '#4A9BB6',
@@ -76,52 +76,52 @@ export default function LoginScreen({ navigation }) {
     const [mostrarSenha, setMostrarSenha] = useState(false);
     const [lembrarMe, setLembrarMe] = useState(false);
     const [carregando, setCarregando] = useState(false);
-    const [guestChoiceVisible, setGuestChoiceVisible] = useState(false);
-    const [guestChoiceConfig, setGuestChoiceConfig] = useState(null);
-    const guestChoiceResolverRef = React.useRef(null);
-    const pendingGoogleGuestChoiceRef = React.useRef('skip');
+    const [escolhaConvidadoVisivel, setEscolhaConvidadoVisivel] = useState(false);
+    const [configEscolhaConvidado, setConfigEscolhaConvidado] = useState(null);
+    const resolverEscolhaConvidadoRef = React.useRef(null);
+    const escolhaConvidadoGooglePendenteRef = React.useRef('skip');
 
-    const { continueAsGuest } = useAuth();
+    const { continuarSemConta } = usarAuth();
 
     async function handleContinuarSemConta() {
-        await continueAsGuest();
+        await continuarSemConta();
     }
 
-    async function perguntarSobreDadosDeConvidado({ title, message, importLabel, discardLabel }) {
-        if (!(await hasGuestLocalData())) {
+    async function perguntarSobreDadosDeConvidado({ titulo, mensagem, rotuloImportar, rotuloDescartar }) {
+        if (!(await temDadosLocaisDoConvidado())) {
             return 'skip';
         }
 
         return new Promise((resolve) => {
-            guestChoiceResolverRef.current = resolve;
-            setGuestChoiceConfig({ title, message, importLabel, discardLabel });
-            setGuestChoiceVisible(true);
+            resolverEscolhaConvidadoRef.current = resolve;
+            setConfigEscolhaConvidado({ titulo, mensagem, rotuloImportar, rotuloDescartar });
+            setEscolhaConvidadoVisivel(true);
         });
     }
 
-    async function finalizarDadosDeConvidado(uid, choice) {
-        if (choice === 'import') {
-            const imported = await migrateGuestLocalDataToUser(uid);
-            if (!imported) {
+    async function finalizarDadosDeConvidado(uid, escolha) {
+        if (escolha === 'import') {
+            const importado = await migrarDadosDoConvidadoParaConta(uid);
+            if (!importado) {
                 Alert.alert('Erro', 'Não deu pra importar seus dados de convidado. Tenta de novo.');
                 return false;
             }
         }
 
-        if (choice === 'discard') {
-            await clearGuestLocalData();
+        if (escolha === 'discard') {
+            await limparDadosLocaisDoConvidado();
         }
 
         return true;
     }
 
-    function closeGuestChoice(result) {
-        setGuestChoiceVisible(false);
-        setGuestChoiceConfig(null);
-        const resolver = guestChoiceResolverRef.current;
-        guestChoiceResolverRef.current = null;
+    function fecharEscolhaConvidado(resultado) {
+        setEscolhaConvidadoVisivel(false);
+        setConfigEscolhaConvidado(null);
+        const resolver = resolverEscolhaConvidadoRef.current;
+        resolverEscolhaConvidadoRef.current = null;
         if (resolver) {
-            resolver(result);
+            resolver(resultado);
         }
     }
 
@@ -164,11 +164,11 @@ export default function LoginScreen({ navigation }) {
 
                 const credential = GoogleAuthProvider.credential(idToken, accessToken);
 
-                const userCredential = await signInWithCredential(auth, credential);
-                await finalizarDadosDeConvidado(userCredential.user.uid, pendingGoogleGuestChoiceRef.current);
-                pendingGoogleGuestChoiceRef.current = 'skip';
-            } catch (error) {
-                console.log('Erro no login com Google:', error);
+                const credencialDoUsuario = await signInWithCredential(auth, credential);
+                await finalizarDadosDeConvidado(credencialDoUsuario.user.uid, escolhaConvidadoGooglePendenteRef.current);
+                escolhaConvidadoGooglePendenteRef.current = 'skip';
+            } catch (erro) {
+                console.log('Erro no login com Google:', erro);
                 Alert.alert(
                     'Erro',
                     'Não deu pra entrar com o Google agora.'
@@ -189,10 +189,10 @@ export default function LoginScreen({ navigation }) {
         }
 
         const acao = await perguntarSobreDadosDeConvidado({
-            title: 'Achamos seus dados de convidado',
-            message: `Você tinha dados salvos como convidado. Quer usar esses dados na conta ${emailFormatado} ou começar do zero?`,
-            importLabel: 'Usar meus dados',
-            discardLabel: 'Começar do zero',
+            titulo: 'Achamos seus dados de convidado',
+            mensagem: `Você tinha dados salvos como convidado. Quer usar esses dados na conta ${emailFormatado} ou começar do zero?`,
+            rotuloImportar: 'Usar meus dados',
+            rotuloDescartar: 'Começar do zero',
         });
 
         if (acao === 'cancel') {
@@ -201,10 +201,10 @@ export default function LoginScreen({ navigation }) {
 
         setCarregando(true);
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, emailFormatado, senha);
-            await finalizarDadosDeConvidado(userCredential.user.uid, acao);
-        } catch (error) {
-            if (CREDENCIAIS_INVALIDAS.includes(error?.code)) {
+            const credencialDoUsuario = await signInWithEmailAndPassword(auth, emailFormatado, senha);
+            await finalizarDadosDeConvidado(credencialDoUsuario.user.uid, acao);
+        } catch (erro) {
+            if (CREDENCIAIS_INVALIDAS.includes(erro?.code)) {
                 Alert.alert('Erro', 'E-mail ou senha incorretos.');
             } else {
                 Alert.alert('Erro', 'Não deu pra entrar. Tenta de novo.');
@@ -224,27 +224,27 @@ export default function LoginScreen({ navigation }) {
         }
 
         perguntarSobreDadosDeConvidado({
-            title: 'Achamos seus dados de convidado',
-            message: 'Quer levar esses dados pra sua conta Google ou começar do zero?',
-            importLabel: 'Levar meus dados',
-            discardLabel: 'Começar do zero',
+            titulo: 'Achamos seus dados de convidado',
+            mensagem: 'Quer levar esses dados pra sua conta Google ou começar do zero?',
+            rotuloImportar: 'Levar meus dados',
+            rotuloDescartar: 'Começar do zero',
         }).then((acao) => {
             if (acao === 'cancel') {
                 return;
             }
 
-            pendingGoogleGuestChoiceRef.current = acao;
+            escolhaConvidadoGooglePendenteRef.current = acao;
 
             setCarregando(true);
 
             promptAsync()
-                .catch((error) => {
-                    console.log(error);
+                .catch((erro) => {
+                    console.log(erro);
                     Alert.alert(
                         'Erro',
                         'Não deu pra entrar com o Google.'
                     );
-                    pendingGoogleGuestChoiceRef.current = 'skip';
+                    escolhaConvidadoGooglePendenteRef.current = 'skip';
                 })
                 .finally(() => {
                     setCarregando(false);
@@ -253,7 +253,7 @@ export default function LoginScreen({ navigation }) {
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <View style={{ flex: 1, backgroundColor: CORES.background }}>
         <KeyboardAvoidingView
             style={styles.flex}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -265,7 +265,7 @@ export default function LoginScreen({ navigation }) {
             >
                 <View style={styles.content}>
                     <View style={styles.iconCircle}>
-                        <Ionicons name="checkmark-circle-outline" size={32} color={COLORS.iconCheck} />
+                        <Ionicons name="checkmark-circle-outline" size={32} color={CORES.iconCheck} />
                     </View>
 
                     <Text style={styles.title}>Respire Livre</Text>
@@ -279,13 +279,13 @@ export default function LoginScreen({ navigation }) {
                             <Ionicons
                                 name="mail-outline"
                                 size={20}
-                                color={COLORS.inputIconColor}
+                                color={CORES.inputIconColor}
                                 style={styles.inputIconLeft}
                             />
                             <TextInput
                                 style={styles.input}
                                 placeholder="seu@email.com"
-                                placeholderTextColor={COLORS.placeholderText}
+                                placeholderTextColor={CORES.placeholderText}
                                 value={email}
                                 onChangeText={setEmail}
                                 autoCapitalize="none"
@@ -301,13 +301,13 @@ export default function LoginScreen({ navigation }) {
                             <Ionicons
                                 name="lock-closed-outline"
                                 size={20}
-                                color={COLORS.inputIconColor}
+                                color={CORES.inputIconColor}
                                 style={styles.inputIconLeft}
                             />
                             <TextInput
                                 style={styles.input}
                                 placeholder="Digite sua senha"
-                                placeholderTextColor={COLORS.placeholderText}
+                                placeholderTextColor={CORES.placeholderText}
                                 value={senha}
                                 onChangeText={setSenha}
                                 autoCapitalize="none"
@@ -320,7 +320,7 @@ export default function LoginScreen({ navigation }) {
                                 <Ionicons
                                     name={mostrarSenha ? 'eye-off-outline' : 'eye-outline'}
                                     size={20}
-                                    color={COLORS.inputIconColor}
+                                    color={CORES.inputIconColor}
                                 />
                             </TouchableOpacity>
                         </View>
@@ -366,7 +366,7 @@ export default function LoginScreen({ navigation }) {
                         <Ionicons
                             name="logo-google"
                             size={20}
-                            color={COLORS.googleText}
+                            color={CORES.googleText}
                             style={styles.googleIcon}
                         />
                         <Text style={styles.googleText}>Google</Text>
@@ -388,16 +388,16 @@ export default function LoginScreen({ navigation }) {
                 </View>
             </ScrollView>
 
-            {guestChoiceConfig ? (
+            {configEscolhaConvidado ? (
                 <GuestDataChoiceModal
-                    visible={guestChoiceVisible}
-                    title={guestChoiceConfig.title}
-                    message={guestChoiceConfig.message}
-                    importLabel={guestChoiceConfig.importLabel}
-                    discardLabel={guestChoiceConfig.discardLabel}
-                    onImport={() => closeGuestChoice('import')}
-                    onDiscard={() => closeGuestChoice('discard')}
-                    onCancel={() => closeGuestChoice('cancel')}
+                    visivel={escolhaConvidadoVisivel}
+                    titulo={configEscolhaConvidado.titulo}
+                    mensagem={configEscolhaConvidado.mensagem}
+                    rotuloImportar={configEscolhaConvidado.rotuloImportar}
+                    rotuloDescartar={configEscolhaConvidado.rotuloDescartar}
+                    aoImportar={() => fecharEscolhaConvidado('import')}
+                    aoDescartar={() => fecharEscolhaConvidado('discard')}
+                    aoCancelar={() => fecharEscolhaConvidado('cancel')}
                 />
             ) : null}
         </KeyboardAvoidingView>
@@ -409,11 +409,11 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
     flex: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: CORES.background,
     },
     scrollContent: {
         flexGrow: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: CORES.background,
         paddingTop: 40,
         paddingBottom: 32,
     },
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
         width: 64,
         height: 64,
         borderRadius: 32,
-        backgroundColor: COLORS.iconCircleBg,
+        backgroundColor: CORES.iconCircleBg,
         alignItems: 'center',
         justifyContent: 'center',
         alignSelf: 'center',
@@ -438,14 +438,14 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 22,
         fontWeight: '700',
-        color: COLORS.titleText,
+        color: CORES.titleText,
         textAlign: 'center',
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 15,
         fontWeight: '400',
-        color: COLORS.subtitleText,
+        color: CORES.subtitleText,
         textAlign: 'center',
         lineHeight: 21,
         paddingHorizontal: 8,
@@ -461,16 +461,16 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.labelText,
+        color: CORES.labelText,
         marginBottom: 8,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         height: 50,
-        backgroundColor: COLORS.inputBg,
+        backgroundColor: CORES.inputBg,
         borderWidth: 1,
-        borderColor: COLORS.inputBorder,
+        borderColor: CORES.inputBorder,
         borderRadius: 12,
         paddingHorizontal: 14,
     },
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
         flex: 1,
         height: '100%',
         fontSize: 15,
-        color: COLORS.inputText,
+        color: CORES.inputText,
         padding: 0,
     },
 
@@ -500,30 +500,30 @@ const styles = StyleSheet.create({
         height: 18,
         borderRadius: 3,
         borderWidth: 1.5,
-        borderColor: COLORS.checkboxBorder,
+        borderColor: CORES.checkboxBorder,
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 8,
         backgroundColor: 'transparent',
     },
     checkboxChecked: {
-        backgroundColor: COLORS.checkboxCheckedBg,
-        borderColor: COLORS.checkboxCheckedBg,
+        backgroundColor: CORES.checkboxCheckedBg,
+        borderColor: CORES.checkboxCheckedBg,
     },
     rememberText: {
         fontSize: 14,
-        color: COLORS.rememberText,
+        color: CORES.rememberText,
     },
     linkText: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.linkBlue,
+        color: CORES.linkBlue,
     },
 
     button: {
         height: 50,
         borderRadius: 12,
-        backgroundColor: COLORS.buttonBg,
+        backgroundColor: CORES.buttonBg,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 28,
@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
     buttonText: {
         fontSize: 16,
         fontWeight: '700',
-        color: COLORS.buttonText,
+        color: CORES.buttonText,
     },
 
     dividerRow: {
@@ -550,19 +550,19 @@ const styles = StyleSheet.create({
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: COLORS.dividerLine,
+        backgroundColor: CORES.dividerLine,
     },
     dividerText: {
         marginHorizontal: 12,
         fontSize: 13,
-        color: COLORS.dividerText,
+        color: CORES.dividerText,
     },
 
     googleButton: {
         height: 50,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: COLORS.googleBorder,
+        borderColor: CORES.googleBorder,
         backgroundColor: '#FFFFFF',
         flexDirection: 'row',
         alignItems: 'center',
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
     googleText: {
         fontSize: 16,
         fontWeight: '600',
-        color: COLORS.googleText,
+        color: CORES.googleText,
     },
 
     guestButton: {
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
     guestButtonText: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.linkBlue,
+        color: CORES.linkBlue,
         textDecorationLine: 'underline',
     },
 
@@ -604,11 +604,11 @@ const styles = StyleSheet.create({
     },
     footerText: {
         fontSize: 14,
-        color: COLORS.footerText,
+        color: CORES.footerText,
     },
     footerLink: {
         fontSize: 14,
         fontWeight: '700',
-        color: COLORS.linkBlue,
+        color: CORES.linkBlue,
     },
 });

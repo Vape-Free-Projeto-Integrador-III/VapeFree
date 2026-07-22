@@ -10,17 +10,17 @@
 // dia sem uso.
 
 // Puxadas efetivas do registro — 0 quando não houve uso.
-export function recordPuffs(record) {
-  return record?.used ? record.puffs || 0 : 0;
+export function puxadasDoRegistro(registro) {
+  return registro?.used ? registro.puffs || 0 : 0;
 }
 
 // Soma de puxadas de uma lista de registros.
-export function sumPuffs(records) {
-  return records.reduce((total, record) => total + recordPuffs(record), 0);
+export function somarPuxadas(registros) {
+  return registros.reduce((total, registro) => total + puxadasDoRegistro(registro), 0);
 }
 
 // Normaliza antes de persistir: sem uso = sem puxadas e sem gatilhos.
-export function normalizeRecord(record) {
-  if (record.used) return record;
-  return { ...record, puffs: 0, triggers: [] };
+export function normalizarRegistro(registro) {
+  if (registro.used) return registro;
+  return { ...registro, puffs: 0, triggers: [] };
 }

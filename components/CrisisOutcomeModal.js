@@ -1,7 +1,7 @@
 // src/components/CrisisOutcomeModal.js
 //
 // Fecha o ciclo do modo crise: pergunta como foi depois que o usuário
-// encerra a sessão. A resposta alimenta recommendedCrisisMethod
+// encerra a sessão. A resposta alimenta metodoDeCriseRecomendado
 // (utils/insights.js), que na próxima crise sugere o método que já
 // funcionou pra ele.
 //
@@ -17,62 +17,62 @@ import {
   TouchableWithoutFeedback,
   StyleSheet,
 } from 'react-native';
-import { RADIUS, SHADOW } from '../utils/theme';
+import { RAIO, SOMBRA } from '../utils/theme';
 
 // Sem julgamento no "usei" — o app não pune, só registra.
-const OUTCOMES = [
-  { id: 'passou', label: 'Passou', emoji: '💚' },
-  { id: 'diminuiu', label: 'Diminuiu', emoji: '🙂' },
-  { id: 'usei', label: 'Acabei usando', emoji: '😔' },
+const DESFECHOS = [
+  { id: 'passou', rotulo: 'Passou', emoji: '💚' },
+  { id: 'diminuiu', rotulo: 'Diminuiu', emoji: '🙂' },
+  { id: 'usei', rotulo: 'Acabei usando', emoji: '😔' },
 ];
 
-export default function CrisisOutcomeModal({ visible, colors, onSubmit, onSkip }) {
-  const [outcome, setOutcome] = useState(null);
-  const [note, setNote] = useState('');
+export default function CrisisOutcomeModal({ visivel, cores, aoEnviar, aoPular }) {
+  const [desfecho, setDesfecho] = useState(null);
+  const [nota, setNota] = useState('');
 
-  function finish(chosenOutcome) {
-    const trimmed = note.trim();
-    setOutcome(null);
-    setNote('');
-    onSubmit(chosenOutcome, trimmed || null);
+  function finalizar(desfechoEscolhido) {
+    const notaLimpa = nota.trim();
+    setDesfecho(null);
+    setNota('');
+    aoEnviar(desfechoEscolhido, notaLimpa || null);
   }
 
-  function skip() {
-    setOutcome(null);
-    setNote('');
-    onSkip();
+  function pular() {
+    setDesfecho(null);
+    setNota('');
+    aoPular();
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={skip}>
-      <TouchableWithoutFeedback onPress={skip}>
+    <Modal visible={visivel} transparent animationType="fade" onRequestClose={pular}>
+      <TouchableWithoutFeedback onPress={pular}>
         <View style={styles.backdrop}>
           <TouchableWithoutFeedback>
-            <View style={[styles.sheet, { backgroundColor: colors.modalBg }, SHADOW.medium]}>
-              <Text style={[styles.title, { color: colors.text }]}>E aí, como foi?</Text>
-              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            <View style={[styles.sheet, { backgroundColor: cores.modalBg }, SOMBRA.media]}>
+              <Text style={[styles.title, { color: cores.text }]}>E aí, como foi?</Text>
+              <Text style={[styles.subtitle, { color: cores.textSecondary }]}>
                 Não tem resposta errada. Isso me ajuda a te ajudar melhor na próxima.
               </Text>
 
               <View style={styles.chips}>
-                {OUTCOMES.map((o) => (
+                {DESFECHOS.map((d) => (
                   <TouchableOpacity
-                    key={o.id}
+                    key={d.id}
                     style={[
                       styles.chip,
-                      { borderColor: colors.border, backgroundColor: colors.card },
-                      outcome === o.id && { borderColor: colors.primary, backgroundColor: colors.primary },
+                      { borderColor: cores.border, backgroundColor: cores.card },
+                      desfecho === d.id && { borderColor: cores.primary, backgroundColor: cores.primary },
                     ]}
-                    onPress={() => setOutcome(o.id)}
+                    onPress={() => setDesfecho(d.id)}
                   >
                     <Text
                       style={[
                         styles.chipText,
-                        { color: colors.textSecondary },
-                        outcome === o.id && { color: '#fff' },
+                        { color: cores.textSecondary },
+                        desfecho === d.id && { color: '#fff' },
                       ]}
                     >
-                      {o.emoji} {o.label}
+                      {d.emoji} {d.rotulo}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -81,28 +81,28 @@ export default function CrisisOutcomeModal({ visible, colors, onSubmit, onSkip }
               <TextInput
                 style={[
                   styles.input,
-                  { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text },
+                  { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text },
                 ]}
                 placeholder="Quer contar o que sentiu? (opcional)"
-                placeholderTextColor={colors.textMuted}
-                value={note}
-                onChangeText={setNote}
+                placeholderTextColor={cores.textMuted}
+                value={nota}
+                onChangeText={setNota}
                 multiline
               />
 
               <TouchableOpacity
                 style={[
                   styles.saveBtn,
-                  { backgroundColor: outcome ? colors.primary : colors.border },
+                  { backgroundColor: desfecho ? cores.primary : cores.border },
                 ]}
-                disabled={!outcome}
-                onPress={() => finish(outcome)}
+                disabled={!desfecho}
+                onPress={() => finalizar(desfecho)}
               >
                 <Text style={styles.saveBtnText}>Salvar</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.skipBtn} onPress={skip}>
-                <Text style={[styles.skipText, { color: colors.textMuted }]}>Agora não</Text>
+              <TouchableOpacity style={styles.skipBtn} onPress={pular}>
+                <Text style={[styles.skipText, { color: cores.textMuted }]}>Agora não</Text>
               </TouchableOpacity>
             </View>
           </TouchableWithoutFeedback>
@@ -119,15 +119,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  sheet: { borderRadius: RADIUS.lg, padding: 20 },
+  sheet: { borderRadius: RAIO.lg, padding: 20 },
   title: { fontSize: 20, fontWeight: '800' },
   subtitle: { fontSize: 13, marginTop: 6, lineHeight: 18 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
-  chip: { borderWidth: 1.5, borderRadius: RADIUS.full, paddingVertical: 8, paddingHorizontal: 14 },
+  chip: { borderWidth: 1.5, borderRadius: RAIO.full, paddingVertical: 8, paddingHorizontal: 14 },
   chipText: { fontSize: 13, fontWeight: '600' },
   input: {
     borderWidth: 1.5,
-    borderRadius: RADIUS.md,
+    borderRadius: RAIO.md,
     padding: 12,
     marginTop: 14,
     fontSize: 14,
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   saveBtn: {
-    borderRadius: RADIUS.md,
+    borderRadius: RAIO.md,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 16,

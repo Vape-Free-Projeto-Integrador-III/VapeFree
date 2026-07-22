@@ -11,165 +11,168 @@
 //   - diária  -> 'YYYY-MM-DD' do dia
 //   - semanal -> 'YYYY-MM-DD' da segunda-feira daquela semana
 // Isso é o que faz a missão "renovar" sozinha quando o período vira.
+//
+// Os campos que vão pro banco (id, missionId, period, periodKey, xp,
+// completedAt) continuam em inglês de propósito: já existe dado salvo assim.
 
 // Segunda-feira da semana de uma data 'YYYY-MM-DD' (mesma lógica de
-// getWeekLabel em storage.js, mas devolvendo a data inteira).
-export function getWeekStart(dateStr) {
-    const date = new Date(`${dateStr}T12:00:00`);
-    const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-    date.setDate(diff);
-    return date.toISOString().slice(0, 10);
+// rotuloSemana em storage.js, mas devolvendo a data inteira).
+export function inicioDaSemana(dataStr) {
+    const data = new Date(`${dataStr}T12:00:00`);
+    const diaDaSemana = data.getDay();
+    const diff = data.getDate() - diaDaSemana + (diaDaSemana === 0 ? -6 : 1);
+    data.setDate(diff);
+    return data.toISOString().slice(0, 10);
 }
 
-export function getWeekDays(dateStr) {
-    const start = new Date(`${getWeekStart(dateStr)}T12:00:00`);
-    const days = [];
+export function diasDaSemana(dataStr) {
+    const inicio = new Date(`${inicioDaSemana(dataStr)}T12:00:00`);
+    const dias = [];
     for (let i = 0; i < 7; i++) {
-        const day = new Date(start);
-        day.setDate(start.getDate() + i);
-        days.push(day.toISOString().slice(0, 10));
+        const dia = new Date(inicio);
+        dia.setDate(inicio.getDate() + i);
+        dias.push(dia.toISOString().slice(0, 10));
     }
-    return days;
+    return dias;
 }
 
-export function periodKeyFor(mission, dateStr) {
-    return mission.period === 'weekly' ? getWeekStart(dateStr) : dateStr;
+export function chaveDePeriodo(missao, dataStr) {
+    return missao.period === 'weekly' ? inicioDaSemana(dataStr) : dataStr;
 }
 
 // Helpers usados pelas condições ─────────────────────────────────────────────
 
-function recordsOfDay(records, date) {
-    return records.filter((record) => record.date === date);
+function registrosDoDia(registros, data) {
+    return registros.filter((registro) => registro.date === data);
 }
 
-function isCleanDay(records, date) {
-    const dayRecords = recordsOfDay(records, date);
-    return dayRecords.length > 0 && dayRecords.every((record) => !record.used);
+function ehDiaLimpo(registros, data) {
+    const doDia = registrosDoDia(registros, data);
+    return doDia.length > 0 && doDia.every((registro) => !registro.used);
 }
 
-// MISSIONS ───────────────────────────────────────────────────────────────────
-// progress(ctx) -> { current, target }. A missão é concluída quando
-// current >= target — não existe "condition" separada.
+// MISSOES ────────────────────────────────────────────────────────────────────
+// progresso(ctx) -> { atual, alvo }. A missão é concluída quando
+// atual >= alvo — não existe "condicao" separada.
 //
-// ctx = { records, economy, crisisSessions, today, weekDays }
+// ctx = { registros, economia, sessoesDeCrise, hoje, diasDaSemana }
 
-export const MISSIONS = [
+export const MISSOES = [
     {
         id: 'daily_record',
         period: 'daily',
         xp: 15,
-        icon: '📝',
-        title: 'Faça seu registro de hoje',
-        description: 'Registrar como foi o dia é o que move tudo por aqui',
-        progress: (ctx) => ({
-            current: recordsOfDay(ctx.records, ctx.today).length > 0 ? 1 : 0,
-            target: 1,
+        icone: '📝',
+        titulo: 'Faça seu registro de hoje',
+        descricao: 'Registrar como foi o dia é o que move tudo por aqui',
+        progresso: (ctx) => ({
+            atual: registrosDoDia(ctx.registros, ctx.hoje).length > 0 ? 1 : 0,
+            alvo: 1,
         }),
     },
     {
         id: 'daily_clean',
         period: 'daily',
         xp: 25,
-        icon: '🚭',
-        title: 'Passe o dia sem usar o vape',
-        description: 'Registre o dia de hoje marcando que você não usou',
-        progress: (ctx) => ({
-            current: isCleanDay(ctx.records, ctx.today) ? 1 : 0,
-            target: 1,
+        icone: '🚭',
+        titulo: 'Passe o dia sem usar o vape',
+        descricao: 'Registre o dia de hoje marcando que você não usou',
+        progresso: (ctx) => ({
+            atual: ehDiaLimpo(ctx.registros, ctx.hoje) ? 1 : 0,
+            alvo: 1,
         }),
     },
     {
         id: 'daily_crisis_win',
         period: 'daily',
         xp: 20,
-        icon: '🧘',
-        title: 'Vença uma vontade',
-        description: 'Use o "Estou com vontade" e segure firme até ela passar',
-        progress: (ctx) => {
-            const won = ctx.crisisSessions.some(
-                (session) => session.date === ctx.today && session.outcome && session.outcome !== 'usei'
+        icone: '🧘',
+        titulo: 'Vença uma vontade',
+        descricao: 'Use o "Estou com vontade" e segure firme até ela passar',
+        progresso: (ctx) => {
+            const venceu = ctx.sessoesDeCrise.some(
+                (sessao) => sessao.date === ctx.hoje && sessao.outcome && sessao.outcome !== 'usei'
             );
-            return { current: won ? 1 : 0, target: 1 };
+            return { atual: venceu ? 1 : 0, alvo: 1 };
         },
     },
     {
         id: 'weekly_clean_5',
         period: 'weekly',
         xp: 80,
-        icon: '🔥',
-        title: '5 dias sem usar nesta semana',
-        description: 'Não precisa ser seguido — vale qualquer dia da semana',
-        progress: (ctx) => ({
-            current: ctx.weekDays.filter((date) => isCleanDay(ctx.records, date)).length,
-            target: 5,
+        icone: '🔥',
+        titulo: '5 dias sem usar nesta semana',
+        descricao: 'Não precisa ser seguido — vale qualquer dia da semana',
+        progresso: (ctx) => ({
+            atual: ctx.diasDaSemana.filter((data) => ehDiaLimpo(ctx.registros, data)).length,
+            alvo: 5,
         }),
     },
     {
         id: 'weekly_records_7',
         period: 'weekly',
         xp: 60,
-        icon: '📅',
-        title: 'Registre todos os dias da semana',
-        description: 'Um registro em cada um dos 7 dias',
-        progress: (ctx) => ({
-            current: ctx.weekDays.filter((date) => recordsOfDay(ctx.records, date).length > 0).length,
-            target: 7,
+        icone: '📅',
+        titulo: 'Registre todos os dias da semana',
+        descricao: 'Um registro em cada um dos 7 dias',
+        progresso: (ctx) => ({
+            atual: ctx.diasDaSemana.filter((data) => registrosDoDia(ctx.registros, data).length > 0).length,
+            alvo: 7,
         }),
     },
     {
         id: 'weekly_economy_10',
         period: 'weekly',
         xp: 50,
-        icon: '💰',
-        title: 'Economize R$ 10 esta semana',
-        description: 'O dinheiro que ficou no seu bolso nesta semana',
-        progress: (ctx) => {
-            const total = ctx.weekDays.reduce((sum, date) => sum + (ctx.economy?.[date] || 0), 0);
-            return { current: parseFloat(total.toFixed(2)), target: 10 };
+        icone: '💰',
+        titulo: 'Economize R$ 10 esta semana',
+        descricao: 'O dinheiro que ficou no seu bolso nesta semana',
+        progresso: (ctx) => {
+            const total = ctx.diasDaSemana.reduce((soma, data) => soma + (ctx.economia?.[data] || 0), 0);
+            return { atual: parseFloat(total.toFixed(2)), alvo: 10 };
         },
     },
 ];
 
 // Monta o contexto que as missões recebem.
-export function buildMissionContext(records = [], economy = {}, crisisSessions = [], today) {
-    const date = today || new Date().toISOString().slice(0, 10);
+export function montarContextoDeMissoes(registros = [], economia = {}, sessoesDeCrise = [], hoje) {
+    const data = hoje || new Date().toISOString().slice(0, 10);
     return {
-        records: Array.isArray(records) ? records : [],
-        economy: economy && typeof economy === 'object' ? economy : {},
-        crisisSessions: Array.isArray(crisisSessions) ? crisisSessions : [],
-        today: date,
-        weekDays: getWeekDays(date),
+        registros: Array.isArray(registros) ? registros : [],
+        economia: economia && typeof economia === 'object' ? economia : {},
+        sessoesDeCrise: Array.isArray(sessoesDeCrise) ? sessoesDeCrise : [],
+        hoje: data,
+        diasDaSemana: diasDaSemana(data),
     };
 }
 
-// completedEntries: array [{ id, missionId, periodKey, xp, completedAt }]
-// vindo de getMissions(). Devolve o estado de TODAS as missões do período
-// atual — mesma ideia de checkAchievements.
-export function checkMissions(ctx, completedEntries = []) {
-    const completedMap = new Map((completedEntries || []).map((entry) => [entry.id, entry]));
-    const now = new Date().toISOString();
+// entradasConcluidas: array [{ id, missionId, periodKey, xp, completedAt }]
+// vindo de obterMissoes(). Devolve o estado de TODAS as missões do período
+// atual — mesma ideia de verificarConquistas.
+export function verificarMissoes(ctx, entradasConcluidas = []) {
+    const mapaConcluidas = new Map((entradasConcluidas || []).map((entrada) => [entrada.id, entrada]));
+    const agora = new Date().toISOString();
 
-    return MISSIONS.map((mission) => {
-        const periodKey = periodKeyFor(mission, ctx.today);
-        const id = `${mission.id}_${periodKey}`;
-        const saved = completedMap.get(id);
-        const { current, target } = mission.progress(ctx);
-        const completed = saved ? true : current >= target;
+    return MISSOES.map((missao) => {
+        const periodKey = chaveDePeriodo(missao, ctx.hoje);
+        const id = `${missao.id}_${periodKey}`;
+        const salva = mapaConcluidas.get(id);
+        const { atual, alvo } = missao.progresso(ctx);
+        const concluida = salva ? true : atual >= alvo;
 
         return {
             id,
-            missionId: mission.id,
-            period: mission.period,
+            missionId: missao.id,
+            period: missao.period,
             periodKey,
-            title: mission.title,
-            description: mission.description,
-            icon: mission.icon,
-            xp: mission.xp,
-            current: Math.min(current, target),
-            target,
-            completed,
-            completedAt: saved?.completedAt || (completed ? now : null),
+            titulo: missao.titulo,
+            descricao: missao.descricao,
+            icone: missao.icone,
+            xp: missao.xp,
+            atual: Math.min(atual, alvo),
+            alvo,
+            concluida,
+            completedAt: salva?.completedAt || (concluida ? agora : null),
         };
     });
 }

@@ -10,9 +10,9 @@ utils/storage.js    → única porta de entrada para dados (decide AsyncStorage 
 services/firebase.*  → inicialização do SDK Firebase
 ```
 
-Ao lado de `utils/storage.js` existem os **módulos puros de derivação** — `utils/achievements.js` (quais conquistas o histórico desbloqueia) e `utils/insights.js` (quais padrões o histórico revela). Eles não leem nem escrevem nada: recebem `records` já carregados e devolvem o resultado calculado. Lógica nova que só transforma registros em informação deve entrar nesse formato, não dentro da tela.
+Ao lado de `utils/storage.js` existem os **módulos puros de derivação** — `utils/achievements.js` (quais conquistas o histórico desbloqueia) e `utils/insights.js` (quais padrões o histórico revela). Eles não leem nem escrevem nada: recebem `registros` já carregados e devolvem o resultado calculado. Lógica nova que só transforma registros em informação deve entrar nesse formato, não dentro da tela.
 
-Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda função de `utils/storage.js` (`getRecords`, `saveDevice`, etc.) decide isso internamente olhando `auth.currentUser`. Isso é o que torna o app "isomórfico" entre os dois modos sem duplicar telas. Detalhe do modelo de dados em [database.md](database.md).
+Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda função de `utils/storage.js` (`obterRegistros`, `salvarAparelho`, etc.) decide isso internamente olhando `auth.currentUser`. Isso é o que torna o app "isomórfico" entre os dois modos sem duplicar telas. Detalhe do modelo de dados em [database.md](database.md).
 
 ## Entry point e providers
 
@@ -38,12 +38,12 @@ Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda 
 |---|---|
 | Sem TypeScript | Projeto começou em JS puro, nunca migrou. Não converta arquivos isoladamente. |
 | Sem Expo Router | Navegação já estruturada com React Navigation clássico (`navigation/AppNavigator.js`). |
-| Sem NativeWind | Estilo via `StyleSheet.create` + cores injetadas de `useTheme()`. |
+| Sem NativeWind | Estilo via `StyleSheet.create` + cores injetadas de `usarTema()`. |
 | Sem Redux/Zustand | Estado global é só Auth + Theme via Context; resto é local por tela. Ver [state.md](state.md). |
 | `react-native-paper` no `package.json` mas não usado | Dependência órfã — não assuma componentes do Paper disponíveis/estilizados. |
 
 ## Inconsistências conhecidas (não corrigir sem pedir)
 
-- `HistoryScreen.js` chama `getRecords(uid)`, `getDevice(uid)`, `getEconomy(uid)` passando `uid` como argumento, mas essas funções em `utils/storage.js` não recebem parâmetro (usam `auth.currentUser` internamente). O argumento é ignorado silenciosamente — não é um bug ativo, mas é morto/confuso.
+- `HistoryScreen.js` chama `obterRegistros(uid)`, `obterAparelho(uid)`, `obterEconomia(uid)` passando `uid` como argumento, mas essas funções em `utils/storage.js` não recebem parâmetro (usam `auth.currentUser` internamente). O argumento é ignorado silenciosamente — não é um bug ativo, mas é morto/confuso.
 - Existe bug catalogado em `coisasParaFazer.txt`: histórico não atualiza a Home corretamente após importar dados de convidado.
 - Backlog completo de features/bugs planejados está em `coisasParaFazer.txt` na raiz — consulte antes de sugerir novas funcionalidades para não duplicar planejamento já feito pelo usuário.

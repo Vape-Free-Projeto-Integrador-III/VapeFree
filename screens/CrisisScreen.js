@@ -2,10 +2,10 @@
 //
 // Modo crise ("Estou com vontade"). Menu direto: o usuário escolhe o
 // método, nada é imposto. Se o histórico de crises já mostrar um método
-// que funcionou pra ele (recommendedCrisisMethod), esse vem primeiro e
+// que funcionou pra ele (metodoDeCriseRecomendado), esse vem primeiro e
 // marcado — os outros continuam clicáveis.
 //
-// Toda visita vira uma sessão salva (saveCrisisSession), mesmo se o usuário
+// Toda visita vira uma sessão salva (salvarSessaoDeCrise), mesmo se o usuário
 // pular o feedback do fim: ter pedido ajuda já é dado.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -20,25 +20,25 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import CrisisOutcomeModal from '../components/CrisisOutcomeModal';
-import { RADIUS, SHADOW, DISTRACTIONS, CRISIS_MESSAGES } from '../utils/theme';
-import { useTheme } from '../context/ThemeContext';
+import { RAIO, SOMBRA, DISTRACOES, MENSAGENS_DE_CRISE } from '../utils/theme';
+import { usarTema } from '../context/ThemeContext';
 import {
-    getRecords,
-    getCrisisSessions,
-    saveCrisisSession,
-    getEconomy,
-    getMissions,
-    checkAndCompleteMissions,
-    checkAndUnlockAchievements,
-    refreshXp,
-    todayString,
+    obterRegistros,
+    obterSessoesDeCrise,
+    salvarSessaoDeCrise,
+    obterEconomia,
+    obterMissoes,
+    verificarEConcluirMissoes,
+    verificarEDesbloquearConquistas,
+    atualizarXp,
+    dataDeHoje,
 } from '../utils/storage';
-import { useXpToast } from '../context/XpToastContext';
-import { recommendedCrisisMethod, topTriggerLabel, MIN_RECORDS_FOR_INSIGHTS } from '../utils/insights';
+import { usarToastDeXp } from '../context/XpToastContext';
+import { metodoDeCriseRecomendado, gatilhoMaisFrequente, MIN_REGISTROS_PARA_INSIGHTS } from '../utils/insights';
 
-const HOLD_SECONDS = 5 * 60;
+const SEGUNDOS_DE_ESPERA = 5 * 60;
 
-const METHODS = [
+const METODOS = [
     {
         id: 'respiracao',
         icon: '🧘',
@@ -61,52 +61,52 @@ const METHODS = [
 
 // Mensagem personalizada pelo gatilho mais frequente. Só depois de ter
 // registro suficiente pra isso ser um padrão, não um chute.
-function triggerMessage(label) {
-    return `Seu gatilho mais comum é ${label}. Já reconhecer isso é meio caminho — a vontade tem nome e tem hora pra passar.`;
+function mensagemDoGatilho(rotulo) {
+    return `Seu gatilho mais comum é ${rotulo}. Já reconhecer isso é meio caminho — a vontade tem nome e tem hora pra passar.`;
 }
 
-function formatClock(totalSeconds) {
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+function formatarRelogio(totalSegundos) {
+    const minutos = Math.floor(totalSegundos / 60);
+    const segundos = totalSegundos % 60;
+    return `${minutos}:${String(segundos).padStart(2, '0')}`;
 }
 
-function nowTimeString() {
+function horaAtualString() {
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 export default function CrisisScreen({ navigation, route }) {
-    const { colors } = useTheme();
-    const { showRewards } = useXpToast();
+    const { cores } = usarTema();
+    const { mostrarRecompensas } = usarToastDeXp();
 
-    const [message, setMessage] = useState(null);
-    const [recommended, setRecommended] = useState(null);
-    const [activeMethod, setActiveMethod] = useState(null);
-    const [holdLeft, setHoldLeft] = useState(HOLD_SECONDS);
-    const [holdRunning, setHoldRunning] = useState(false);
-    const [pending, setPending] = useState(null);
+    const [mensagem, setMensagem] = useState(null);
+    const [recomendado, setRecomendado] = useState(null);
+    const [metodoAtivo, setMetodoAtivo] = useState(null);
+    const [tempoRestante, setTempoRestante] = useState(SEGUNDOS_DE_ESPERA);
+    const [esperaRodando, setEsperaRodando] = useState(false);
+    const [pendente, setPendente] = useState(null);
 
-    const startedAt = useRef(Date.now());
-    const holdInterval = useRef(null);
-    const savingRef = useRef(false);
+    const iniciadoEm = useRef(Date.now());
+    const intervaloDeEspera = useRef(null);
+    const salvandoRef = useRef(false);
 
-    const load = useCallback(async () => {
-        const [records, sessions] = await Promise.all([getRecords(), getCrisisSessions()]);
+    const carregar = useCallback(async () => {
+        const [registros, sessoes] = await Promise.all([obterRegistros(), obterSessoesDeCrise()]);
 
-        const trigger = records.length >= MIN_RECORDS_FOR_INSIGHTS ? topTriggerLabel(records) : null;
-        setMessage(
-            trigger
-                ? triggerMessage(trigger)
-                : CRISIS_MESSAGES[Math.floor(Math.random() * CRISIS_MESSAGES.length)]
+        const gatilho = registros.length >= MIN_REGISTROS_PARA_INSIGHTS ? gatilhoMaisFrequente(registros) : null;
+        setMensagem(
+            gatilho
+                ? mensagemDoGatilho(gatilho)
+                : MENSAGENS_DE_CRISE[Math.floor(Math.random() * MENSAGENS_DE_CRISE.length)]
         );
-        setRecommended(recommendedCrisisMethod(sessions));
+        setRecomendado(metodoDeCriseRecomendado(sessoes));
     }, []);
 
     useFocusEffect(
         useCallback(() => {
-            load();
-        }, [load])
+            carregar();
+        }, [carregar])
     );
 
     // Volta da tela de respiração: ela avisa o que aconteceu por params.
@@ -115,7 +115,7 @@ export default function CrisisScreen({ navigation, route }) {
         if (!params?.completedMethod) return;
 
         navigation.setParams({ completedMethod: undefined, durationSec: undefined, completed: undefined });
-        setPending({
+        setPendente({
             method: params.completedMethod,
             durationSec: params.durationSec ?? 0,
             completed: params.completed === true,
@@ -124,182 +124,182 @@ export default function CrisisScreen({ navigation, route }) {
 
     // Timer "aguente 5 minutos".
     useEffect(() => {
-        if (!holdRunning) return undefined;
+        if (!esperaRodando) return undefined;
 
-        holdInterval.current = setInterval(() => {
-            setHoldLeft((prev) => Math.max(0, prev - 1));
+        intervaloDeEspera.current = setInterval(() => {
+            setTempoRestante((prev) => Math.max(0, prev - 1));
         }, 1000);
 
         return () => {
-            clearInterval(holdInterval.current);
-            holdInterval.current = null;
+            clearInterval(intervaloDeEspera.current);
+            intervaloDeEspera.current = null;
         };
-    }, [holdRunning]);
+    }, [esperaRodando]);
 
     useEffect(() => {
-        if (holdRunning && holdLeft === 0) {
-            setHoldRunning(false);
-            finish('timer', HOLD_SECONDS, true);
+        if (esperaRodando && tempoRestante === 0) {
+            setEsperaRodando(false);
+            encerrar('timer', SEGUNDOS_DE_ESPERA, true);
         }
-    }, [holdRunning, holdLeft]);
+    }, [esperaRodando, tempoRestante]);
 
     useEffect(() => {
         return () => {
-            if (holdInterval.current) clearInterval(holdInterval.current);
+            if (intervaloDeEspera.current) clearInterval(intervaloDeEspera.current);
         };
     }, []);
 
-    function elapsedSeconds() {
-        return Math.round((Date.now() - startedAt.current) / 1000);
+    function segundosDecorridos() {
+        return Math.round((Date.now() - iniciadoEm.current) / 1000);
     }
 
     // Abre o modal de "como foi?" com o que já se sabe da sessão.
-    function finish(method, durationSec, completed) {
-        setPending({
-            method: method ?? activeMethod,
-            durationSec: durationSec ?? elapsedSeconds(),
+    function encerrar(metodo, durationSec, completed) {
+        setPendente({
+            method: metodo ?? metodoAtivo,
+            durationSec: durationSec ?? segundosDecorridos(),
             completed: completed === true,
         });
     }
 
-    async function persist(outcome, note) {
-        if (savingRef.current) return;
-        savingRef.current = true;
+    async function persistir(desfecho, nota) {
+        if (salvandoRef.current) return;
+        salvandoRef.current = true;
 
-        await saveCrisisSession({
+        await salvarSessaoDeCrise({
             id: Date.now(),
-            date: todayString(),
-            time: nowTimeString(),
-            method: pending?.method ?? null,
-            durationSec: pending?.durationSec ?? elapsedSeconds(),
-            completed: pending?.completed === true,
-            outcome: outcome ?? null,
-            note: note ?? null,
+            date: dataDeHoje(),
+            time: horaAtualString(),
+            method: pendente?.method ?? null,
+            durationSec: pendente?.durationSec ?? segundosDecorridos(),
+            completed: pendente?.completed === true,
+            outcome: desfecho ?? null,
+            note: nota ?? null,
         });
 
         // Vencer a vontade é missão diária — concede o XP antes de sair.
-        const [records, economy, crisisSessions] = await Promise.all([
-            getRecords(),
-            getEconomy(),
-            getCrisisSessions(),
+        const [registros, economia, sessoesDeCrise] = await Promise.all([
+            obterRegistros(),
+            obterEconomia(),
+            obterSessoesDeCrise(),
         ]);
-        const newMissions = await checkAndCompleteMissions(records, economy, crisisSessions);
-        const completedMissions = await getMissions();
-        const newAchievements = await checkAndUnlockAchievements(records, economy, completedMissions);
-        const summary = await refreshXp(records, null, completedMissions);
-        showRewards({ achievements: newAchievements, missions: newMissions, gained: summary.gained });
+        const novasMissoes = await verificarEConcluirMissoes(registros, economia, sessoesDeCrise);
+        const missoesConcluidas = await obterMissoes();
+        const novasConquistas = await verificarEDesbloquearConquistas(registros, economia, missoesConcluidas);
+        const resumo = await atualizarXp(registros, null, missoesConcluidas);
+        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
 
-        setPending(null);
-        savingRef.current = false;
+        setPendente(null);
+        salvandoRef.current = false;
         navigation.goBack();
     }
 
-    function selectMethod(id) {
+    function selecionarMetodo(id) {
         if (id === 'respiracao') {
             navigation.navigate('Breathing', { fromCrisis: true });
             return;
         }
 
-        setActiveMethod((prev) => (prev === id ? null : id));
+        setMetodoAtivo((prev) => (prev === id ? null : id));
 
         if (id === 'timer') {
-            setHoldLeft(HOLD_SECONDS);
-            setHoldRunning(true);
+            setTempoRestante(SEGUNDOS_DE_ESPERA);
+            setEsperaRodando(true);
         } else {
-            setHoldRunning(false);
+            setEsperaRodando(false);
         }
     }
 
     // Método recomendado primeiro, resto na ordem original.
-    const orderedMethods = recommended
+    const metodosOrdenados = recomendado
         ? [
-              ...METHODS.filter((m) => m.id === recommended.method),
-              ...METHODS.filter((m) => m.id !== recommended.method),
+              ...METODOS.filter((m) => m.id === recomendado.metodo),
+              ...METODOS.filter((m) => m.id !== recomendado.metodo),
           ]
-        : METHODS;
+        : METODOS;
 
     return (
         <>
             <ScrollView
-                style={[styles.scroll, { backgroundColor: colors.background }]}
+                style={[styles.scroll, { backgroundColor: cores.background }]}
                 contentContainerStyle={styles.container}
             >
                 <ScreenHeader
-                    title="Tô com vontade"
-                    subtitle="Respira. A gente passa por isso junto."
-                    colors={colors}
-                    showSettings
-                    onSettingsPress={() => navigation.navigate('Settings')}
-                    onBackPress={() => finish(activeMethod, elapsedSeconds(), false)}
+                    titulo="Tô com vontade"
+                    subtitulo="Respira. A gente passa por isso junto."
+                    cores={cores}
+                    mostrarConfiguracoes
+                    aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
+                    aoPressionarVoltar={() => encerrar(metodoAtivo, segundosDecorridos(), false)}
                 />
 
-                <View style={[styles.msgCard, { backgroundColor: colors.card, borderLeftColor: colors.warning }, SHADOW.medium]}>
-                    <Text style={[styles.msgText, { color: colors.text }]}>{message}</Text>
+                <View style={[styles.msgCard, { backgroundColor: cores.card, borderLeftColor: cores.warning }, SOMBRA.media]}>
+                    <Text style={[styles.msgText, { color: cores.text }]}>{mensagem}</Text>
                 </View>
 
-                {orderedMethods.map((m) => {
-                    const isRecommended = recommended?.method === m.id;
-                    const isActive = activeMethod === m.id;
+                {metodosOrdenados.map((m) => {
+                    const ehRecomendado = recomendado?.metodo === m.id;
+                    const ehAtivo = metodoAtivo === m.id;
 
                     return (
                         <View key={m.id}>
                             <TouchableOpacity
                                 style={[
                                     styles.methodCard,
-                                    { backgroundColor: colors.card, borderColor: isActive ? colors.primary : 'transparent' },
-                                    SHADOW.small,
+                                    { backgroundColor: cores.card, borderColor: ehAtivo ? cores.primary : 'transparent' },
+                                    SOMBRA.pequena,
                                 ]}
-                                onPress={() => selectMethod(m.id)}
+                                onPress={() => selecionarMetodo(m.id)}
                             >
                                 <Text style={styles.methodIcon}>{m.icon}</Text>
                                 <View style={styles.methodBody}>
                                     <View style={styles.methodTitleRow}>
-                                        <Text style={[styles.methodTitle, { color: colors.text }]}>{m.title}</Text>
-                                        {isRecommended ? (
-                                            <View style={[styles.badge, { backgroundColor: colors.primaryLight }]}>
-                                                <Text style={[styles.badgeText, { color: colors.primaryDark }]}>
+                                        <Text style={[styles.methodTitle, { color: cores.text }]}>{m.title}</Text>
+                                        {ehRecomendado ? (
+                                            <View style={[styles.badge, { backgroundColor: cores.primaryLight }]}>
+                                                <Text style={[styles.badgeText, { color: cores.primaryDark }]}>
                                                     já funcionou
                                                 </Text>
                                             </View>
                                         ) : null}
                                     </View>
-                                    <Text style={[styles.methodSubtitle, { color: colors.textSecondary }]}>
+                                    <Text style={[styles.methodSubtitle, { color: cores.textSecondary }]}>
                                         {m.subtitle}
                                     </Text>
                                 </View>
                                 <Ionicons
-                                    name={m.id === 'respiracao' ? 'chevron-forward' : isActive ? 'chevron-up' : 'chevron-down'}
+                                    name={m.id === 'respiracao' ? 'chevron-forward' : ehAtivo ? 'chevron-up' : 'chevron-down'}
                                     size={18}
-                                    color={colors.textMuted}
+                                    color={cores.textMuted}
                                 />
                             </TouchableOpacity>
 
-                            {isActive && m.id === 'timer' ? (
-                                <View style={[styles.panel, { backgroundColor: colors.card }, SHADOW.small]}>
-                                    <Text style={[styles.clock, { color: colors.primaryDark }]}>{formatClock(holdLeft)}</Text>
-                                    <Text style={[styles.panelText, { color: colors.textSecondary }]}>
+                            {ehAtivo && m.id === 'timer' ? (
+                                <View style={[styles.panel, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+                                    <Text style={[styles.clock, { color: cores.primaryDark }]}>{formatarRelogio(tempoRestante)}</Text>
+                                    <Text style={[styles.panelText, { color: cores.textSecondary }]}>
                                         Você não precisa fazer nada além de esperar. A vontade vai baixar sozinha.
                                     </Text>
                                     <TouchableOpacity
-                                        style={[styles.panelBtn, { borderColor: colors.primary }]}
-                                        onPress={() => setHoldRunning((prev) => !prev)}
+                                        style={[styles.panelBtn, { borderColor: cores.primary }]}
+                                        onPress={() => setEsperaRodando((prev) => !prev)}
                                     >
-                                        <Text style={[styles.panelBtnText, { color: colors.primaryDark }]}>
-                                            {holdRunning ? 'Pausar' : 'Continuar'}
+                                        <Text style={[styles.panelBtnText, { color: cores.primaryDark }]}>
+                                            {esperaRodando ? 'Pausar' : 'Continuar'}
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
                             ) : null}
 
-                            {isActive && m.id === 'distracao' ? (
-                                <View style={[styles.panel, { backgroundColor: colors.card }, SHADOW.small]}>
-                                    {DISTRACTIONS.map((d) => (
+                            {ehAtivo && m.id === 'distracao' ? (
+                                <View style={[styles.panel, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+                                    {DISTRACOES.map((d) => (
                                         <View key={d.id} style={styles.distractionRow}>
                                             <Text style={styles.distractionEmoji}>{d.emoji}</Text>
                                             <View style={{ flex: 1 }}>
-                                                <Text style={[styles.distractionLabel, { color: colors.text }]}>{d.label}</Text>
-                                                <Text style={[styles.distractionDetail, { color: colors.textSecondary }]}>
-                                                    {d.detail}
+                                                <Text style={[styles.distractionLabel, { color: cores.text }]}>{d.rotulo}</Text>
+                                                <Text style={[styles.distractionDetail, { color: cores.textSecondary }]}>
+                                                    {d.detalhe}
                                                 </Text>
                                             </View>
                                         </View>
@@ -312,18 +312,18 @@ export default function CrisisScreen({ navigation, route }) {
                 })}
 
                 <TouchableOpacity
-                    style={[styles.endBtn, { backgroundColor: colors.primary }]}
-                    onPress={() => finish(activeMethod, elapsedSeconds(), false)}
+                    style={[styles.endBtn, { backgroundColor: cores.primary }]}
+                    onPress={() => encerrar(metodoAtivo, segundosDecorridos(), false)}
                 >
                     <Text style={styles.endBtnText}>Já passou, encerrar</Text>
                 </TouchableOpacity>
             </ScrollView>
 
             <CrisisOutcomeModal
-                visible={pending !== null}
-                colors={colors}
-                onSubmit={(outcome, note) => persist(outcome, note)}
-                onSkip={() => persist(null, null)}
+                visivel={pendente !== null}
+                cores={cores}
+                aoEnviar={(desfecho, nota) => persistir(desfecho, nota)}
+                aoPular={() => persistir(null, null)}
             />
         </>
     );
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 32 },
     msgCard: {
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         padding: 16,
         marginHorizontal: 16,
         marginTop: 14,
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         borderWidth: 1.5,
         padding: 16,
         marginHorizontal: 16,
@@ -354,11 +354,11 @@ const styles = StyleSheet.create({
     methodBody: { flex: 1 },
     methodTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     methodTitle: { fontSize: 15, fontWeight: '700' },
-    badge: { borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },
+    badge: { borderRadius: RAIO.full, paddingHorizontal: 8, paddingVertical: 2 },
     badgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
     methodSubtitle: { fontSize: 12, marginTop: 2 },
     panel: {
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         padding: 16,
         marginHorizontal: 16,
         marginTop: 8,
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     panelText: { fontSize: 13, lineHeight: 19, marginTop: 8, textAlign: 'center' },
     panelBtn: {
         borderWidth: 1.5,
-        borderRadius: RADIUS.md,
+        borderRadius: RAIO.md,
         paddingVertical: 12,
         alignItems: 'center',
         marginTop: 14,
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     distractionLabel: { fontSize: 14, fontWeight: '600' },
     distractionDetail: { fontSize: 12, marginTop: 2 },
     endBtn: {
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         paddingVertical: 16,
         marginHorizontal: 16,
         marginTop: 20,

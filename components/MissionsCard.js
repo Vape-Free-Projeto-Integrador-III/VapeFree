@@ -1,65 +1,65 @@
 // src/components/MissionsCard.js
 // Card da HomeScreen com as missões diárias. A lista já vem calculada pela
-// tela (checkMissions em utils/missions.js) — aqui é só apresentação.
+// tela (verificarMissoes em utils/missions.js) — aqui é só apresentação.
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { RADIUS, SHADOW } from '../utils/theme';
+import { RAIO, SOMBRA } from '../utils/theme';
 
-export default function MissionsCard({ missions = [], colors, onPress }) {
-    const done = missions.filter((mission) => mission.completed).length;
-    const total = missions.length;
-    const progress = total > 0 ? done / total : 0;
+export default function MissionsCard({ missoes = [], cores, aoPressionar }) {
+    const concluidas = missoes.filter((missao) => missao.concluida).length;
+    const total = missoes.length;
+    const progresso = total > 0 ? concluidas / total : 0;
 
     return (
-        <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
+        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
             <View style={styles.header}>
-                <Text style={[styles.title, { color: colors.textMuted }]}>🎯 Missões de hoje</Text>
-                <Text style={[styles.counter, { color: colors.primaryDark }]}>{done}/{total}</Text>
+                <Text style={[styles.title, { color: cores.textMuted }]}>🎯 Missões de hoje</Text>
+                <Text style={[styles.counter, { color: cores.primaryDark }]}>{concluidas}/{total}</Text>
             </View>
 
-            <View style={[styles.track, { backgroundColor: colors.primaryLight }]}>
+            <View style={[styles.track, { backgroundColor: cores.primaryLight }]}>
                 <View
                     style={[
                         styles.fill,
-                        { backgroundColor: colors.primary, width: `${Math.round(progress * 100)}%` },
+                        { backgroundColor: cores.primary, width: `${Math.round(progresso * 100)}%` },
                     ]}
                 />
             </View>
 
-            {missions.map((mission) => (
-                <View key={mission.id} style={styles.row}>
+            {missoes.map((missao) => (
+                <View key={missao.id} style={styles.row}>
                     <Ionicons
-                        name={mission.completed ? 'checkmark-circle' : 'ellipse-outline'}
+                        name={missao.concluida ? 'checkmark-circle' : 'ellipse-outline'}
                         size={20}
-                        color={mission.completed ? colors.primary : colors.textMuted}
+                        color={missao.concluida ? cores.primary : cores.textMuted}
                     />
                     <Text
                         style={[
                             styles.rowText,
-                            { color: mission.completed ? colors.textMuted : colors.text },
-                            mission.completed && styles.rowTextDone,
+                            { color: missao.concluida ? cores.textMuted : cores.text },
+                            missao.concluida && styles.rowTextDone,
                         ]}
                         numberOfLines={1}
                     >
-                        {mission.title}
+                        {missao.titulo}
                     </Text>
                     <Text
                         style={[
                             styles.rowXp,
-                            { color: mission.completed ? colors.primary : colors.textMuted },
+                            { color: missao.concluida ? cores.primary : cores.textMuted },
                         ]}
                     >
-                        +{mission.xp} XP
+                        +{missao.xp} XP
                     </Text>
                 </View>
             ))}
 
-            <TouchableOpacity style={styles.footer} onPress={onPress}>
-                <Text style={[styles.footerText, { color: colors.primaryDark }]}>
+            <TouchableOpacity style={styles.footer} onPress={aoPressionar}>
+                <Text style={[styles.footerText, { color: cores.primaryDark }]}>
                     Ver todas as missões
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                <Ionicons name="chevron-forward" size={16} color={cores.primary} />
             </TouchableOpacity>
         </View>
     );
@@ -67,7 +67,7 @@ export default function MissionsCard({ missions = [], colors, onPress }) {
 
 const styles = StyleSheet.create({
     card: {
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         padding: 16,
         marginHorizontal: 16,
         marginTop: 14,
@@ -81,8 +81,8 @@ const styles = StyleSheet.create({
         letterSpacing: 0.8,
     },
     counter: { fontSize: 14, fontWeight: '800' },
-    track: { height: 8, borderRadius: RADIUS.md, overflow: 'hidden', marginBottom: 12 },
-    fill: { height: '100%', borderRadius: RADIUS.md },
+    track: { height: 8, borderRadius: RAIO.md, overflow: 'hidden', marginBottom: 12 },
+    fill: { height: '100%', borderRadius: RAIO.md },
     row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5 },
     rowText: { flex: 1, fontSize: 13, fontWeight: '500' },
     rowTextDone: { textDecorationLine: 'line-through' },

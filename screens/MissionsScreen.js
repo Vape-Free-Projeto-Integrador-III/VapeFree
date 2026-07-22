@@ -1,143 +1,143 @@
 // src/screens/MissionsScreen.js
 //
 // Lista completa das missões do período atual (diárias e semanais).
-// A tela só apresenta: quem calcula é checkMissions (utils/missions.js) e
-// quem persiste/concede XP é checkAndCompleteMissions (utils/storage.js).
+// A tela só apresenta: quem calcula é verificarMissoes (utils/missions.js) e
+// quem persiste/concede XP é verificarEConcluirMissoes (utils/storage.js).
 import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
-import { RADIUS, SHADOW } from '../utils/theme';
-import { useTheme } from '../context/ThemeContext';
-import { useXpToast } from '../context/XpToastContext';
+import { RAIO, SOMBRA } from '../utils/theme';
+import { usarTema } from '../context/ThemeContext';
+import { usarToastDeXp } from '../context/XpToastContext';
 import {
-    getRecords,
-    getEconomy,
-    getCrisisSessions,
-    getMissions,
-    checkAndCompleteMissions,
-    checkAndUnlockAchievements,
-    refreshXp,
-    todayString,
+    obterRegistros,
+    obterEconomia,
+    obterSessoesDeCrise,
+    obterMissoes,
+    verificarEConcluirMissoes,
+    verificarEDesbloquearConquistas,
+    atualizarXp,
+    dataDeHoje,
 } from '../utils/storage';
-import { buildMissionContext, checkMissions } from '../utils/missions';
+import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 
-function formatProgress(mission) {
-    if (mission.target === 1) {
-        return mission.completed ? 'Concluída' : 'Ainda não';
+function formatarProgresso(missao) {
+    if (missao.alvo === 1) {
+        return missao.concluida ? 'Concluída' : 'Ainda não';
     }
-    if (mission.missionId === 'weekly_economy_10') {
-        return `R$ ${mission.current.toFixed(2)} de R$ ${mission.target.toFixed(2)}`;
+    if (missao.missionId === 'weekly_economy_10') {
+        return `R$ ${missao.atual.toFixed(2)} de R$ ${missao.alvo.toFixed(2)}`;
     }
-    return `${mission.current} de ${mission.target}`;
+    return `${missao.atual} de ${missao.alvo}`;
 }
 
 export default function MissionsScreen({ navigation }) {
-    const { colors } = useTheme();
-    const { showRewards } = useXpToast();
-    const [missions, setMissions] = useState([]);
+    const { cores } = usarTema();
+    const { mostrarRecompensas } = usarToastDeXp();
+    const [missoes, setMissoes] = useState([]);
 
-    const load = useCallback(async () => {
-        const [records, economy, crisisSessions] = await Promise.all([
-            getRecords(),
-            getEconomy(),
-            getCrisisSessions(),
+    const carregar = useCallback(async () => {
+        const [registros, economia, sessoesDeCrise] = await Promise.all([
+            obterRegistros(),
+            obterEconomia(),
+            obterSessoesDeCrise(),
         ]);
 
-        const newMissions = await checkAndCompleteMissions(records, economy, crisisSessions);
-        const completed = await getMissions();
-        const newAchievements = await checkAndUnlockAchievements(records, economy, completed);
-        const summary = await refreshXp(records, null, completed);
+        const novasMissoes = await verificarEConcluirMissoes(registros, economia, sessoesDeCrise);
+        const concluidas = await obterMissoes();
+        const novasConquistas = await verificarEDesbloquearConquistas(registros, economia, concluidas);
+        const resumo = await atualizarXp(registros, null, concluidas);
 
-        setMissions(checkMissions(buildMissionContext(records, economy, crisisSessions, todayString()), completed));
-        showRewards({ achievements: newAchievements, missions: newMissions, gained: summary.gained });
-    }, [showRewards]);
+        setMissoes(verificarMissoes(montarContextoDeMissoes(registros, economia, sessoesDeCrise, dataDeHoje()), concluidas));
+        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
+    }, [mostrarRecompensas]);
 
-    useFocusEffect(useCallback(() => { load(); }, [load]));
+    useFocusEffect(useCallback(() => { carregar(); }, [carregar]));
 
-    const daily = missions.filter((mission) => mission.period === 'daily');
-    const weekly = missions.filter((mission) => mission.period === 'weekly');
+    const diarias = missoes.filter((missao) => missao.period === 'daily');
+    const semanais = missoes.filter((missao) => missao.period === 'weekly');
 
-    const renderMission = (mission) => (
+    const renderizarMissao = (missao) => (
         <View
-            key={mission.id}
+            key={missao.id}
             style={[
                 styles.card,
                 {
-                    backgroundColor: colors.card,
-                    borderColor: mission.completed ? colors.primary : colors.border,
+                    backgroundColor: cores.card,
+                    borderColor: missao.concluida ? cores.primary : cores.border,
                 },
-                mission.completed ? SHADOW.small : null,
-                !mission.completed && styles.cardPending,
+                missao.concluida ? SOMBRA.pequena : null,
+                !missao.concluida && styles.cardPending,
             ]}
         >
             <View
                 style={[
                     styles.iconWrap,
-                    { backgroundColor: mission.completed ? colors.primaryLight : colors.borderLight },
+                    { backgroundColor: missao.concluida ? cores.primaryLight : cores.borderLight },
                 ]}
             >
-                <Text style={styles.icon}>{mission.icon}</Text>
+                <Text style={styles.icon}>{missao.icone}</Text>
             </View>
 
             <View style={styles.info}>
-                <Text style={[styles.title, { color: mission.completed ? colors.text : colors.textSecondary }]}>
-                    {mission.title}
+                <Text style={[styles.title, { color: missao.concluida ? cores.text : cores.textSecondary }]}>
+                    {missao.titulo}
                 </Text>
-                <Text style={[styles.description, { color: colors.textMuted }]}>{mission.description}</Text>
+                <Text style={[styles.description, { color: cores.textMuted }]}>{missao.descricao}</Text>
 
-                <View style={[styles.track, { backgroundColor: colors.borderLight }]}>
+                <View style={[styles.track, { backgroundColor: cores.borderLight }]}>
                     <View
                         style={[
                             styles.fill,
                             {
-                                backgroundColor: colors.primary,
-                                width: `${Math.round((mission.current / mission.target) * 100)}%`,
+                                backgroundColor: cores.primary,
+                                width: `${Math.round((missao.atual / missao.alvo) * 100)}%`,
                             },
                         ]}
                     />
                 </View>
 
                 <View style={styles.footer}>
-                    <Text style={[styles.progress, { color: colors.textMuted }]}>{formatProgress(mission)}</Text>
-                    <Text style={[styles.xp, { color: mission.completed ? colors.primaryDark : colors.textMuted }]}>
-                        +{mission.xp} XP
+                    <Text style={[styles.progress, { color: cores.textMuted }]}>{formatarProgresso(missao)}</Text>
+                    <Text style={[styles.xp, { color: missao.concluida ? cores.primaryDark : cores.textMuted }]}>
+                        +{missao.xp} XP
                     </Text>
                 </View>
             </View>
 
-            {mission.completed ? (
-                <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+            {missao.concluida ? (
+                <Ionicons name="checkmark-circle" size={24} color={cores.primary} />
             ) : null}
         </View>
     );
 
     return (
-        <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
+        <ScrollView style={[styles.scroll, { backgroundColor: cores.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
-                title="Missões"
-                subtitle="Metas que renovam sozinhas"
-                colors={colors}
-                showSettings
-                onSettingsPress={() => navigation.navigate('Settings')}
-                onBackPress={() => navigation.goBack()}
+                titulo="Missões"
+                subtitulo="Metas que renovam sozinhas"
+                cores={cores}
+                mostrarConfiguracoes
+                aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
+                aoPressionarVoltar={() => navigation.goBack()}
             />
 
             <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>🎯 Hoje</Text>
-                <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+                <Text style={[styles.sectionTitle, { color: cores.text }]}>🎯 Hoje</Text>
+                <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
                     Renovam à meia-noite
                 </Text>
-                {daily.map(renderMission)}
+                {diarias.map(renderizarMissao)}
             </View>
 
             <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>📅 Esta semana</Text>
-                <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+                <Text style={[styles.sectionTitle, { color: cores.text }]}>📅 Esta semana</Text>
+                <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
                     Renovam toda segunda-feira
                 </Text>
-                {weekly.map(renderMission)}
+                {semanais.map(renderizarMissao)}
             </View>
 
             <View style={{ height: 24 }} />
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 14, fontWeight: '700' },
     sectionHint: { fontSize: 11, marginTop: 2, marginBottom: 12 },
     card: {
-        borderRadius: RADIUS.md,
+        borderRadius: RAIO.md,
         padding: 14,
         flexDirection: 'row',
         alignItems: 'center',
@@ -165,8 +165,8 @@ const styles = StyleSheet.create({
     info: { flex: 1, marginRight: 8 },
     title: { fontSize: 15, fontWeight: '700' },
     description: { fontSize: 12, marginTop: 2 },
-    track: { height: 6, borderRadius: RADIUS.md, overflow: 'hidden', marginTop: 8 },
-    fill: { height: '100%', borderRadius: RADIUS.md },
+    track: { height: 6, borderRadius: RAIO.md, overflow: 'hidden', marginTop: 8 },
+    fill: { height: '100%', borderRadius: RAIO.md },
     footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
     progress: { fontSize: 11 },
     xp: { fontSize: 11, fontWeight: '700' },

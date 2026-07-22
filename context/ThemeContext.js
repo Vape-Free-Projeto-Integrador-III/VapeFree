@@ -2,46 +2,46 @@
 import React, { createContext, useContext, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const DARK_MODE_KEY = '@vapefree_dark_mode';
+const CHAVE_MODO_ESCURO = '@vapefree_dark_mode';
 
 export const ThemeContext = createContext({
-  isDark: false,
-  toggleTheme: () => {},
-  colors: {},
+  estaEscuro: false,
+  alternarTema: () => {},
+  cores: {},
 });
 
 export function ThemeProvider({ children }) {
-  const [isDark, setIsDark] = useState(false);
+  const [estaEscuro, setEstaEscuro] = useState(false);
 
   React.useEffect(() => {
-    AsyncStorage.getItem(DARK_MODE_KEY).then((val) => {
-      if (val === 'true') setIsDark(true);
+    AsyncStorage.getItem(CHAVE_MODO_ESCURO).then((valor) => {
+      if (valor === 'true') setEstaEscuro(true);
     });
   }, []);
 
-  const toggleTheme = () => {
-    setIsDark((prev) => {
-      const next = !prev;
-      AsyncStorage.setItem(DARK_MODE_KEY, String(next));
-      return next;
+  const alternarTema = () => {
+    setEstaEscuro((anterior) => {
+      const proximo = !anterior;
+      AsyncStorage.setItem(CHAVE_MODO_ESCURO, String(proximo));
+      return proximo;
     });
   };
 
-  const colors = isDark ? DARK_COLORS : LIGHT_COLORS;
+  const cores = estaEscuro ? CORES_ESCURAS : CORES_CLARAS;
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme, colors }}>
+    <ThemeContext.Provider value={{ estaEscuro, alternarTema, cores }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
-export function useTheme() {
+export function usarTema() {
   return useContext(ThemeContext);
 }
 
-// ─── Light (original) ────────────────────────────────────────────────────────
-const LIGHT_COLORS = {
+// ─── Claro (original) ────────────────────────────────────────────────────────
+const CORES_CLARAS = {
   primary: '#4CAF50',
   primaryLight: '#E8F5E9',
   primaryMid: '#81C784',
@@ -63,8 +63,8 @@ const LIGHT_COLORS = {
   modalBg: '#FFFFFF',
 };
 
-// ─── Dark ─────────────────────────────────────────────────────────────────────
-const DARK_COLORS = {
+// ─── Escuro ─────────────────────────────────────────────────────────────────────
+const CORES_ESCURAS = {
   primary: '#66BB6A',      // verde um pouco mais claro para contraste no escuro
   primaryLight: '#1B3A1E', // verde escuro suave para fundos destacados
   primaryMid: '#81C784',

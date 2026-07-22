@@ -4,19 +4,19 @@ Firebase Authentication. Três formas de entrar: e-mail/senha, Google, ou "modo 
 
 ## AuthContext (`context/AuthContext.js`)
 
-Expõe `{ user, isGuest, authScreen, initializing, continueAsGuest, logout }`.
+Expõe `{ user, ehConvidado, telaDeAuth, inicializando, continuarSemConta, logout }`.
 
-- `user`: objeto do Firebase (`onAuthStateChanged`) ou `null`.
-- `isGuest`: flag lida/gravada em `AsyncStorage` (`@vapefree_guest_mode`), independente do Firebase.
-- `initializing`: `true` só durante a checagem inicial do Firebase ao abrir o app — usado por `AppNavigator` para mostrar loading em vez de decidir Login vs Main prematuramente.
-- Login real sempre zera `isGuest` (não faz sentido estar logado E convidado).
-- `logout(nextAuthScreen)` serve tanto para sair de conta real quanto para sair do modo convidado; `nextAuthScreen` decide se o usuário cai em `Login` ou `SignUp` ao voltar pra AuthStack (usado pelo botão "Cadastrar" na tela de Perfil em modo convidado).
+- `usuario`: objeto do Firebase (`onAuthStateChanged`) ou `null`.
+- `ehConvidado`: flag lida/gravada em `AsyncStorage` (`@vapefree_guest_mode`), independente do Firebase.
+- `inicializando`: `true` só durante a checagem inicial do Firebase ao abrir o app — usado por `AppNavigator` para mostrar loading em vez de decidir Login vs Main prematuramente.
+- Login real sempre zera `ehConvidado` (não faz sentido estar logado E convidado).
+- `sair(proximaTelaDeAuth)` serve tanto para sair de conta real quanto para sair do modo convidado; `proximaTelaDeAuth` decide se o usuário cai em `Login` ou `SignUp` ao voltar pra AuthStack (usado pelo botão "Cadastrar" na tela de Perfil em modo convidado).
 
 Nenhuma senha é armazenada pelo app — persistência de sessão é 100% do SDK do Firebase (`getReactNativePersistence(AsyncStorage)` no native).
 
 ## Modo convidado
 
-Ativado por `continueAsGuest()` (botão "Continuar sem conta" no `LoginScreen`). Dados ficam só no `AsyncStorage` local (ver [database.md](database.md)). Não requer nenhuma chamada ao Firebase.
+Ativado por `continuarSemConta()` (botão "Continuar sem conta" no `LoginScreen`). Dados ficam só no `AsyncStorage` local (ver [database.md](database.md)). Não requer nenhuma chamada ao Firebase.
 
 ## Login com e-mail/senha
 
@@ -34,14 +34,14 @@ Fluxo: `promptAsync()` abre o browser (`expo-web-browser`, com `WebBrowser.maybe
 
 ## Migração de dados de convidado → conta
 
-Ao fazer login/cadastro (e-mail ou Google), se existirem dados locais de convidado (`hasGuestLocalData()`), o app pergunta via `GuestDataChoiceModal` (ver [components.md](components.md)) antes de autenticar:
+Ao fazer login/cadastro (e-mail ou Google), se existirem dados locais de convidado (`temDadosLocaisDoConvidado()`), o app pergunta via `GuestDataChoiceModal` (ver [components.md](components.md)) antes de autenticar:
 
-- **Importar**: `migrateGuestLocalDataToUser(uid)` — copia records/device/economy/achievements do `AsyncStorage` para o Firestore, depois `clearGuestLocalData()`.
-- **Descartar**: `clearGuestLocalData()`, mantém os dados que já existirem na conta.
+- **Importar**: `migrarDadosDoConvidadoParaConta(uid)` — copia records/device/economy/achievements do `AsyncStorage` para o Firestore, depois `limparDadosLocaisDoConvidado()`.
+- **Descartar**: `limparDadosLocaisDoConvidado()`, mantém os dados que já existirem na conta.
 - **Cancelar**: aborta o login inteiro, nada acontece.
 
 A pergunta acontece **antes** de `signInWithEmailAndPassword`/`promptAsync`, resolvida via `Promise` armazenada em `useRef` (`guestChoiceResolverRef`) — só depois de resolvida o login prossegue. Mesmo padrão duplicado em `LoginScreen.js` e `SignUpScreen.js` (não está extraído em hook compartilhado).
 
 ## Notificações e sessão
 
-`AuthContext` agenda/cancela notificações motivacionais conforme `user`/`isGuest` mudam — ver [notifications.md](notifications.md).
+`AuthContext` agenda/cancela notificações motivacionais conforme `usuario`/`ehConvidado` mudam — ver [notifications.md](notifications.md).

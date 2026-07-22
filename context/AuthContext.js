@@ -19,41 +19,41 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
 import {
-  scheduleMotivationalNotifications,
-  scheduleStreakWarningNotification,
-  cancelMotivationalNotifications,
-  cancelStreakWarningNotification,
+  agendarNotificacoesMotivacionais,
+  agendarNotificacaoDeStreak,
+  cancelarNotificacoesMotivacionais,
+  cancelarNotificacaoDeStreak,
 } from '../utils/notifications';
 
-const GUEST_MODE_KEY = '@vapefree_guest_mode';
+const CHAVE_MODO_CONVIDADO = '@vapefree_guest_mode';
 
 const AuthContext = createContext({
-  user: null,
-  isGuest: false,
-  authScreen: 'Login',
-  initializing: true,
-  continueAsGuest: async () => {},
-  logout: async () => {},
+  usuario: null,
+  ehConvidado: false,
+  telaDeAuth: 'Login',
+  inicializando: true,
+  continuarSemConta: async () => {},
+  sair: async () => {},
 });
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [isGuest, setIsGuest] = useState(false);
-  const [authScreen, setAuthScreen] = useState('Login');
-  // "initializing" controla a checagem inicial da sessão ao abrir o app.
+  const [usuario, setUsuario] = useState(null);
+  const [ehConvidado, setEhConvidado] = useState(false);
+  const [telaDeAuth, setTelaDeAuth] = useState('Login');
+  // "inicializando" controla a checagem inicial da sessão ao abrir o app.
   // Enquanto o Firebase não responder se existe (ou não) um usuário
   // autenticado, não decidimos a tela inicial (Main ou Login).
-  const [initializing, setInitializing] = useState(true);
+  const [inicializando, setInicializando] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
+    let montado = true;
 
     // Lê, em paralelo com a checagem do Firebase, se o usuário já tinha
     // escolhido "continuar sem conta" numa sessão anterior.
-    AsyncStorage.getItem(GUEST_MODE_KEY)
-      .then((value) => {
-        if (isMounted && value === 'true') {
-          setIsGuest(true);
+    AsyncStorage.getItem(CHAVE_MODO_CONVIDADO)
+      .then((valor) => {
+        if (montado && valor === 'true') {
+          setEhConvidado(true);
         }
       })
       .catch(() => {});
@@ -62,35 +62,35 @@ export function AuthProvider({ children }) {
     // - assim que o app abre (com o usuário restaurado da sessão, se houver)
     // - sempre que o usuário faz login
     // - sempre que o usuário faz logout
-    const unsubscribe = onAuthStateChanged(
+    const cancelarInscricao = onAuthStateChanged(
       auth,
-      (firebaseUser) => {
-        setUser(firebaseUser);
+      (usuarioDoFirebase) => {
+        setUsuario(usuarioDoFirebase);
         // Sempre que o callback disparar pela primeira vez (login existente,
         // ou null caso não haja sessão), a checagem inicial terminou.
-        setInitializing(false);
+        setInicializando(false);
 
         // Se um usuário REAL acabou de logar, não faz sentido continuar
         // marcado como convidado ao mesmo tempo.
-        if (firebaseUser) {
-          setIsGuest(false);
-          setAuthScreen('Login');
-          AsyncStorage.removeItem(GUEST_MODE_KEY).catch(() => {});
+        if (usuarioDoFirebase) {
+          setEhConvidado(false);
+          setTelaDeAuth('Login');
+          AsyncStorage.removeItem(CHAVE_MODO_CONVIDADO).catch(() => {});
         }
       },
-      (error) => {
+      (erro) => {
         // Se o listener falhar por algum motivo (ex.: erro interno de
         // persistência), não deixamos a tela presa em loading: tratamos
         // como "sem usuário autenticado" e mostramos a tela de Login.
-        console.log('onAuthStateChanged error:', error);
+        console.log('Erro no onAuthStateChanged:', erro);
         setUser(null);
-        setInitializing(false);
+        setInicializando(false);
       }
     );
 
     return () => {
-      isMounted = false;
-      unsubscribe();
+      montado = false;
+      cancelarInscricao();
     };
   }, []);
 
@@ -99,59 +99,59 @@ export function AuthProvider({ children }) {
   // Separado do listener do Firebase acima para também reagir a mudanças
   // de modo convidado, que não passam pelo onAuthStateChanged.
   useEffect(() => {
-    if (initializing) return;
+    if (inicializando) return;
 
-    const estaDentroDoApp = !!user || isGuest;
+    const estaDentroDoApp = !!usuario || ehConvidado;
 
     if (estaDentroDoApp) {
-      scheduleMotivationalNotifications().catch((err) =>
-        console.log('Erro ao agendar notificações motivadoras:', err)
+      agendarNotificacoesMotivacionais().catch((erro) =>
+        console.log('Erro ao agendar notificações motivadoras:', erro)
       );
-      scheduleStreakWarningNotification().catch((err) =>
-        console.log('Erro ao agendar notificação de streak:', err)
+      agendarNotificacaoDeStreak().catch((erro) =>
+        console.log('Erro ao agendar notificação de streak:', erro)
       );
     } else {
-      cancelMotivationalNotifications().catch((err) =>
-        console.log('Erro ao cancelar notificações motivadoras:', err)
+      cancelarNotificacoesMotivacionais().catch((erro) =>
+        console.log('Erro ao cancelar notificações motivadoras:', erro)
       );
-      cancelStreakWarningNotification().catch((err) =>
-        console.log('Erro ao cancelar notificação de streak:', err)
+      cancelarNotificacaoDeStreak().catch((erro) =>
+        console.log('Erro ao cancelar notificação de streak:', erro)
       );
     }
-  }, [user, isGuest, initializing]);
+  }, [usuario, ehConvidado, inicializando]);
 
   // Chamado pelo botão "Continuar sem conta" na tela de Login.
-  async function continueAsGuest() {
-    await AsyncStorage.setItem(GUEST_MODE_KEY, 'true');
-    setIsGuest(true);
-    setAuthScreen('Login');
+  async function continuarSemConta() {
+    await AsyncStorage.setItem(CHAVE_MODO_CONVIDADO, 'true');
+    setEhConvidado(true);
+    setTelaDeAuth('Login');
   }
 
   // Usado tanto para sair de uma conta real quanto para sair do modo
   // convidado — em ambos os casos o usuário volta para a tela de Login
   // e precisa escolher de novo (login ou "continuar sem conta") da
   // próxima vez.
-  async function logout(nextAuthScreen = 'Login') {
+  async function sair(proximaTelaDeAuth = 'Login') {
     try {
       if (auth.currentUser) {
         await signOut(auth);
       }
     } finally {
-      await AsyncStorage.removeItem(GUEST_MODE_KEY).catch(() => {});
-      setIsGuest(false);
-      setAuthScreen(nextAuthScreen);
+      await AsyncStorage.removeItem(CHAVE_MODO_CONVIDADO).catch(() => {});
+      setEhConvidado(false);
+      setTelaDeAuth(proximaTelaDeAuth);
     }
   }
 
   return (
     <AuthContext.Provider
-      value={{ user, isGuest, authScreen, initializing, continueAsGuest, logout }}
+      value={{ usuario, ehConvidado, telaDeAuth, inicializando, continuarSemConta, sair }}
     >
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
+export function usarAuth() {
   return useContext(AuthContext);
 }

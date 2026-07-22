@@ -3,22 +3,22 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ScreenHeader({
-    title,
-    subtitle,
-    colors,
-    isDark,
-    toggleTheme,
-    onProfilePress,
-    onBackPress,
-    onSettingsPress,
-    showProfile = true,
-    showTheme = true,
-    showSettings = false,
+    titulo,
+    subtitulo,
+    cores,
+    estaEscuro,
+    alternarTema,
+    aoPressionarPerfil,
+    aoPressionarVoltar,
+    aoPressionarConfiguracoes,
+    mostrarPerfil = true,
+    mostrarTema = true,
+    mostrarConfiguracoes = false,
 }) {
     return (
-        <View style={[styles.header, { backgroundColor: colors.primary }]}>
-            {onBackPress ? (
-                <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
+        <View style={[styles.header, { backgroundColor: cores.primary }]}>
+            {aoPressionarVoltar ? (
+                <TouchableOpacity onPress={aoPressionarVoltar} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={22} color="#fff" />
                 </TouchableOpacity>
             ) : (
@@ -26,28 +26,28 @@ export default function ScreenHeader({
             )}
 
             <View style={styles.textWrap}>
-                <Text style={styles.title}>{title}</Text>
-                <Text style={styles.subtitle}>{subtitle}</Text>
+                <Text style={styles.title}>{titulo}</Text>
+                <Text style={styles.subtitle}>{subtitulo}</Text>
             </View>
 
             <View style={styles.actions}>
-                {showSettings ? (
-                    <TouchableOpacity onPress={onSettingsPress} style={styles.settingsBtn}>
+                {mostrarConfiguracoes ? (
+                    <TouchableOpacity onPress={aoPressionarConfiguracoes} style={styles.settingsBtn}>
                         <Ionicons name="settings-outline" size={22} color="#fff" />
                     </TouchableOpacity>
                 ) : (
                     <>
-                        {showProfile ? (
-                            <TouchableOpacity onPress={onProfilePress} style={styles.profileBtn}>
+                        {mostrarPerfil ? (
+                            <TouchableOpacity onPress={aoPressionarPerfil} style={styles.profileBtn}>
                                 <Ionicons name="person-circle-outline" size={28} color="#fff" />
                             </TouchableOpacity>
                         ) : (
                             <View style={styles.profilePlaceholder} />
                         )}
 
-                        {showTheme ? (
-                            <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
-                                <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
+                        {mostrarTema ? (
+                            <TouchableOpacity onPress={alternarTema} style={styles.themeBtn}>
+                                <Ionicons name={estaEscuro ? 'sunny' : 'moon'} size={22} color="#fff" />
                             </TouchableOpacity>
                         ) : (
                             <View style={styles.themePlaceholder} />

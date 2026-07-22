@@ -16,9 +16,9 @@ import SettingsScreen from '../screens/SettingsScreen';
 import CrisisScreen from '../screens/CrisisScreen';
 import MissionsScreen from '../screens/MissionsScreen';
 import BreathingScreen from '../screens/BreathingScreen';
-import { SHADOW } from '../utils/theme';
-import { useTheme } from '../context/ThemeContext';
-import { useAuth } from '../context/AuthContext';
+import { SOMBRA } from '../utils/theme';
+import { usarTema } from '../context/ThemeContext';
+import { usarAuth } from '../context/AuthContext';
 
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
@@ -27,7 +27,7 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 function HomeTabs() {
-  const { colors } = useTheme();
+  const { cores } = usarTema();
 
   return (
     <Tab.Navigator
@@ -35,25 +35,25 @@ function HomeTabs() {
         headerShown: false,
         animation: 'none',
         tabBarStyle: {
-          backgroundColor: colors.tabBar,
+          backgroundColor: cores.tabBar,
           borderTopWidth: 0.5,
-          borderTopColor: colors.tabBorder,
+          borderTopColor: cores.tabBorder,
           height: 72,
           paddingBottom: 12,
           paddingTop: 8,
-          ...SHADOW.small,
+          ...SOMBRA.pequena,
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: cores.primary,
+        tabBarInactiveTintColor: cores.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         tabBarIcon: ({ focused, color, size }) => {
-          const icons = {
+          const icones = {
             Home: focused ? 'home' : 'home-outline',
             Register: focused ? 'add-circle' : 'add-circle-outline',
             History: focused ? 'bar-chart' : 'bar-chart-outline',
             Achievements: focused ? 'trophy' : 'trophy-outline',
           };
-          return <Ionicons name={icons[route.name]} size={size} color={color} />;
+          return <Ionicons name={icones[route.name]} size={size} color={color} />;
         },
       })}
     >
@@ -67,7 +67,7 @@ function HomeTabs() {
 
 // Stack exibida quando existe um usuário autenticado.
 // Repare que NÃO existe nenhuma tela de Login aqui: o usuário só sai
-// dessa stack quando o Firebase emitir user = null (logout), o que faz
+// dessa stack quando o Firebase emitir usuario = null (logout), o que faz
 // o AppNavigator trocar automaticamente para a AuthStack abaixo.
 function MainStack() {
   return (
@@ -84,9 +84,9 @@ function MainStack() {
 }
 
 // Stack exibida quando NÃO existe usuário autenticado.
-function AuthStack({ initialRouteName = 'Login' }) {
+function AuthStack({ rotaInicial = 'Login' }) {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }} initialRouteName={initialRouteName}>
+    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }} initialRouteName={rotaInicial}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
     </Stack.Navigator>
@@ -94,23 +94,23 @@ function AuthStack({ initialRouteName = 'Login' }) {
 }
 
 function LoadingScreen() {
-  const { colors } = useTheme();
+  const { cores } = usarTema();
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-      <ActivityIndicator size="large" color={colors.primary} />
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: cores.background }}>
+      <ActivityIndicator size="large" color={cores.primary} />
     </View>
   );
 }
 
 export default function AppNavigator() {
-  // "user" reflete o estado atual do Firebase Authentication.
-  // "isGuest" reflete a escolha de "continuar sem conta".
-  // "initializing" é true só durante a checagem inicial (abertura do app).
-  const { user, isGuest, authScreen, initializing } = useAuth();
+  // "usuario" reflete o estado atual do Firebase Authentication.
+  // "ehConvidado" reflete a escolha de "continuar sem conta".
+  // "inicializando" é true só durante a checagem inicial (abertura do app).
+  const { usuario, ehConvidado, telaDeAuth, inicializando } = usarAuth();
 
   // Enquanto o Firebase ainda não respondeu se há sessão ativa, mostramos
   // um loading em vez de decidir prematuramente entre Login e Main.
-  if (initializing) {
+  if (inicializando) {
     return <LoadingScreen />;
   }
 
@@ -118,14 +118,14 @@ export default function AppNavigator() {
     <NavigationContainer>
       {/*
         A troca entre MainStack e AuthStack acontece automaticamente
-        sempre que "user" ou "isGuest" mudam (login, logout ou escolha de
+        sempre que "usuario" ou "ehConvidado" mudam (login, logout ou escolha de
         modo convidado), pois isso re-renderiza o AppNavigator com uma
         árvore de navegação diferente.
         Não usamos navigation.replace('Main') em lugar nenhum: o próprio
         Firebase (via onAuthStateChanged) e o AuthContext (modo convidado)
         é quem controla isso.
       */}
-      {user || isGuest ? <MainStack /> : <AuthStack initialRouteName={authScreen} />}
+      {usuario || ehConvidado ? <MainStack /> : <AuthStack rotaInicial={telaDeAuth} />}
     </NavigationContainer>
   );
 }

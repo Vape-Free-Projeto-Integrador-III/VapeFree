@@ -15,13 +15,13 @@ import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import {
-    hasGuestLocalData,
-    clearGuestLocalData,
-    migrateGuestLocalDataToUser,
+    temDadosLocaisDoConvidado,
+    limparDadosLocaisDoConvidado,
+    migrarDadosDoConvidadoParaConta,
 } from '../utils/storage';
 import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
 
-const COLORS = {
+const CORES = {
     background: '#FFFFFF',
     iconCircleBg: '#98FE98',
     iconCheck: '#4A9BB6',
@@ -53,45 +53,45 @@ export default function SignUpScreen({ navigation }) {
     const [senha, setSenha] = useState('');
     const [mostrarSenha, setMostrarSenha] = useState(false);
     const [carregando, setCarregando] = useState(false);
-    const [guestChoiceVisible, setGuestChoiceVisible] = useState(false);
-    const [guestChoiceConfig, setGuestChoiceConfig] = useState(null);
-    const guestChoiceResolverRef = React.useRef(null);
+    const [escolhaConvidadoVisivel, setEscolhaConvidadoVisivel] = useState(false);
+    const [configEscolhaConvidado, setConfigEscolhaConvidado] = useState(null);
+    const resolverEscolhaConvidadoRef = React.useRef(null);
 
-    async function perguntarSobreDadosDeConvidado({ title, message, importLabel, discardLabel }) {
-        if (!(await hasGuestLocalData())) {
+    async function perguntarSobreDadosDeConvidado({ titulo, mensagem, rotuloImportar, rotuloDescartar }) {
+        if (!(await temDadosLocaisDoConvidado())) {
             return 'skip';
         }
 
         return new Promise((resolve) => {
-            guestChoiceResolverRef.current = resolve;
-            setGuestChoiceConfig({ title, message, importLabel, discardLabel });
-            setGuestChoiceVisible(true);
+            resolverEscolhaConvidadoRef.current = resolve;
+            setConfigEscolhaConvidado({ titulo, mensagem, rotuloImportar, rotuloDescartar });
+            setEscolhaConvidadoVisivel(true);
         });
     }
 
-    async function finalizarDadosDeConvidado(uid, choice) {
-        if (choice === 'import') {
-            const imported = await migrateGuestLocalDataToUser(uid);
-            if (!imported) {
+    async function finalizarDadosDeConvidado(uid, escolha) {
+        if (escolha === 'import') {
+            const importado = await migrarDadosDoConvidadoParaConta(uid);
+            if (!importado) {
                 Alert.alert('Erro', 'Não deu pra transferir seus dados de convidado. Tenta de novo.');
                 return false;
             }
         }
 
-        if (choice === 'discard') {
-            await clearGuestLocalData();
+        if (escolha === 'discard') {
+            await limparDadosLocaisDoConvidado();
         }
 
         return true;
     }
 
-    function closeGuestChoice(result) {
-        setGuestChoiceVisible(false);
-        setGuestChoiceConfig(null);
-        const resolver = guestChoiceResolverRef.current;
-        guestChoiceResolverRef.current = null;
+    function fecharEscolhaConvidado(resultado) {
+        setEscolhaConvidadoVisivel(false);
+        setConfigEscolhaConvidado(null);
+        const resolver = resolverEscolhaConvidadoRef.current;
+        resolverEscolhaConvidadoRef.current = null;
         if (resolver) {
-            resolver(result);
+            resolver(resultado);
         }
     }
 
@@ -118,10 +118,10 @@ export default function SignUpScreen({ navigation }) {
         }
 
         const acao = await perguntarSobreDadosDeConvidado({
-            title: 'Achamos seus dados de convidado',
-            message: `Quer levar esses dados pra sua conta nova ou começar do zero?`,
-            importLabel: 'Levar meus dados',
-            discardLabel: 'Começar do zero',
+            titulo: 'Achamos seus dados de convidado',
+            mensagem: `Quer levar esses dados pra sua conta nova ou começar do zero?`,
+            rotuloImportar: 'Levar meus dados',
+            rotuloDescartar: 'Começar do zero',
         });
 
         if (acao === 'cancel') {
@@ -131,14 +131,14 @@ export default function SignUpScreen({ navigation }) {
         setCarregando(true);
 
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, emailFormatado, senha);
+            const credencialDoUsuario = await createUserWithEmailAndPassword(auth, emailFormatado, senha);
 
-            await updateProfile(userCredential.user, {
+            await updateProfile(credencialDoUsuario.user, {
                 displayName: nomeFormatado,
             });
 
             await setDoc(
-                doc(db, 'users', userCredential.user.uid),
+                doc(db, 'users', credencialDoUsuario.user.uid),
                 {
                     nome: nomeFormatado,
                     displayName: nomeFormatado,
@@ -147,22 +147,22 @@ export default function SignUpScreen({ navigation }) {
                 { merge: true }
             );
 
-            await finalizarDadosDeConvidado(userCredential.user.uid, acao);
+            await finalizarDadosDeConvidado(credencialDoUsuario.user.uid, acao);
 
             Alert.alert('Prontinho', 'Sua conta foi criada!');
             navigation.goBack();
-        } catch (error) {
-            if (error?.code === 'auth/email-already-in-use') {
+        } catch (erro) {
+            if (erro?.code === 'auth/email-already-in-use') {
                 Alert.alert('Erro', 'Esse e-mail já tem conta. Tenta outro ou faz login.');
                 return;
             }
 
-            if (error?.code === 'auth/invalid-email') {
+            if (erro?.code === 'auth/invalid-email') {
                 Alert.alert('Erro', 'Esse e-mail não parece válido.');
                 return;
             }
 
-            if (error?.code === 'auth/weak-password') {
+            if (erro?.code === 'auth/weak-password') {
                 Alert.alert('Erro', 'Essa senha é fraca demais. Tenta uma mais forte.');
                 return;
             }
@@ -174,7 +174,7 @@ export default function SignUpScreen({ navigation }) {
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <View style={{ flex: 1, backgroundColor: CORES.background }}>
         <KeyboardAvoidingView
             style={styles.flex}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -186,7 +186,7 @@ export default function SignUpScreen({ navigation }) {
             >
                 <View style={styles.content}>
                     <View style={styles.iconCircle}>
-                        <Ionicons name="checkmark-circle-outline" size={32} color={COLORS.iconCheck} />
+                        <Ionicons name="checkmark-circle-outline" size={32} color={CORES.iconCheck} />
                     </View>
 
                     <Text style={styles.title}>Respire Livre</Text>
@@ -200,13 +200,13 @@ export default function SignUpScreen({ navigation }) {
                             <Ionicons
                                 name="person-outline"
                                 size={20}
-                                color={COLORS.inputIconColor}
+                                color={CORES.inputIconColor}
                                 style={styles.inputIconLeft}
                             />
                             <TextInput
                                 style={styles.input}
                                 placeholder="Seu nome"
-                                placeholderTextColor={COLORS.placeholderText}
+                                placeholderTextColor={CORES.placeholderText}
                                 value={nome}
                                 onChangeText={setNome}
                                 autoCapitalize="words"
@@ -220,13 +220,13 @@ export default function SignUpScreen({ navigation }) {
                             <Ionicons
                                 name="mail-outline"
                                 size={20}
-                                color={COLORS.inputIconColor}
+                                color={CORES.inputIconColor}
                                 style={styles.inputIconLeft}
                             />
                             <TextInput
                                 style={styles.input}
                                 placeholder="seu@email.com"
-                                placeholderTextColor={COLORS.placeholderText}
+                                placeholderTextColor={CORES.placeholderText}
                                 value={email}
                                 onChangeText={setEmail}
                                 autoCapitalize="none"
@@ -242,13 +242,13 @@ export default function SignUpScreen({ navigation }) {
                             <Ionicons
                                 name="lock-closed-outline"
                                 size={20}
-                                color={COLORS.inputIconColor}
+                                color={CORES.inputIconColor}
                                 style={styles.inputIconLeft}
                             />
                             <TextInput
                                 style={styles.input}
                                 placeholder="Digite sua senha"
-                                placeholderTextColor={COLORS.placeholderText}
+                                placeholderTextColor={CORES.placeholderText}
                                 value={senha}
                                 onChangeText={setSenha}
                                 autoCapitalize="none"
@@ -261,7 +261,7 @@ export default function SignUpScreen({ navigation }) {
                                 <Ionicons
                                     name={mostrarSenha ? 'eye-off-outline' : 'eye-outline'}
                                     size={20}
-                                    color={COLORS.inputIconColor}
+                                    color={CORES.inputIconColor}
                                 />
                             </TouchableOpacity>
                         </View>
@@ -285,16 +285,16 @@ export default function SignUpScreen({ navigation }) {
                 </View>
             </ScrollView>
 
-            {guestChoiceConfig ? (
+            {configEscolhaConvidado ? (
                 <GuestDataChoiceModal
-                    visible={guestChoiceVisible}
-                    title={guestChoiceConfig.title}
-                    message={guestChoiceConfig.message}
-                    importLabel={guestChoiceConfig.importLabel}
-                    discardLabel={guestChoiceConfig.discardLabel}
-                    onImport={() => closeGuestChoice('import')}
-                    onDiscard={() => closeGuestChoice('discard')}
-                    onCancel={() => closeGuestChoice('cancel')}
+                    visivel={escolhaConvidadoVisivel}
+                    titulo={configEscolhaConvidado.titulo}
+                    mensagem={configEscolhaConvidado.mensagem}
+                    rotuloImportar={configEscolhaConvidado.rotuloImportar}
+                    rotuloDescartar={configEscolhaConvidado.rotuloDescartar}
+                    aoImportar={() => fecharEscolhaConvidado('import')}
+                    aoDescartar={() => fecharEscolhaConvidado('discard')}
+                    aoCancelar={() => fecharEscolhaConvidado('cancel')}
                 />
             ) : null}
         </KeyboardAvoidingView>
@@ -306,11 +306,11 @@ export default function SignUpScreen({ navigation }) {
 const styles = StyleSheet.create({
     flex: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: CORES.background,
     },
     scrollContent: {
         flexGrow: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: CORES.background,
         paddingTop: 40,
         paddingBottom: 32,
     },
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
         width: 64,
         height: 64,
         borderRadius: 32,
-        backgroundColor: COLORS.iconCircleBg,
+        backgroundColor: CORES.iconCircleBg,
         alignItems: 'center',
         justifyContent: 'center',
         alignSelf: 'center',
@@ -333,14 +333,14 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 22,
         fontWeight: '700',
-        color: COLORS.titleText,
+        color: CORES.titleText,
         textAlign: 'center',
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 15,
         fontWeight: '400',
-        color: COLORS.subtitleText,
+        color: CORES.subtitleText,
         textAlign: 'center',
         lineHeight: 21,
         paddingHorizontal: 8,
@@ -355,16 +355,16 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.labelText,
+        color: CORES.labelText,
         marginBottom: 8,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         height: 50,
-        backgroundColor: COLORS.inputBg,
+        backgroundColor: CORES.inputBg,
         borderWidth: 1,
-        borderColor: COLORS.inputBorder,
+        borderColor: CORES.inputBorder,
         borderRadius: 12,
         paddingHorizontal: 14,
     },
@@ -375,13 +375,13 @@ const styles = StyleSheet.create({
         flex: 1,
         height: '100%',
         fontSize: 15,
-        color: COLORS.inputText,
+        color: CORES.inputText,
         padding: 0,
     },
     button: {
         height: 50,
         borderRadius: 12,
-        backgroundColor: COLORS.buttonBg,
+        backgroundColor: CORES.buttonBg,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 28,
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     buttonText: {
         fontSize: 16,
         fontWeight: '700',
-        color: COLORS.buttonText,
+        color: CORES.buttonText,
     },
     footerRow: {
         flexDirection: 'row',
@@ -407,11 +407,11 @@ const styles = StyleSheet.create({
     },
     footerText: {
         fontSize: 14,
-        color: COLORS.footerText,
+        color: CORES.footerText,
     },
     footerLink: {
         fontSize: 14,
         fontWeight: '700',
-        color: COLORS.linkBlue,
+        color: CORES.linkBlue,
     },
 });

@@ -2,69 +2,69 @@
 //
 // Card "Seus padrões" da tela de Histórico. Componente de apresentação puro:
 // recebe os registros já carregados e só formata o resultado de
-// computeInsights (utils/insights.js).
+// calcularInsights (utils/insights.js).
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { RADIUS, SHADOW } from '../utils/theme';
-import { computeInsights } from '../utils/insights';
+import { RAIO, SOMBRA } from '../utils/theme';
+import { calcularInsights } from '../utils/insights';
 
-export default function InsightsCard({ records, crisisSessions = [], colors }) {
-  const { ready, missing, items } = computeInsights(records, crisisSessions);
+export default function InsightsCard({ registros, sessoesDeCrise = [], cores }) {
+  const { pronto, faltam, itens } = calcularInsights(registros, sessoesDeCrise);
 
-  if (!ready) {
+  if (!pronto) {
     return (
-      <View style={[styles.card, styles.waitingCard, { backgroundColor: colors.card }, SHADOW.small]}>
-        <Ionicons name="bulb-outline" size={18} color={colors.textMuted} />
-        <Text style={[styles.waitingText, { color: colors.textMuted }]}>
-          Registre por mais {missing} {missing === 1 ? 'dia' : 'dias'} para ver seus padrões.
+      <View style={[styles.card, styles.waitingCard, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+        <Ionicons name="bulb-outline" size={18} color={cores.textMuted} />
+        <Text style={[styles.waitingText, { color: cores.textMuted }]}>
+          Registre por mais {faltam} {faltam === 1 ? 'dia' : 'dias'} para ver seus padrões.
         </Text>
       </View>
     );
   }
 
-  if (items.length === 0) return null;
+  if (itens.length === 0) return null;
 
   // Insights do modo crise (id com prefixo "crise_") ganham seção própria —
   // falam de outro momento (a fissura), não do padrão de uso.
-  const patternItems = items.filter((item) => !item.id.startsWith('crise'));
-  const crisisItems = items.filter((item) => item.id.startsWith('crise'));
+  const itensDePadrao = itens.filter((item) => !item.id.startsWith('crise'));
+  const itensDeCrise = itens.filter((item) => item.id.startsWith('crise'));
 
-  const renderRow = (item, index) => (
+  const renderizarLinha = (item, indice) => (
     <View
       key={item.id}
-      style={[styles.row, index > 0 && { borderTopWidth: 1, borderTopColor: colors.borderLight }]}
+      style={[styles.row, indice > 0 && { borderTopWidth: 1, borderTopColor: cores.borderLight }]}
     >
-      <Text style={styles.rowIcon}>{item.icon}</Text>
+      <Text style={styles.rowIcon}>{item.icone}</Text>
       <View style={styles.rowBody}>
-        <Text style={[styles.rowTitle, { color: colors.text }]}>{item.title}</Text>
-        <Text style={[styles.rowDetail, { color: colors.textSecondary }]}>{item.detail}</Text>
+        <Text style={[styles.rowTitle, { color: cores.text }]}>{item.titulo}</Text>
+        <Text style={[styles.rowDetail, { color: cores.textSecondary }]}>{item.detalhe}</Text>
       </View>
     </View>
   );
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
-      {patternItems.length > 0 ? (
+    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+      {itensDePadrao.length > 0 ? (
         <>
-          <Text style={[styles.cardTitle, { color: colors.textMuted }]}>Seus padrões</Text>
-          {patternItems.map(renderRow)}
+          <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Seus padrões</Text>
+          {itensDePadrao.map(renderizarLinha)}
         </>
       ) : null}
 
-      {crisisItems.length > 0 ? (
+      {itensDeCrise.length > 0 ? (
         <>
           <Text
             style={[
               styles.cardTitle,
-              { color: colors.textMuted },
-              patternItems.length > 0 && styles.sectionSpacing,
+              { color: cores.textMuted },
+              itensDePadrao.length > 0 && styles.sectionSpacing,
             ]}
           >
             No modo crise
           </Text>
-          {crisisItems.map(renderRow)}
+          {itensDeCrise.map(renderizarLinha)}
         </>
       ) : null}
     </View>
@@ -72,7 +72,7 @@ export default function InsightsCard({ records, crisisSessions = [], colors }) {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: RADIUS.lg, padding: 16, marginHorizontal: 16, marginTop: 14 },
+  card: { borderRadius: RAIO.lg, padding: 16, marginHorizontal: 16, marginTop: 14 },
   waitingCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
   waitingText: { fontSize: 12, flex: 1 },
   cardTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },

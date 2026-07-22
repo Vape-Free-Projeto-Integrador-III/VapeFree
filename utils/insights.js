@@ -9,15 +9,15 @@
 // formulário foi salvo, não a hora em que a pessoa usou o vape (o registro
 // pode ser retroativo pelo date picker). Insight de horário sairia errado.
 
-import { recordPuffs } from './records';
-import { TRIGGERS, HELPS } from './theme';
+import { puxadasDoRegistro } from './records';
+import { GATILHOS, AJUDAS } from './theme';
 
-export const MIN_RECORDS_FOR_INSIGHTS = 7;
+export const MIN_REGISTROS_PARA_INSIGHTS = 7;
 
-const FALLBACK_EMOJI = '📌';
+const EMOJI_PADRAO = '📌';
 // Domingo e sábado são masculinos ("aos domingos"), o resto é feminino
 // ("às segundas-feiras") — por isso a preposição vem junto do rótulo.
-const WEEKDAYS = [
+const DIAS_DA_SEMANA = [
   'aos domingos',
   'às segundas-feiras',
   'às terças-feiras',
@@ -28,288 +28,292 @@ const WEEKDAYS = [
 ];
 
 // O Slider às vezes entrega a intensidade como array ([n]) em vez de número.
-export function normalizeIntensity(value) {
-  const raw = Array.isArray(value) ? value[0] : value;
-  return Number(raw) || 0;
+export function normalizarIntensidade(valor) {
+  const bruto = Array.isArray(valor) ? valor[0] : valor;
+  return Number(bruto) || 0;
 }
 
 // Meio-dia evita o off-by-one de fuso que o parse UTC puro causaria.
-export function parseLocalDate(dateStr) {
-  return new Date(`${dateStr}T12:00:00`);
+export function converterDataLocal(dataStr) {
+  return new Date(`${dataStr}T12:00:00`);
 }
 
-function emojiForLabel(label) {
-  const found =
-    TRIGGERS.find((t) => t.label === label) || HELPS.find((h) => h.label === label);
-  return found ? found.emoji : FALLBACK_EMOJI;
+function emojiDoRotulo(rotulo) {
+  const encontrado =
+    GATILHOS.find((g) => g.rotulo === rotulo) || AJUDAS.find((a) => a.rotulo === rotulo);
+  return encontrado ? encontrado.emoji : EMOJI_PADRAO;
 }
 
-function countLabels(records, field) {
-  const counts = {};
-  records.forEach((record) => {
-    (record[field] || []).forEach((label) => {
-      counts[label] = (counts[label] || 0) + 1;
+function contarRotulos(registros, campo) {
+  const contagens = {};
+  registros.forEach((registro) => {
+    (registro[campo] || []).forEach((rotulo) => {
+      contagens[rotulo] = (contagens[rotulo] || 0) + 1;
     });
   });
-  return counts;
+  return contagens;
 }
 
-function topEntry(counts) {
-  const entries = Object.entries(counts);
-  if (entries.length === 0) return null;
-  entries.sort((a, b) => b[1] - a[1]);
-  return { label: entries[0][0], count: entries[0][1] };
+function maiorContagem(contagens) {
+  const entradas = Object.entries(contagens);
+  if (entradas.length === 0) return null;
+  entradas.sort((a, b) => b[1] - a[1]);
+  return { rotulo: entradas[0][0], contagem: entradas[0][1] };
 }
 
-function mostCommonTrigger(usedRecords) {
-  const top = topEntry(countLabels(usedRecords, 'triggers'));
-  if (!top || usedRecords.length === 0) return null;
+function gatilhoMaisComum(registrosComUso) {
+  const topo = maiorContagem(contarRotulos(registrosComUso, 'triggers'));
+  if (!topo || registrosComUso.length === 0) return null;
 
-  const percent = Math.round((top.count / usedRecords.length) * 100);
+  const porcentagem = Math.round((topo.contagem / registrosComUso.length) * 100);
   return {
     id: 'trigger_comum',
-    label: top.label,
-    icon: emojiForLabel(top.label),
-    title: `Seu gatilho mais comum é ${top.label}`,
-    detail: `Aparece em ${percent}% dos dias em que você usou.`,
+    rotulo: topo.rotulo,
+    icone: emojiDoRotulo(topo.rotulo),
+    titulo: `Seu gatilho mais comum é ${topo.rotulo}`,
+    detalhe: `Aparece em ${porcentagem}% dos dias em que você usou.`,
   };
 }
 
 // Só o rótulo do gatilho mais comum — usado pela tela de crise para a
 // mensagem personalizada, sem precisar do pacote inteiro de insights.
-export function topTriggerLabel(records) {
-  const used = (Array.isArray(records) ? records : []).filter((r) => r.used);
-  const top = topEntry(countLabels(used, 'triggers'));
-  return top ? top.label : null;
+export function gatilhoMaisFrequente(registros) {
+  const comUso = (Array.isArray(registros) ? registros : []).filter((r) => r.used);
+  const topo = maiorContagem(contarRotulos(comUso, 'triggers'));
+  return topo ? topo.rotulo : null;
 }
 
-function riskiestWeekday(records) {
-  const byWeekday = {};
-  records.forEach((record) => {
-    const day = parseLocalDate(record.date).getDay();
-    if (!byWeekday[day]) byWeekday[day] = { total: 0, count: 0 };
-    byWeekday[day].total += recordPuffs(record);
-    byWeekday[day].count += 1;
+function diaDaSemanaMaisArriscado(registros) {
+  const porDiaDaSemana = {};
+  registros.forEach((registro) => {
+    const dia = converterDataLocal(registro.date).getDay();
+    if (!porDiaDaSemana[dia]) porDiaDaSemana[dia] = { total: 0, contagem: 0 };
+    porDiaDaSemana[dia].total += puxadasDoRegistro(registro);
+    porDiaDaSemana[dia].contagem += 1;
   });
 
   // Um único registro num dia da semana não é padrão, é coincidência.
-  const candidates = Object.entries(byWeekday)
-    .filter(([, { count }]) => count >= 2)
-    .map(([day, { total, count }]) => ({ day: Number(day), average: total / count }))
-    .filter(({ average }) => average > 0);
+  const candidatos = Object.entries(porDiaDaSemana)
+    .filter(([, { contagem }]) => contagem >= 2)
+    .map(([dia, { total, contagem }]) => ({ dia: Number(dia), media: total / contagem }))
+    .filter(({ media }) => media > 0);
 
-  if (candidates.length === 0) return null;
+  if (candidatos.length === 0) return null;
 
-  candidates.sort((a, b) => b.average - a.average);
-  const top = candidates[0];
+  candidatos.sort((a, b) => b.media - a.media);
+  const topo = candidatos[0];
   return {
     id: 'dia_semana',
-    icon: '📅',
-    title: `Você usa mais ${WEEKDAYS[top.day]}`,
-    detail: `Média de ${Math.round(top.average)} puxadas nesse dia da semana.`,
+    icone: '📅',
+    titulo: `Você usa mais ${DIAS_DA_SEMANA[topo.dia]}`,
+    detalhe: `Média de ${Math.round(topo.media)} puxadas nesse dia da semana.`,
   };
 }
 
-function strongestTrigger(usedRecords) {
-  const stats = {};
-  usedRecords.forEach((record) => {
-    const intensity = normalizeIntensity(record.intensity);
-    (record.triggers || []).forEach((label) => {
-      if (!stats[label]) stats[label] = { total: 0, count: 0 };
-      stats[label].total += intensity;
-      stats[label].count += 1;
+function gatilhoMaisIntenso(registrosComUso) {
+  const estatisticas = {};
+  registrosComUso.forEach((registro) => {
+    const intensidade = normalizarIntensidade(registro.intensity);
+    (registro.triggers || []).forEach((rotulo) => {
+      if (!estatisticas[rotulo]) estatisticas[rotulo] = { total: 0, contagem: 0 };
+      estatisticas[rotulo].total += intensidade;
+      estatisticas[rotulo].contagem += 1;
     });
   });
 
-  const candidates = Object.entries(stats)
-    .filter(([, { count }]) => count >= 2)
-    .map(([label, { total, count }]) => ({ label, average: total / count }));
+  const candidatos = Object.entries(estatisticas)
+    .filter(([, { contagem }]) => contagem >= 2)
+    .map(([rotulo, { total, contagem }]) => ({ rotulo, media: total / contagem }));
 
-  if (candidates.length === 0) return null;
+  if (candidatos.length === 0) return null;
 
-  candidates.sort((a, b) => b.average - a.average);
-  const top = candidates[0];
+  candidatos.sort((a, b) => b.media - a.media);
+  const topo = candidatos[0];
   return {
     id: 'gatilho_intenso',
-    label: top.label,
-    icon: '🔥',
-    title: `${top.label} é o que te dá mais vontade`,
-    detail: `Nesses dias sua vontade média é ${(Math.round(top.average * 10) / 10)
+    rotulo: topo.rotulo,
+    icone: '🔥',
+    titulo: `${topo.rotulo} é o que te dá mais vontade`,
+    detalhe: `Nesses dias sua vontade média é ${(Math.round(topo.media * 10) / 10)
       .toFixed(1)
       .replace('.', ',')}/10.`,
   };
 }
 
-function bestHelp(freeRecords) {
-  const top = topEntry(countLabels(freeRecords, 'helps'));
-  if (!top) return null;
+function ajudaQueMaisFunciona(registrosSemUso) {
+  const topo = maiorContagem(contarRotulos(registrosSemUso, 'helps'));
+  if (!topo) return null;
 
   return {
     id: 'ajuda',
-    icon: emojiForLabel(top.label),
-    title: `${top.label} é o que mais te ajuda`,
-    detail: `Apareceu em ${top.count} ${top.count === 1 ? 'dia' : 'dias'} sem usar.`,
+    icone: emojiDoRotulo(topo.rotulo),
+    titulo: `${topo.rotulo} é o que mais te ajuda`,
+    detalhe: `Apareceu em ${topo.contagem} ${topo.contagem === 1 ? 'dia' : 'dias'} sem usar.`,
   };
 }
 
 // ─── Modo crise ──────────────────────────────────────────────────────────────
 
-export const CRISIS_METHODS = {
-  respiracao: { label: 'Respiração guiada', emoji: '🧘' },
-  timer: { label: 'Aguentar alguns minutos', emoji: '⏱️' },
-  distracao: { label: 'Distrações rápidas', emoji: '💧' },
+export const METODOS_DE_CRISE = {
+  respiracao: { rotulo: 'Respiração guiada', emoji: '🧘' },
+  timer: { rotulo: 'Aguentar alguns minutos', emoji: '⏱️' },
+  distracao: { rotulo: 'Distrações rápidas', emoji: '💧' },
 };
 
 // "Passou" vale 1, "diminuiu" vale meio ponto — diminuir também é vitória,
 // só não do mesmo tamanho. "usei" vale 0.
-const OUTCOME_WEIGHT = { passou: 1, diminuiu: 0.5, usei: 0 };
+const PESO_DO_DESFECHO = { passou: 1, diminuiu: 0.5, usei: 0 };
 
 // Qual método já funcionou melhor PRA ESTE usuário. Só considera método com
 // pelo menos 2 sessões avaliadas — uma sessão é sorte, não padrão (mesma
-// regra de riskiestWeekday e strongestTrigger).
-export function recommendedCrisisMethod(sessions) {
-  const list = Array.isArray(sessions) ? sessions : [];
-  const stats = {};
+// regra de diaDaSemanaMaisArriscado e gatilhoMaisIntenso).
+export function metodoDeCriseRecomendado(sessoes) {
+  const lista = Array.isArray(sessoes) ? sessoes : [];
+  const estatisticas = {};
 
-  list.forEach((session) => {
-    const weight = OUTCOME_WEIGHT[session.outcome];
-    if (weight === undefined || !CRISIS_METHODS[session.method]) return;
-    if (!stats[session.method]) stats[session.method] = { total: 0, count: 0 };
-    stats[session.method].total += weight;
-    stats[session.method].count += 1;
+  lista.forEach((sessao) => {
+    const peso = PESO_DO_DESFECHO[sessao.outcome];
+    if (peso === undefined || !METODOS_DE_CRISE[sessao.method]) return;
+    if (!estatisticas[sessao.method]) estatisticas[sessao.method] = { total: 0, contagem: 0 };
+    estatisticas[sessao.method].total += peso;
+    estatisticas[sessao.method].contagem += 1;
   });
 
-  const candidates = Object.entries(stats)
-    .filter(([, { count }]) => count >= 2)
-    .map(([method, { total, count }]) => ({ method, successRate: total / count }))
-    .filter(({ successRate }) => successRate > 0);
+  const candidatos = Object.entries(estatisticas)
+    .filter(([, { contagem }]) => contagem >= 2)
+    .map(([metodo, { total, contagem }]) => ({ metodo, taxaDeSucesso: total / contagem }))
+    .filter(({ taxaDeSucesso }) => taxaDeSucesso > 0);
 
-  if (candidates.length === 0) return null;
+  if (candidatos.length === 0) return null;
 
-  candidates.sort((a, b) => b.successRate - a.successRate);
-  return candidates[0];
+  candidatos.sort((a, b) => b.taxaDeSucesso - a.taxaDeSucesso);
+  return candidatos[0];
 }
 
 // Períodos do dia. Diferente do campo "time" do registro (que é a hora em
 // que o formulário foi salvo), o "time" da sessão de crise é a hora real em
 // que a vontade bateu — então aqui insight de horário faz sentido.
-const DAY_PERIODS = [
-  { id: 'madrugada', label: 'de madrugada', from: 0, to: 5 },
-  { id: 'manha', label: 'de manhã', from: 6, to: 11 },
-  { id: 'tarde', label: 'à tarde', from: 12, to: 17 },
-  { id: 'noite', label: 'à noite', from: 18, to: 23 },
+const PERIODOS_DO_DIA = [
+  { id: 'madrugada', rotulo: 'de madrugada', de: 0, ate: 5 },
+  { id: 'manha', rotulo: 'de manhã', de: 6, ate: 11 },
+  { id: 'tarde', rotulo: 'à tarde', de: 12, ate: 17 },
+  { id: 'noite', rotulo: 'à noite', de: 18, ate: 23 },
 ];
 
-function periodOf(timeStr) {
-  const hour = Number(String(timeStr || '').slice(0, 2));
-  if (Number.isNaN(hour)) return null;
-  return DAY_PERIODS.find((p) => hour >= p.from && hour <= p.to) || null;
+function periodoDe(horaStr) {
+  const hora = Number(String(horaStr || '').slice(0, 2));
+  if (Number.isNaN(hora)) return null;
+  return PERIODOS_DO_DIA.find((p) => hora >= p.de && hora <= p.ate) || null;
 }
 
-function crisisCount(sessions) {
-  const survived = sessions.filter((s) => s.outcome === 'passou' || s.outcome === 'diminuiu');
-  if (survived.length < 2) return null;
+function totalDeCrisesSuperadas(sessoes) {
+  const superadas = sessoes.filter((s) => s.outcome === 'passou' || s.outcome === 'diminuiu');
+  if (superadas.length < 2) return null;
 
   return {
     id: 'crise_superadas',
-    icon: '🛟',
-    title: `Você superou ${survived.length} ${survived.length === 1 ? 'crise' : 'crises'}`,
-    detail: `Foram ${sessions.length} ${sessions.length === 1 ? 'vez' : 'vezes'} que você abriu o modo crise em vez de simplesmente usar.`,
+    icone: '🛟',
+    titulo: `Você superou ${superadas.length} ${superadas.length === 1 ? 'crise' : 'crises'}`,
+    detalhe: `Foram ${sessoes.length} ${sessoes.length === 1 ? 'vez' : 'vezes'} que você abriu o modo crise em vez de simplesmente usar.`,
   };
 }
 
-function crisisBestMethod(sessions) {
-  const best = recommendedCrisisMethod(sessions);
-  if (!best) return null;
+function melhorMetodoDeCrise(sessoes) {
+  const melhor = metodoDeCriseRecomendado(sessoes);
+  if (!melhor) return null;
 
-  const percent = Math.round(best.successRate * 100);
+  const porcentagem = Math.round(melhor.taxaDeSucesso * 100);
   return {
     id: 'crise_metodo',
-    icon: CRISIS_METHODS[best.method].emoji,
-    title: `${CRISIS_METHODS[best.method].label} é o que mais te segura`,
-    detail: `Nas crises em que você usou esse método, ${percent}% terminaram sem uso ou com a vontade menor.`,
+    icone: METODOS_DE_CRISE[melhor.metodo].emoji,
+    titulo: `${METODOS_DE_CRISE[melhor.metodo].rotulo} é o que mais te segura`,
+    detalhe: `Nas crises em que você usou esse método, ${porcentagem}% terminaram sem uso ou com a vontade menor.`,
   };
 }
 
-function crisisSuccessRate(sessions) {
-  const answered = sessions.filter((s) => s.outcome);
-  if (answered.length < 3) return null;
+function taxaDeSucessoNasCrises(sessoes) {
+  const respondidas = sessoes.filter((s) => s.outcome);
+  if (respondidas.length < 3) return null;
 
-  const held = answered.filter((s) => s.outcome !== 'usei');
-  const percent = Math.round((held.length / answered.length) * 100);
-  if (percent === 0) return null;
+  const seguradas = respondidas.filter((s) => s.outcome !== 'usei');
+  const porcentagem = Math.round((seguradas.length / respondidas.length) * 100);
+  if (porcentagem === 0) return null;
 
   return {
     id: 'crise_taxa',
-    icon: '💪',
-    title: `Você aguenta ${percent}% das crises`,
-    detail: `${held.length} de ${answered.length} vezes a vontade passou ou diminuiu sem você usar.`,
+    icone: '💪',
+    titulo: `Você aguenta ${porcentagem}% das crises`,
+    detalhe: `${seguradas.length} de ${respondidas.length} vezes a vontade passou ou diminuiu sem você usar.`,
   };
 }
 
-function crisisPeriod(sessions) {
-  const counts = {};
-  sessions.forEach((session) => {
-    const period = periodOf(session.time);
-    if (period) counts[period.id] = (counts[period.id] || 0) + 1;
+function periodoDasCrises(sessoes) {
+  const contagens = {};
+  sessoes.forEach((sessao) => {
+    const periodo = periodoDe(sessao.time);
+    if (periodo) contagens[periodo.id] = (contagens[periodo.id] || 0) + 1;
   });
 
-  const top = topEntry(counts);
+  const topo = maiorContagem(contagens);
   // Menos de 3 crises no mesmo período é coincidência, não horário de risco.
-  if (!top || top.count < 3) return null;
+  if (!topo || topo.contagem < 3) return null;
 
-  const period = DAY_PERIODS.find((p) => p.id === top.label);
+  const periodo = PERIODOS_DO_DIA.find((p) => p.id === topo.rotulo);
   return {
     id: 'crise_horario',
-    icon: '🕒',
-    title: `Sua vontade bate mais ${period.label}`,
-    detail: `${top.count} das suas crises começaram nesse período. Vale se preparar antes dessa hora.`,
+    icone: '🕒',
+    titulo: `Sua vontade bate mais ${periodo.rotulo}`,
+    detalhe: `${topo.contagem} das suas crises começaram nesse período. Vale se preparar antes dessa hora.`,
   };
 }
 
-// Insights do modo crise. Não dependem de MIN_RECORDS_FOR_INSIGHTS: quem
+// Insights do modo crise. Não dependem de MIN_REGISTROS_PARA_INSIGHTS: quem
 // usou o modo crise já gerou dado próprio, mesmo com poucos registros.
-export function computeCrisisInsights(crisisSessions) {
-  const sessions = Array.isArray(crisisSessions) ? crisisSessions : [];
-  if (sessions.length === 0) return [];
+export function calcularInsightsDeCrise(sessoesDeCrise) {
+  const sessoes = Array.isArray(sessoesDeCrise) ? sessoesDeCrise : [];
+  if (sessoes.length === 0) return [];
 
   return [
-    crisisCount(sessions),
-    crisisSuccessRate(sessions),
-    crisisBestMethod(sessions),
-    crisisPeriod(sessions),
+    totalDeCrisesSuperadas(sessoes),
+    taxaDeSucessoNasCrises(sessoes),
+    melhorMetodoDeCrise(sessoes),
+    periodoDasCrises(sessoes),
   ].filter(Boolean);
 }
 
-export function computeInsights(records, crisisSessions = []) {
-  const list = Array.isArray(records) ? records : [];
-  const crisisItems = computeCrisisInsights(crisisSessions);
+export function calcularInsights(registros, sessoesDeCrise = []) {
+  const lista = Array.isArray(registros) ? registros : [];
+  const itensDeCrise = calcularInsightsDeCrise(sessoesDeCrise);
 
-  if (list.length < MIN_RECORDS_FOR_INSIGHTS) {
+  if (lista.length < MIN_REGISTROS_PARA_INSIGHTS) {
     // Ainda sem registros suficientes pros padrões de uso, mas se já tem
     // insight de crise vale mostrar em vez de esconder tudo.
-    if (crisisItems.length > 0) {
-      return { ready: true, missing: MIN_RECORDS_FOR_INSIGHTS - list.length, items: crisisItems };
+    if (itensDeCrise.length > 0) {
+      return {
+        pronto: true,
+        faltam: MIN_REGISTROS_PARA_INSIGHTS - lista.length,
+        itens: itensDeCrise,
+      };
     }
-    return { ready: false, missing: MIN_RECORDS_FOR_INSIGHTS - list.length, items: [] };
+    return { pronto: false, faltam: MIN_REGISTROS_PARA_INSIGHTS - lista.length, itens: [] };
   }
 
-  const usedRecords = list.filter((r) => r.used);
-  const freeRecords = list.filter((r) => !r.used);
+  const registrosComUso = lista.filter((r) => r.used);
+  const registrosSemUso = lista.filter((r) => !r.used);
 
-  const common = mostCommonTrigger(usedRecords);
-  let strongest = strongestTrigger(usedRecords);
+  const comum = gatilhoMaisComum(registrosComUso);
+  let maisIntenso = gatilhoMaisIntenso(registrosComUso);
 
   // Se o gatilho mais intenso for o mesmo que o mais comum, as duas linhas
   // dizem quase a mesma coisa — fica só a primeira.
-  if (common && strongest && common.label === strongest.label) {
-    strongest = null;
+  if (comum && maisIntenso && comum.rotulo === maisIntenso.rotulo) {
+    maisIntenso = null;
   }
 
-  const items = [common, riskiestWeekday(list), strongest, bestHelp(freeRecords)]
+  const itens = [comum, diaDaSemanaMaisArriscado(lista), maisIntenso, ajudaQueMaisFunciona(registrosSemUso)]
     .filter(Boolean)
     .slice(0, 4)
-    .concat(crisisItems);
+    .concat(itensDeCrise);
 
-  return { ready: true, missing: 0, items };
+  return { pronto: true, faltam: 0, itens };
 }

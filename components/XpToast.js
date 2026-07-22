@@ -5,39 +5,39 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RADIUS, SHADOW } from '../utils/theme';
-import { useTheme } from '../context/ThemeContext';
+import { RAIO, SOMBRA } from '../utils/theme';
+import { usarTema } from '../context/ThemeContext';
 
-export const TOAST_DURATION = 2200;
+export const DURACAO_DO_TOAST = 2200;
 
-export default function XpToast({ toast, onHide }) {
-    const { colors } = useTheme();
+export default function XpToast({ toast, aoEsconder }) {
+    const { cores } = usarTema();
     const insets = useSafeAreaInsets();
-    const anim = useRef(new Animated.Value(0)).current;
+    const animacao = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         if (!toast) return undefined;
 
-        anim.setValue(0);
-        let hideTimeout;
-        let cancelled = false;
+        animacao.setValue(0);
+        let timeoutParaEsconder;
+        let cancelado = false;
 
-        Animated.timing(anim, { toValue: 1, duration: 220, useNativeDriver: true }).start(() => {
-            if (cancelled) return;
-            hideTimeout = setTimeout(() => {
-                Animated.timing(anim, { toValue: 0, duration: 220, useNativeDriver: true }).start(
+        Animated.timing(animacao, { toValue: 1, duration: 220, useNativeDriver: true }).start(() => {
+            if (cancelado) return;
+            timeoutParaEsconder = setTimeout(() => {
+                Animated.timing(animacao, { toValue: 0, duration: 220, useNativeDriver: true }).start(
                     ({ finished }) => {
-                        if (finished && !cancelled) onHide();
+                        if (finished && !cancelado) aoEsconder();
                     }
                 );
-            }, TOAST_DURATION);
+            }, DURACAO_DO_TOAST);
         });
 
         return () => {
-            cancelled = true;
-            clearTimeout(hideTimeout);
+            cancelado = true;
+            clearTimeout(timeoutParaEsconder);
         };
-    }, [toast, anim, onHide]);
+    }, [toast, animacao, aoEsconder]);
 
     if (!toast) return null;
 
@@ -48,9 +48,9 @@ export default function XpToast({ toast, onHide }) {
                 styles.wrapper,
                 { top: insets.top + 8 },
                 {
-                    opacity: anim,
+                    opacity: animacao,
                     transform: [
-                        { translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-24, 0] }) },
+                        { translateY: animacao.interpolate({ inputRange: [0, 1], outputRange: [-24, 0] }) },
                     ],
                 },
             ]}
@@ -58,22 +58,22 @@ export default function XpToast({ toast, onHide }) {
             <View
                 style={[
                     styles.toast,
-                    { backgroundColor: colors.card, borderLeftColor: colors.primary },
-                    SHADOW.medium,
+                    { backgroundColor: cores.card, borderLeftColor: cores.primary },
+                    SOMBRA.media,
                 ]}
             >
-                <Text style={styles.icon}>{toast.icon || '⭐'}</Text>
+                <Text style={styles.icon}>{toast.icone || '⭐'}</Text>
                 <View style={{ flex: 1 }}>
-                    <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
-                        {toast.title}
+                    <Text style={[styles.title, { color: cores.text }]} numberOfLines={1}>
+                        {toast.titulo}
                     </Text>
-                    {!!toast.subtitle && (
-                        <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>
-                            {toast.subtitle}
+                    {!!toast.subtitulo && (
+                        <Text style={[styles.subtitle, { color: cores.textSecondary }]} numberOfLines={1}>
+                            {toast.subtitulo}
                         </Text>
                     )}
                 </View>
-                <Text style={[styles.xp, { color: colors.primaryDark }]}>+{toast.xp} XP</Text>
+                <Text style={[styles.xp, { color: cores.primaryDark }]}>+{toast.xp} XP</Text>
             </View>
         </Animated.View>
     );
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 10,
         padding: 12,
-        borderRadius: RADIUS.lg,
+        borderRadius: RAIO.lg,
         borderLeftWidth: 4,
     },
     icon: { fontSize: 22 },

@@ -3,40 +3,40 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform } from 'react
 import { Ionicons } from '@expo/vector-icons';
 
 export default function GuestDataChoiceModal({
-  visible,
-  title,
-  message,
-  importLabel,
-  discardLabel,
-  cancelLabel = 'Cancelar',
-  onImport,
-  onDiscard,
-  onCancel,
+  visivel,
+  titulo,
+  mensagem,
+  rotuloImportar,
+  rotuloDescartar,
+  rotuloCancelar = 'Cancelar',
+  aoImportar,
+  aoDescartar,
+  aoCancelar,
 }) {
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
+    <Modal transparent visible={visivel} animationType="fade" onRequestClose={aoCancelar}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <View style={styles.iconWrap}>
             <Ionicons name="cloud-outline" size={22} color="#2F6FED" />
           </View>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.message}>{message}</Text>
+          <Text style={styles.title}>{titulo}</Text>
+          <Text style={styles.message}>{mensagem}</Text>
 
           <View style={styles.actions}>
-            <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onCancel}>
-              <Text style={styles.cancelText}>{cancelLabel}</Text>
+            <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={aoCancelar}>
+              <Text style={styles.cancelText}>{rotuloCancelar}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.button, styles.discardButton]}
-              onPress={onDiscard}
+              onPress={aoDescartar}
             >
-              <Text style={styles.discardText}>{discardLabel}</Text>
+              <Text style={styles.discardText}>{rotuloDescartar}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.button, styles.importButton]} onPress={onImport}>
-              <Text style={styles.importText}>{importLabel}</Text>
+            <TouchableOpacity style={[styles.button, styles.importButton]} onPress={aoImportar}>
+              <Text style={styles.importText}>{rotuloImportar}</Text>
             </TouchableOpacity>
           </View>
         </View>

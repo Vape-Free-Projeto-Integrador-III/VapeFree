@@ -40,10 +40,10 @@ Não existe pasta `src/` — tudo fica na raiz. Vários arquivos começam com co
 
 - **Imports relativos sempre.** Não existe alias configurado (nem `babel-module-resolver`, nem `tsconfig paths`). Não introduza aliases sem discutir primeiro — quebraria consistência com todo o código existente.
 - **Toda leitura/escrita de dados passa por `utils/storage.js`.** Telas nunca chamam `AsyncStorage` ou `firestore` diretamente (exceção: telas de auth, que chamam `firebase/auth` diretamente — ver `docs/auth.md`). Isso é o que permite o app funcionar igual para convidado e usuário logado.
-- **Cores/tema vêm de `useTheme().colors`**, nunca do `COLORS` estático exportado por `utils/theme.js` (esse export é resquício do tema antigo, anterior ao dark mode, e não reage a `isDark`). `RADIUS`, `SHADOW`, `TIPS`, `TRIGGERS`, `HELPS`, `MOTIVATIONAL_MESSAGES` de `utils/theme.js` continuam válidos e são estáticos por natureza.
-- **Toda tela usa `<ScreenHeader>`** (`components/ScreenHeader.js`) no topo, dentro de um `ScrollView` com `backgroundColor: colors.background`. Ver `docs/components.md`.
+- **Cores/tema vêm de `usarTema().cores`**, nunca do `CORES` estático exportado por `utils/theme.js` (esse export é resquício do tema antigo, anterior ao dark mode, e não reage a `estaEscuro`). `RAIO`, `SOMBRA`, `DICAS`, `GATILHOS`, `AJUDAS`, `MENSAGENS_MOTIVACIONAIS` de `utils/theme.js` continuam válidos e são estáticos por natureza.
+- **Toda tela usa `<ScreenHeader>`** (`components/ScreenHeader.js`) no topo, dentro de um `ScrollView` com `backgroundColor: cores.background`. Ver `docs/components.md`.
 - **`Alert` sempre de `utils/alert.js`, nunca de `react-native`.** `Alert.alert` nativo não funciona no web; o wrapper cobre native e web com a mesma assinatura. Ver `docs/components.md`.
-- **Textos visíveis ao usuário em português.** Nomes de função/variável podem ser em português (padrão nas telas de auth: `fazerLogin`, `cadastrar`, `senha`) ou inglês (padrão no resto do app: `handleSave`, `records`) — siga o idioma predominante do arquivo que está editando, não misture os dois no mesmo arquivo.
+- **Todo o código em português.** Nomes de função, variável, parâmetro, handler e prop são em português, sem acento no identificador (`salvar`, `registros`, `aoPressionar`, `estaEscuro`). Continuam em inglês só: campos de dado persistido no Firestore/AsyncStorage (`date`, `puffs`, `used`, `totalPuffs`, `unlockedAt`, `missionId`, ...), chaves `@vapefree_*`, tokens de cor (`cores.primary`), route names da navegação, nomes de componente/arquivo e APIs de bibliotecas.
 - **Sem TypeScript.** Não crie arquivos `.ts`/`.tsx` nem adicione `tsconfig.json` sem alinhar com o usuário antes.
 - **Sem Expo Router.** Novas telas entram como `Stack.Screen`/`Tab.Screen` em `navigation/AppNavigator.js`, não como arquivos em `app/`.
 - Registro (`Record`) tem `id` gerado com `Date.now()` — ao criar novo registro, siga o mesmo padrão (não use UUID nem index de array).
@@ -64,11 +64,11 @@ Não existe pasta `src/` — tudo fica na raiz. Vários arquivos começam com co
 
 ## Instruções para futuras implementações
 
-1. Nova tela: criar em `screens/`, registrar em `navigation/AppNavigator.js`, usar `ScreenHeader`, ler cores via `useTheme()`.
+1. Nova tela: criar em `screens/`, registrar em `navigation/AppNavigator.js`, usar `ScreenHeader`, ler cores via `usarTema()`.
 2. Novo dado persistido: adicionar par de funções em `utils/storage.js` seguindo o padrão `if (uid) { Firestore } else { AsyncStorage }` — nunca ramificar essa lógica dentro da tela.
-3. Nova conquista: adicionar entrada em `ACHIEVEMENTS` (`utils/achievements.js`) com `condition(records, economy, completedMissions, context)` pura — `context` é `{ crisisSessions, appOpenDays }`, montado por `checkAndUnlockAchievements`.
-3.1. Nova missão: adicionar entrada em `MISSIONS` (`utils/missions.js`) com `progress(ctx)` pura devolvendo `{ current, target }` — ver `docs/missions.md`. Não renomeie o `id` de uma missão existente (faz parte da chave do que já foi salvo).
-4. Novo texto motivacional/trigger/ajuda: adicionar ao array correspondente em `utils/theme.js` (`TIPS`, `TRIGGERS`, `HELPS`, `MOTIVATIONAL_MESSAGES`).
+3. Nova conquista: adicionar entrada em `CONQUISTAS` (`utils/achievements.js`) com `condicao(registros, economia, missoesConcluidas, contexto)` pura — `contexto` é `{ sessoesDeCrise, diasDeAbertura, diasComEscudo }`, montado por `verificarEDesbloquearConquistas`.
+3.1. Nova missão: adicionar entrada em `MISSOES` (`utils/missions.js`) com `progresso(ctx)` pura devolvendo `{ atual, alvo }` — ver `docs/missions.md`. Não renomeie o `id` de uma missão existente (faz parte da chave do que já foi salvo).
+4. Novo texto motivacional/trigger/ajuda: adicionar ao array correspondente em `utils/theme.js` (`DICAS`, `GATILHOS`, `AJUDAS`, `MENSAGENS_MOTIVACIONAIS`).
 5. Ao mexer em auth, ler `docs/auth.md` primeiro — fluxo de migração de dados de convidado é sensível a ordem de chamadas.
 6. Atualize o arquivo de `docs/` correspondente quando mudar algo daquele domínio. Não reescreva este `CLAUDE.md` nem os demais docs inteiros — edite só o que mudou.
 
