@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './navigation/AppNavigator';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
+import { XpToastProvider } from './context/XpToastContext';
 import { configureNotificationHandler } from './utils/notifications';
 import './services/firebase';
 
@@ -21,7 +22,9 @@ function AppContent() {
     return (
         <SafeAreaProvider>
             <StatusBar style={isDark ? 'light' : 'light'} />
-            <AppNavigator />
+            <XpToastProvider>
+                <AppNavigator />
+            </XpToastProvider>
         </SafeAreaProvider>
     );
 }

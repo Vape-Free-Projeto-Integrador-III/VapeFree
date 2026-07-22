@@ -16,8 +16,6 @@ import { useTheme } from '../context/ThemeContext';
 import { RADIUS, SHADOW } from '../utils/theme';
 import { getRecords, getEconomy, calcStreak } from '../utils/storage';
 import ScreenHeader from '../components/ScreenHeader';
-import AnimatedScreenContent from '../components/AnimatedScreenContent';
-import { markRoute } from '../utils/tabTransition';
 
 function getInitials(name, email) {
     const source = (name || email || '').trim();
@@ -53,7 +51,6 @@ export default function Profile({ navigation }) {
             load();
         }, [load])
     );
-    useFocusEffect(useCallback(() => { markRoute('Profile'); }, []));
 
     const streak = calcStreak(records);
     const totalSaved = Object.values(economy).reduce((a, v) => a + v, 0);
@@ -108,7 +105,7 @@ export default function Profile({ navigation }) {
     }
 
     return (
-        <AnimatedScreenContent type="fade" backgroundColor={colors.background}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
                 title="Perfil"
@@ -279,7 +276,7 @@ export default function Profile({ navigation }) {
                 </>
             )}
         </ScrollView>
-        </AnimatedScreenContent>
+        </View>
     );
 }
 

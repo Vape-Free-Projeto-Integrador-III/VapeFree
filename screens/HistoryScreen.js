@@ -11,10 +11,8 @@ import {
     TouchableWithoutFeedback,
 } from 'react-native';
 import ScreenHeader from '../components/ScreenHeader';
-import AnimatedScreenContent from '../components/AnimatedScreenContent';
 import InsightsCard from '../components/InsightsCard';
 import { normalizeIntensity, parseLocalDate } from '../utils/insights';
-import { computeTabTransition } from '../utils/tabTransition';
 import { useFocusEffect } from '@react-navigation/native';
 import { BarChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
@@ -110,7 +108,6 @@ export default function HistoryScreen({ navigation }) {
     const [metric, setMetric] = useState('puffs');
     const [editingRecord, setEditingRecord] = useState(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-    const [transition, setTransition] = useState({ type: 'fade', direction: 'right' });
 
     const uid = user?.uid ?? null;
 
@@ -121,7 +118,6 @@ export default function HistoryScreen({ navigation }) {
     };
 
     useFocusEffect(useCallback(() => { load(uid); }, [uid]));
-    useFocusEffect(useCallback(() => { setTransition(computeTabTransition('History')); }, []));
 
     const getGroupedData = () => {
         if (filter === 'day') {
@@ -175,7 +171,7 @@ export default function HistoryScreen({ navigation }) {
     };
 
     return (
-        <AnimatedScreenContent type={transition.type} direction={transition.direction} backgroundColor={colors.background}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
                 title="Histórico"
@@ -448,7 +444,7 @@ export default function HistoryScreen({ navigation }) {
                 </View>
             </Modal>
         </ScrollView>
-        </AnimatedScreenContent>
+        </View>
     );
 }
 

@@ -66,7 +66,8 @@ Não existe pasta `src/` — tudo fica na raiz. Vários arquivos começam com co
 
 1. Nova tela: criar em `screens/`, registrar em `navigation/AppNavigator.js`, usar `ScreenHeader`, ler cores via `useTheme()`.
 2. Novo dado persistido: adicionar par de funções em `utils/storage.js` seguindo o padrão `if (uid) { Firestore } else { AsyncStorage }` — nunca ramificar essa lógica dentro da tela.
-3. Nova conquista: adicionar entrada em `ACHIEVEMENTS` (`utils/achievements.js`) com `condition(records, economy)` pura.
+3. Nova conquista: adicionar entrada em `ACHIEVEMENTS` (`utils/achievements.js`) com `condition(records, economy, completedMissions)` pura.
+3.1. Nova missão: adicionar entrada em `MISSIONS` (`utils/missions.js`) com `progress(ctx)` pura devolvendo `{ current, target }` — ver `docs/missions.md`. Não renomeie o `id` de uma missão existente (faz parte da chave do que já foi salvo).
 4. Novo texto motivacional/trigger/ajuda: adicionar ao array correspondente em `utils/theme.js` (`TIPS`, `TRIGGERS`, `HELPS`, `MOTIVATIONAL_MESSAGES`).
 5. Ao mexer em auth, ler `docs/auth.md` primeiro — fluxo de migração de dados de convidado é sensível a ordem de chamadas.
 6. Atualize o arquivo de `docs/` correspondente quando mudar algo daquele domínio. Não reescreva este `CLAUDE.md` nem os demais docs inteiros — edite só o que mudou.
@@ -77,6 +78,7 @@ Não existe pasta `src/` — tudo fica na raiz. Vários arquivos começam com co
 - [auth.md](docs/auth.md) — Firebase Auth, modo convidado, login Google, migração de dados
 - [database.md](docs/database.md) — modelo de dados, Firestore vs AsyncStorage
 - [api.md](docs/api.md) — integrações externas (só Firebase)
+- [missions.md](docs/missions.md) — missões diárias/semanais, XP e toast de recompensa
 - [navigation.md](docs/navigation.md) — árvore de navegação, telas
 - [components.md](docs/components.md) — componentes reutilizáveis, padrões de UI
 - [state.md](docs/state.md) — Context API, estado local

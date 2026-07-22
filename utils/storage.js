@@ -27,6 +27,8 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { checkAchievements, calcStreak } from './achievements';
+import { buildMissionContext, checkMissions } from './missions';
+import { getXpSummary } from './xp';
 
 export { calcStreak };
 
@@ -36,6 +38,8 @@ const KEYS = {
   ECONOMY: '@vapefree_economy',
   ACHIEVEMENTS: '@vapefree_achievements',
   CRISIS: '@vapefree_crisis',
+  MISSIONS: '@vapefree_missions',
+  XP: '@vapefree_xp',
 };
 
 async function readJson(key, fallback) {
@@ -53,12 +57,14 @@ function getUid() {
 }
 
 export async function getGuestLocalData() {
-  const [records, device, economy, achievements, crisisSessions] = await Promise.all([
+  const [records, device, economy, achievements, crisisSessions, missions, xp] = await Promise.all([
     readJson(KEYS.RECORDS, []),
     readJson(KEYS.DEVICE, null),
     readJson(KEYS.ECONOMY, {}),
     readJson(KEYS.ACHIEVEMENTS, []),
     readJson(KEYS.CRISIS, []),
+    readJson(KEYS.MISSIONS, []),
+    readJson(KEYS.XP, null),
   ]);
 
   return {
@@ -67,6 +73,8 @@ export async function getGuestLocalData() {
     economy: economy && typeof economy === 'object' ? economy : {},
     achievements: Array.isArray(achievements) ? achievements : [],
     crisisSessions: Array.isArray(crisisSessions) ? crisisSessions : [],
+    missions: Array.isArray(missions) ? missions : [],
+    xp: xp && typeof xp === 'object' ? xp : null,
   };
 }
 
@@ -77,7 +85,8 @@ export async function hasGuestLocalData() {
     data.device !== null ||
     Object.keys(data.economy).length > 0 ||
     data.achievements.length > 0 ||
-    data.crisisSessions.length > 0
+    data.crisisSessions.length > 0 ||
+    data.missions.length > 0
   );
 }
 
@@ -113,6 +122,7 @@ export async function migrateGuestLocalDataToUser(uid = getUid()) {
     {
       device: data.device ?? null,
       economy: data.economy && typeof data.economy === 'object' ? data.economy : {},
+      xp: data.xp ?? null,
     },
     { merge: true }
   );
@@ -120,6 +130,7 @@ export async function migrateGuestLocalDataToUser(uid = getUid()) {
   await replaceCollectionDocs(uid, 'records', data.records);
   await replaceCollectionDocs(uid, 'achievements', data.achievements);
   await replaceCollectionDocs(uid, 'crisisSessions', data.crisisSessions);
+  await replaceCollectionDocs(uid, 'missions', data.missions);
   await clearGuestLocalData();
   return true;
 }
@@ -375,6 +386,60 @@ export async function saveAchievement(achievementId, unlockedAt) {
   }
 }
 
+// ─── XP ──────────────────────────────────────────────────────────────────────
+// O XP é derivado (ver utils/xp.js) — o que fica salvo aqui é só um snapshot
+// do último valor calculado: { xp, level, levelName, updatedAt }. Serve pra
+// quem precisa do XP sem carregar registros e conquistas (ex: notificações).
+// Modo conta: campo "xp" no documento users/{uid}. Convidado: AsyncStorage.
+
+export async function getXpState() {
+  const uid = getUid();
+  try {
+    if (uid) {
+      const snap = await getDoc(doc(db, 'users', uid));
+      return snap.exists() ? snap.data().xp ?? null : null;
+    }
+    const raw = await AsyncStorage.getItem(KEYS.XP);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveXpState(state) {
+  const uid = getUid();
+  try {
+    if (uid) {
+      await setDoc(doc(db, 'users', uid), { xp: state }, { merge: true });
+      return true;
+    }
+    await AsyncStorage.setItem(KEYS.XP, JSON.stringify(state));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Recalcula o XP a partir dos registros/conquistas/missões atuais, salva o
+// snapshot e devolve { xp, level, gained }. "gained" é a diferença pro
+// snapshot anterior — é o que a tela usa pra mostrar o toast de "+X XP".
+export async function refreshXp(records, unlockedAchievements, completedMissions) {
+  const recs = records ?? (await getRecords());
+  const achievements = unlockedAchievements ?? (await getAchievements());
+  const missions = completedMissions ?? (await getMissions());
+  const previous = await getXpState();
+  const summary = getXpSummary(recs, achievements, missions);
+
+  await saveXpState({
+    xp: summary.xp,
+    level: summary.level.number,
+    levelName: summary.level.name,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return { ...summary, gained: summary.xp - (previous?.xp ?? summary.xp) };
+}
+
 // ─── Crisis Sessions ─────────────────────────────────────────────────────────
 // Cada vez que o usuário abre o modo crise ("Estou com vontade") vira uma
 // sessão aqui. Modo conta: subcoleção users/{uid}/crisisSessions. Modo
@@ -414,13 +479,89 @@ export async function saveCrisisSession(session) {
   }
 }
 
-export async function checkAndUnlockAchievements(records, economy) {
+// ─── Missions ────────────────────────────────────────────────────────────────
+// Só as missões CONCLUÍDAS ficam salvas (a lista de missões possíveis é
+// código, em utils/missions.js). Id da entrada = `${missionId}_${periodKey}`,
+// o que torna a gravação idempotente dentro do período. Modo conta:
+// subcoleção users/{uid}/missions. Convidado: array em @vapefree_missions.
+//
+// Shape: { id, missionId, period, periodKey, xp, completedAt }
+
+export async function getMissions() {
+  const uid = getUid();
+  try {
+    if (uid) {
+      const snap = await getDocs(collection(db, 'users', uid, 'missions'));
+      return snap.docs.map((d) => d.data());
+    }
+    const raw = await AsyncStorage.getItem(KEYS.MISSIONS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveMission(entry) {
+  const uid = getUid();
+  try {
+    if (uid) {
+      await setDoc(doc(db, 'users', uid, 'missions', String(entry.id)), entry);
+      return true;
+    }
+    const missions = await getMissions();
+    if (!missions.find((m) => m.id === entry.id)) {
+      missions.push(entry);
+      await AsyncStorage.setItem(KEYS.MISSIONS, JSON.stringify(missions));
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Avalia as missões do período atual, salva as que acabaram de ser concluídas
+// e devolve só essas novas (pra tela mostrar o toast de XP).
+export async function checkAndCompleteMissions(records, economy, crisisSessions) {
+  try {
+    const recs = records ?? (await getRecords());
+    const eco = economy ?? (await getEconomy());
+    const sessions = crisisSessions ?? (await getCrisisSessions());
+    const completed = await getMissions();
+    const completedIds = new Set(completed.map((m) => m.id));
+
+    const context = buildMissionContext(recs, eco, sessions);
+    const results = checkMissions(context, completed);
+    const newCompletions = [];
+
+    for (const result of results) {
+      if (result.completed && !completedIds.has(result.id)) {
+        const entry = {
+          id: result.id,
+          missionId: result.missionId,
+          period: result.period,
+          periodKey: result.periodKey,
+          xp: result.xp,
+          completedAt: result.completedAt || new Date().toISOString(),
+        };
+        await saveMission(entry);
+        newCompletions.push(result);
+      }
+    }
+    return newCompletions;
+  } catch (e) {
+    console.log('Error checking missions:', e);
+    return [];
+  }
+}
+
+export async function checkAndUnlockAchievements(records, economy, completedMissions) {
   try {
     const unlocked = await getAchievements();
     const unlockedIds = new Set(unlocked.map((u) => u.id));
+    const missions = completedMissions ?? (await getMissions());
     const newUnlocks = [];
 
-    const results = await checkAchievements(records, economy, unlocked);
+    const results = await checkAchievements(records, economy, unlocked, missions);
     for (const result of results) {
       if (result.unlocked && !unlockedIds.has(result.id)) {
         await saveAchievement(result.id, result.unlockedAt);

@@ -10,8 +10,6 @@ logar/cadastrar para mostrar informacoes corretas na home, é necessario
 ao importar, as informacoes estarem corretas, sem ter que entrar no historico
 e voltar
 
-[ ] Fix transições bugadas com tela branca
-
 [ ] Verificar modo crise e arrumar insights dela
 
 ---- URGENTE ----
@@ -27,34 +25,6 @@ e voltar
 
 ---- GAMIFICAÇÃO ----
 
-[ ] Sistema de XP e nível do usuário
-    Cada ação gera XP. Sugestão de tabela:
-      - Fazer um registro: +10 XP
-      - Dia sem usar: +30 XP
-      - Desbloquear conquista: +50 XP (Exemplo, cada conquista deve ter uma quantia de XP diferente baseada na sua dificuldade)
-      - Completar missão diária: +40 XP
-      - Streak de 7 dias: +100 XP bônus
-    Níveis sugeridos:
-      0–199 XP     → Iniciante
-      200–499 XP   → Resistente
-      500–999 XP   → Guerreiro
-      1000–1999 XP → Campeão
-      2000+ XP     → Lendário
-    Exibir barra de progresso de XP na HomeScreen, abaixo das stats.
-    Salvar xp e level no storage junto com os outros dados do usuário.
-
-[ ] Missões diárias e semanais
-    Lista de missões que renovam periodicamente. Exemplos diários:
-      - "Faça seu registro de hoje"
-      - "Não use o vape hoje"
-      - "Leia a dica do dia"
-    Exemplos semanais:
-      - "Complete 5 dias sem usar nesta semana"
-      - "Faça registros em 7 dias seguidos"
-      - "Economize R$ 10 esta semana"
-    Cada missão concluída dá XP e pode desbloquear conquistas.
-    Criar tela ou card na Home listando as missões do dia.
-
 [ ] Celebração visual ao desbloquear conquista
     Hoje o desbloqueio acontece silenciosamente.
     Implementar um modal que aparece automaticamente com:
@@ -67,12 +37,13 @@ e voltar
 [ ] Mais conquistas para cobrir novos comportamentos
     As 12 atuais são boas mas focadas em streaks e economia.
     Adicionar conquistas para:
-      - Primeira missão concluída
-      - Usar a técnica de respiração 5 vezes
+      - [x] Primeira missão concluída (first_mission)
+      - Usar a técnica de respiração 5 vezes (botao de crise)
       - Identificar o mesmo trigger 3 vezes (autoconhecimento)
       - Abrir o app 7 dias seguidos
       - Completar o tutorial
       - Economia de R$ 500 e R$ 1000
+      - Caso tenha uma outra ideia, adicionar
 
 [ ] Streak com "escudo" (proteção de 1 dia)
     Mecânica comum em apps de gamificação (Duolingo, etc).

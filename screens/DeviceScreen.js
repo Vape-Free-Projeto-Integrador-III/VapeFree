@@ -1,5 +1,5 @@
 // src/screens/DeviceScreen.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -11,13 +11,10 @@ import {
 } from 'react-native';
 import Alert from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { getDevice, saveDevice, getRecords, recalcEconomy } from '../utils/storage';
 import { RADIUS, SHADOW } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
-import AnimatedScreenContent from '../components/AnimatedScreenContent';
-import { markRoute } from '../utils/tabTransition';
 
 export default function DeviceScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
@@ -29,8 +26,6 @@ export default function DeviceScreen({ navigation }) {
     const [saving, setSaving] = useState(false);
     const [successVisible, setSuccessVisible] = useState(false);
     const fadeAnim = useState(new Animated.Value(0))[0];
-
-    useFocusEffect(useCallback(() => { markRoute('Device'); }, []));
 
     useEffect(() => {
         getDevice().then((d) => {
@@ -85,7 +80,7 @@ export default function DeviceScreen({ navigation }) {
     const inputStyle = [styles.input, { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text }];
 
     return (
-        <AnimatedScreenContent type="fade" backgroundColor={colors.background}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
             <ScreenHeader
                 title="Seu Dispositivo"
@@ -169,7 +164,7 @@ export default function DeviceScreen({ navigation }) {
 
             <View style={{ height: 40 }} />
         </ScrollView>
-        </AnimatedScreenContent>
+        </View>
     );
 }
 

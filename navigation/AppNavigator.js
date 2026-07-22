@@ -14,6 +14,7 @@ import DeviceScreen from '../screens/DeviceScreen';
 import Profile from '../screens/Profile';
 import SettingsScreen from '../screens/SettingsScreen';
 import CrisisScreen from '../screens/CrisisScreen';
+import MissionsScreen from '../screens/MissionsScreen';
 import BreathingScreen from '../screens/BreathingScreen';
 import { SHADOW } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
@@ -76,6 +77,7 @@ function MainStack() {
       <Stack.Screen name="Profile" component={Profile} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Crisis" component={CrisisScreen} />
+      <Stack.Screen name="Missions" component={MissionsScreen} />
       <Stack.Screen name="Breathing" component={BreathingScreen} />
     </Stack.Navigator>
   );

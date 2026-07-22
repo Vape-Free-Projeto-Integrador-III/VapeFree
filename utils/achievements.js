@@ -3,6 +3,7 @@
 export const ACHIEVEMENTS = [
   {
     id: 'first_record',
+    xp: 20,
     title: 'Primeiro Passo',
     description: 'Você fez seu primeiro registro',
     icon: '📝',
@@ -10,6 +11,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'streak_3',
+    xp: 40,
     title: 'Começando Bem',
     description: '3 dias seguidos sem usar',
     icon: '🔥',
@@ -20,6 +22,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'streak_7',
+    xp: 80,
     title: 'Uma Semana',
     description: '7 dias seguidos sem usar',
     icon: '🌟',
@@ -30,6 +33,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'streak_14',
+    xp: 120,
     title: 'Duas Semanas',
     description: '14 dias seguidos sem usar',
     icon: '💪',
@@ -40,6 +44,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'streak_30',
+    xp: 250,
     title: 'Um Mês',
     description: '30 dias seguidos sem usar',
     icon: '🏆',
@@ -50,6 +55,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'no_puffs_1',
+    xp: 20,
     title: 'Dia Livre',
     description: 'Passou 1 dia sem usar o vape',
     icon: '✅',
@@ -61,6 +67,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'no_puffs_3',
+    xp: 50,
     title: 'Três Dias Limpos',
     description: 'Passou 3 dias sem usar o vape',
     icon: '🎯',
@@ -80,6 +87,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'total_no_7',
+    xp: 80,
     title: 'Resistência',
     description: '7 dias sem usar, não precisa ser seguido',
     icon: '🛡️',
@@ -94,6 +102,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'economy_50',
+    xp: 50,
     title: 'Primeiras Economias',
     description: 'Você já guardou R$ 50 não usando o vape',
     icon: '💰',
@@ -104,6 +113,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'economy_200',
+    xp: 150,
     title: 'Economia de Verdade',
     description: 'Você já guardou R$ 200 não usando o vape',
     icon: '💵',
@@ -114,13 +124,24 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'records_10',
+    xp: 40,
     title: 'Constância',
     description: 'Você já fez 10 registros',
     icon: '📊',
     condition: (records) => records.length >= 10,
   },
   {
+    id: 'first_mission',
+    xp: 20,
+    title: 'Missão Cumprida',
+    description: 'Você concluiu sua primeira missão',
+    icon: '🎯',
+    condition: (records, economy, completedMissions) =>
+      (completedMissions || []).length >= 1,
+  },
+  {
     id: 'records_30',
+    xp: 100,
     title: 'Dedicação',
     description: 'Você já fez 30 registros',
     icon: '⭐',
@@ -165,19 +186,27 @@ export function calcStreak(records) {
   return streak;
 }
 
-export async function checkAchievements(records, economy = {}, unlockedAchievements = []) {
+export async function checkAchievements(
+  records,
+  economy = {},
+  unlockedAchievements = [],
+  completedMissions = []
+) {
   const unlockedMap = new Map((unlockedAchievements || []).map((achievement) => [achievement.id, achievement]));
   const results = [];
   const today = new Date().toISOString();
 
   for (const achievement of ACHIEVEMENTS) {
     const savedAchievement = unlockedMap.get(achievement.id);
-    const unlocked = savedAchievement ? true : achievement.condition(records, economy);
+    const unlocked = savedAchievement
+      ? true
+      : achievement.condition(records, economy, completedMissions);
     results.push({
       id: achievement.id,
       title: achievement.title,
       description: achievement.description,
       icon: achievement.icon,
+      xp: achievement.xp || 0,
       unlocked,
       unlockedAt: savedAchievement?.unlockedAt || (unlocked ? today : null),
     });

@@ -1,21 +1,16 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 
 import { useTheme } from '../context/ThemeContext';
 import { RADIUS, SHADOW } from '../utils/theme';
 import ScreenHeader from '../components/ScreenHeader';
-import AnimatedScreenContent from '../components/AnimatedScreenContent';
-import { markRoute } from '../utils/tabTransition';
 
 export default function SettingsScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
 
-    useFocusEffect(useCallback(() => { markRoute('Settings'); }, []));
-
     return (
-        <AnimatedScreenContent type="fade" backgroundColor={colors.background}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
                 title="Configurações"
@@ -50,7 +45,7 @@ export default function SettingsScreen({ navigation }) {
                 </View>
             </View>
         </ScrollView>
-        </AnimatedScreenContent>
+        </View>
     );
 }
 

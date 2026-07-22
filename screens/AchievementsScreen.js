@@ -3,33 +3,34 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { getRecords, getEconomy, getAchievements } from '../utils/storage';
+import { getRecords, getEconomy, getAchievements, getMissions } from '../utils/storage';
 import { checkAchievements } from '../utils/achievements';
 import { RADIUS, SHADOW } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
-import AnimatedScreenContent from '../components/AnimatedScreenContent';
-import { computeTabTransition } from '../utils/tabTransition';
 
 export default function AchievementsScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const [achievements, setAchievements] = useState([]);
-    const [transition, setTransition] = useState({ type: 'fade', direction: 'right' });
 
     const load = useCallback(async () => {
-        const [records, economy, savedAchievements] = await Promise.all([getRecords(), getEconomy(), getAchievements()]);
-        const results = await checkAchievements(records, economy, savedAchievements);
+        const [records, economy, savedAchievements, completedMissions] = await Promise.all([
+            getRecords(),
+            getEconomy(),
+            getAchievements(),
+            getMissions(),
+        ]);
+        const results = await checkAchievements(records, economy, savedAchievements, completedMissions);
         setAchievements(results);
     }, []);
 
     useFocusEffect(useCallback(() => { load(); }, [load]));
-    useFocusEffect(useCallback(() => { setTransition(computeTabTransition('Achievements')); }, []));
 
     const unlockedCount = achievements.filter((a) => a.unlocked).length;
     const totalCount = achievements.length;
 
     return (
-        <AnimatedScreenContent type={transition.type} direction={transition.direction} backgroundColor={colors.background}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
                 title="Conquistas"
@@ -69,6 +70,7 @@ export default function AchievementsScreen({ navigation }) {
                             <View style={styles.achievementInfo}>
                                 <Text style={[styles.achievementTitle, { color: colors.text }]}>{achievement.title}</Text>
                                 <Text style={[styles.achievementDesc, { color: colors.textSecondary }]}>{achievement.description}</Text>
+                                <Text style={[styles.achievementXp, { color: colors.primaryDark }]}>+{achievement.xp} XP</Text>
                             </View>
                             <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
                         </View>
@@ -87,6 +89,7 @@ export default function AchievementsScreen({ navigation }) {
                             <View style={styles.achievementInfo}>
                                 <Text style={[styles.achievementTitleLocked, { color: colors.textMuted }]}>{achievement.title}</Text>
                                 <Text style={[styles.achievementDescLocked, { color: colors.textMuted }]}>{achievement.description}</Text>
+                                <Text style={[styles.achievementXp, { color: colors.textMuted }]}>+{achievement.xp} XP</Text>
                             </View>
                         </View>
                     ))}
@@ -95,7 +98,7 @@ export default function AchievementsScreen({ navigation }) {
 
             <View style={{ height: 24 }} />
         </ScrollView>
-        </AnimatedScreenContent>
+        </View>
     );
 }
 
@@ -119,6 +122,7 @@ const styles = StyleSheet.create({
     achievementInfo: { flex: 1, marginRight: 8 },
     achievementTitle: { fontSize: 15, fontWeight: '700' },
     achievementDesc: { fontSize: 12, marginTop: 2 },
+    achievementXp: { fontSize: 11, fontWeight: '700', marginTop: 4 },
     achievementCardLocked: {
         borderRadius: RADIUS.md, padding: 14, flexDirection: 'row', alignItems: 'center',
         marginBottom: 10, borderWidth: 1, opacity: 0.75,

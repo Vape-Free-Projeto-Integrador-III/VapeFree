@@ -13,7 +13,7 @@ function getUid() {
 ```
 
 - **Logado** (`uid` existe) → Cloud Firestore, sob `users/{uid}/...`.
-- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`).
+- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
 
 Não há cache/estado duplicado entre as duas fontes — cada chamada relê a fonte atual.
 
@@ -37,6 +37,10 @@ Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
 **Achievement (desbloqueada)**: `{ id, unlockedAt }`. Firestore: subcoleção `users/{uid}/achievements`, doc id = `String(achievementId)`. Convidado: array em `@vapefree_achievements`. Lista completa de conquistas possíveis (não persistida, é código) está em `utils/achievements.js` — ver `ACHIEVEMENTS`.
 
+**Mission (concluída)**: `{ id, missionId, period, periodKey, xp, completedAt }`. `id` = `` `${missionId}_${periodKey}` `` (ex: `daily_clean_2026-07-22`), o que torna a gravação idempotente dentro do período. `period` ∈ `'daily' | 'weekly'`; `periodKey` é a data do dia (diária) ou da segunda-feira da semana (semanal). Firestore: subcoleção `users/{uid}/missions`, doc id = o próprio `id`. Convidado: array em `@vapefree_missions`. Só missões **concluídas** são gravadas — a lista de missões possíveis é código, em `utils/missions.js`. Ver [missions.md](missions.md).
+
+**XP** (snapshot): `{ xp, level, levelName, updatedAt }`. Firestore: campo `xp` no doc `users/{uid}`. Convidado: `@vapefree_xp`. **Não é a fonte da verdade** — o XP é sempre *derivado* de registros + conquistas + missões + melhor streak por `calcXp` (`utils/xp.js`); esse snapshot é só cache do último cálculo, gravado por `refreshXp(records, achievements, missions)` (chamado no `load()` da HomeScreen, da MissionsScreen e depois de salvar registro/sessão de crise). Regras: +10 XP por registro, +30 por dia registrado sem uso, +100 por cada 7 dias seguidos sem uso (melhor streak histórico), + o campo `xp` de cada conquista desbloqueada, + o `xp` gravado em cada missão concluída. `refreshXp` também devolve `gained` (diferença pro snapshot anterior) — é o que alimenta o toast de XP. Níveis em `LEVELS`: Iniciante 0, Resistente 200, Guerreiro 500, Campeão 1000, Lendário 2000+.
+
 **CrisisSession** (modo crise): `{ id, date, time, method, durationSec, completed, outcome, note }`. `id` = `Date.now()`, `method` ∈ `'respiracao' | 'timer' | 'distracao' | null`, `outcome` ∈ `'passou' | 'diminuiu' | 'usei' | null` (null = usuário pulou o feedback). Firestore: subcoleção `users/{uid}/crisisSessions`. Convidado: array em `@vapefree_crisis`. Salva sempre que o usuário encerra a `CrisisScreen`, mesmo sem responder o feedback — ter pedido ajuda já é dado. Lido por `recommendedCrisisMethod` (`utils/insights.js`) para sugerir na próxima crise o método que já funcionou.
 
 ## Cálculo de economia
@@ -45,7 +49,7 @@ Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
 ## Migração convidado → conta
 
-`migrateGuestLocalDataToUser(uid)`: lê tudo do `AsyncStorage`, grava `device`/`economy` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements` e `crisisSessions` (apaga os docs existentes na conta antes de escrever — é uma sobreposição, não um merge de listas), depois limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
+`migrateGuestLocalDataToUser(uid)`: lê tudo do `AsyncStorage`, grava `device`/`economy`/`xp` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements`, `crisisSessions` e `missions` (apaga os docs existentes na conta antes de escrever — é uma sobreposição, não um merge de listas), depois limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
 
 ## Helpers puros (sem I/O)
 

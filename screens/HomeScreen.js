@@ -17,15 +17,22 @@ import {
     getDevice,
     getEconomy,
     getLastNDays,
+    getCrisisSessions,
+    getMissions,
+    checkAndCompleteMissions,
+    checkAndUnlockAchievements,
+    refreshXp,
     calcStreak,
     todayString,
 } from '../utils/storage';
+import { getLevel } from '../utils/xp';
+import { buildMissionContext, checkMissions } from '../utils/missions';
 import { RADIUS, SHADOW, TIPS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useXpToast } from '../context/XpToastContext';
 import ScreenHeader from '../components/ScreenHeader';
-import AnimatedScreenContent from '../components/AnimatedScreenContent';
-import { computeTabTransition } from '../utils/tabTransition';
+import MissionsCard from '../components/MissionsCard';
 
 const { width } = Dimensions.get('window');
 const CHART_WIDTH = width - 64;
@@ -33,24 +40,35 @@ const CHART_WIDTH = width - 64;
 export default function HomeScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
     const { user } = useAuth();
+    const { showRewards } = useXpToast();
     const [records, setRecords] = useState([]);
     const [device, setDevice] = useState(null);
     const [economy, setEconomy] = useState({});
+    const [missions, setMissions] = useState([]);
+    const [xp, setXp] = useState(0);
     const [refreshing, setRefreshing] = useState(false);
-    const [transition, setTransition] = useState({ type: 'fade', direction: 'right' });
-
-    useFocusEffect(
-        useCallback(() => {
-            setTransition(computeTabTransition('Home'));
-        }, [])
-    );
 
     const load = useCallback(async () => {
-        const [r, d, e] = await Promise.all([getRecords(), getDevice(), getEconomy()]);
+        const [r, d, e, c] = await Promise.all([
+            getRecords(),
+            getDevice(),
+            getEconomy(),
+            getCrisisSessions(),
+        ]);
         setRecords(r);
         setDevice(d);
         setEconomy(e);
-    }, []);
+
+        const newMissions = await checkAndCompleteMissions(r, e, c);
+        const completedMissions = await getMissions();
+        setMissions(checkMissions(buildMissionContext(r, e, c, todayString()), completedMissions));
+
+        // Concluir missão pode desbloquear conquista (ex: first_mission).
+        const newAchievements = await checkAndUnlockAchievements(r, e, completedMissions);
+        const summary = await refreshXp(r, null, completedMissions);
+        setXp(summary.xp);
+        showRewards({ achievements: newAchievements, missions: newMissions, gained: summary.gained });
+    }, [showRewards]);
 
     useFocusEffect(
         useCallback(() => {
@@ -88,11 +106,12 @@ export default function HomeScreen({ navigation }) {
     const todayEco = economy[today] || 0;
     const totalEco = Object.values(economy).reduce((a, v) => a + v, 0);
 
+    const level = getLevel(xp);
     const tip = TIPS[new Date().getDate() % TIPS.length];
     const welcomeName = user?.displayName?.trim();
 
     return (
-        <AnimatedScreenContent type={transition.type} direction={transition.direction} backgroundColor={colors.background}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView
             style={[styles.scroll, { backgroundColor: colors.background }]}
             contentContainerStyle={styles.container}
@@ -137,6 +156,37 @@ export default function HomeScreen({ navigation }) {
                     </View>
                 </View>
             </View>
+
+            <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
+                <View style={styles.xpHeader}>
+                    <Text style={styles.xpIcon}>{level.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.xpLevel, { color: colors.text }]}>
+                            Nível {level.number} · {level.name}
+                        </Text>
+                        <Text style={[styles.xpSub, { color: colors.textSecondary }]}>
+                            {level.nextName
+                                ? `${level.xpToNext} XP pra virar ${level.nextName}`
+                                : 'Nível máximo — você é lenda 👑'}
+                        </Text>
+                    </View>
+                    <Text style={[styles.xpTotal, { color: colors.primaryDark }]}>{xp} XP</Text>
+                </View>
+                <View style={[styles.xpTrack, { backgroundColor: colors.primaryLight }]}>
+                    <View
+                        style={[
+                            styles.xpFill,
+                            { backgroundColor: colors.primary, width: `${Math.round(level.progress * 100)}%` },
+                        ]}
+                    />
+                </View>
+            </View>
+
+            <MissionsCard
+                missions={missions.filter((mission) => mission.period === 'daily')}
+                colors={colors}
+                onPress={() => navigation.navigate('Missions')}
+            />
 
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>
                 <Text style={[styles.cardTitle, { color: colors.textMuted }]}>💰 Economia</Text>
@@ -213,7 +263,7 @@ export default function HomeScreen({ navigation }) {
                 <Ionicons name="chevron-forward" size={16} color={colors.primary} />
             </TouchableOpacity>
         </ScrollView>
-        </AnimatedScreenContent>
+        </View>
     );
 }
 
@@ -255,6 +305,13 @@ const styles = StyleSheet.create({
     },
     statNum: { fontSize: 26, fontWeight: '800' },
     statLabel: { fontSize: 11, textAlign: 'center', marginTop: 2, lineHeight: 14 },
+    xpHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+    xpIcon: { fontSize: 26 },
+    xpLevel: { fontSize: 15, fontWeight: '800' },
+    xpSub: { fontSize: 12, marginTop: 2 },
+    xpTotal: { fontSize: 16, fontWeight: '800' },
+    xpTrack: { height: 10, borderRadius: RADIUS.md, overflow: 'hidden' },
+    xpFill: { height: '100%', borderRadius: RADIUS.md },
     moneyRow: { flexDirection: 'row', gap: 10 },
     moneyBox: {
         flex: 1,

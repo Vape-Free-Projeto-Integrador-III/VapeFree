@@ -22,7 +22,18 @@ import ScreenHeader from '../components/ScreenHeader';
 import CrisisOutcomeModal from '../components/CrisisOutcomeModal';
 import { RADIUS, SHADOW, DISTRACTIONS, CRISIS_MESSAGES } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
-import { getRecords, getCrisisSessions, saveCrisisSession, todayString } from '../utils/storage';
+import {
+    getRecords,
+    getCrisisSessions,
+    saveCrisisSession,
+    getEconomy,
+    getMissions,
+    checkAndCompleteMissions,
+    checkAndUnlockAchievements,
+    refreshXp,
+    todayString,
+} from '../utils/storage';
+import { useXpToast } from '../context/XpToastContext';
 import { recommendedCrisisMethod, topTriggerLabel, MIN_RECORDS_FOR_INSIGHTS } from '../utils/insights';
 
 const HOLD_SECONDS = 5 * 60;
@@ -66,7 +77,8 @@ function nowTimeString() {
 }
 
 export default function CrisisScreen({ navigation, route }) {
-    const { colors, isDark, toggleTheme } = useTheme();
+    const { colors } = useTheme();
+    const { showRewards } = useXpToast();
 
     const [message, setMessage] = useState(null);
     const [recommended, setRecommended] = useState(null);
@@ -165,6 +177,18 @@ export default function CrisisScreen({ navigation, route }) {
             note: note ?? null,
         });
 
+        // Vencer a vontade é missão diária — concede o XP antes de sair.
+        const [records, economy, crisisSessions] = await Promise.all([
+            getRecords(),
+            getEconomy(),
+            getCrisisSessions(),
+        ]);
+        const newMissions = await checkAndCompleteMissions(records, economy, crisisSessions);
+        const completedMissions = await getMissions();
+        const newAchievements = await checkAndUnlockAchievements(records, economy, completedMissions);
+        const summary = await refreshXp(records, null, completedMissions);
+        showRewards({ achievements: newAchievements, missions: newMissions, gained: summary.gained });
+
         setPending(null);
         savingRef.current = false;
         navigation.goBack();
@@ -204,9 +228,8 @@ export default function CrisisScreen({ navigation, route }) {
                     title="Tô com vontade"
                     subtitle="Respira. A gente passa por isso junto."
                     colors={colors}
-                    isDark={isDark}
-                    toggleTheme={toggleTheme}
-                    showProfile={false}
+                    showSettings
+                    onSettingsPress={() => navigation.navigate('Settings')}
                     onBackPress={() => finish(activeMethod, elapsedSeconds(), false)}
                 />
 

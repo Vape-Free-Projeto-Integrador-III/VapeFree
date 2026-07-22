@@ -40,6 +40,19 @@ Modal central usado só pela `CrisisScreen`, ao encerrar uma sessão de modo cri
 
 É um dos poucos casos legítimos de `Modal` em vez de `Alert` (escolha de dados + texto livre). A resposta vira o campo `outcome` da `CrisisSession` e alimenta `recommendedCrisisMethod` — sem ela, o app não tem como aprender qual método funciona pra aquele usuário. O texto de "Acabei usando" é deliberadamente sem julgamento.
 
+## `MissionsCard` (`components/MissionsCard.js`)
+
+Card da `HomeScreen` com as missões **diárias** do dia. Props: `missions` (já calculadas pela tela via `checkMissions`), `colors`, `onPress` (navega para `Missions`). É só apresentação — não lê storage nem decide conclusão. Ver [missions.md](missions.md).
+
+## `XpToast` (`components/XpToast.js`) + `XpToastProvider` (`context/XpToastContext.js`)
+
+Popup pequeno no topo da tela ("Missão: X · +25 XP"). Não use direto: chame `useXpToast()` e enfileire.
+
+- `showRewards({ achievements, missions, gained, icon, title })` — um toast por conquista/missão nova, mais um genérico com o XP que sobrou (registro, dia limpo, streak). `icon`/`title` personalizam só esse genérico: a `RegisterScreen` usa "🚭 Dia sem cigarro eletrônico!" quando `used === false` e "📝 Registro feito, sem culpa" quando o usuário usou.
+- `showXp({ icon, title, xp })` / `showXpGain(xp)` para casos avulsos.
+
+O provider mostra um toast por vez, na ordem da fila, e fica montado em `App.js` dentro do `SafeAreaProvider`. O `Animated.View` é `pointerEvents="none"`, então nunca bloqueia toque. **Quem calcula o quanto foi ganho é `refreshXp` (campo `gained`)** — não incremente XP na mão para alimentar o toast.
+
 ## Padrões de UI repetidos entre telas (não componentizados)
 
 Esses padrões existem em várias telas com estilo copiado, não como componente — ao criar tela nova, replique o padrão em vez de inventar um novo:

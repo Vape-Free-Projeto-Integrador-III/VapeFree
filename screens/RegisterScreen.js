@@ -1,5 +1,5 @@
 // src/screens/RegisterScreen.js
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -7,13 +7,12 @@ import {
     StyleSheet,
     TouchableOpacity,
     TextInput,
-    Animated,
     Modal,
+    Animated,
 } from 'react-native';
 import Alert from '../utils/alert';
 import { Slider } from '@miblanchard/react-native-slider';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import {
     saveRecord,
     updateRecord,
@@ -21,6 +20,10 @@ import {
     getDevice,
     recalcEconomy,
     checkAndUnlockAchievements,
+    checkAndCompleteMissions,
+    getCrisisSessions,
+    getMissions,
+    refreshXp,
     getEconomy,
     todayString,
 } from '../utils/storage';
@@ -31,9 +34,8 @@ import {
     TRIGGERS, HELPS, MOTIVATIONAL_MESSAGES,
 } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useXpToast } from '../context/XpToastContext';
 import ScreenHeader from '../components/ScreenHeader';
-import AnimatedScreenContent from '../components/AnimatedScreenContent';
-import { computeTabTransition } from '../utils/tabTransition';
 
 function formatSelectedDateLabel(dateStr) {
     if (dateStr === todayString()) return 'hoje';
@@ -43,6 +45,7 @@ function formatSelectedDateLabel(dateStr) {
 
 export default function RegisterScreen({ navigation }) {
     const { colors, isDark, toggleTheme } = useTheme();
+    const { showRewards } = useXpToast();
     const [devType, setDevType] = useState('desc');
     const [used, setUsed] = useState(null);
     const [puffs, setPuffs] = useState(0);
@@ -56,13 +59,6 @@ export default function RegisterScreen({ navigation }) {
     const [selectedDate, setSelectedDate] = useState(todayString());
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [existingRecord, setExistingRecord] = useState(null);
-    const [transition, setTransition] = useState({ type: 'fade', direction: 'right' });
-
-    useFocusEffect(
-        useCallback(() => {
-            setTransition(computeTabTransition('Register'));
-        }, [])
-    );
 
     const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
     const [pickerMonth, setPickerMonth] = useState(new Date().getMonth() + 1);
@@ -117,6 +113,34 @@ export default function RegisterScreen({ navigation }) {
         );
     };
 
+    // Depois de gravar o registro: recalcula economia, concede conquistas e
+    // missões, reagenda notificações e mostra os toasts de XP ganho.
+    const grantRewards = async (usedVape) => {
+        const [newRecords, device] = await Promise.all([getRecords(), getDevice()]);
+        const economy = device ? await recalcEconomy(newRecords, device) : await getEconomy();
+        const crisisSessions = await getCrisisSessions();
+
+        const newMissions = await checkAndCompleteMissions(newRecords, economy, crisisSessions);
+        const completedMissions = await getMissions();
+        const newAchievements = await checkAndUnlockAchievements(newRecords, economy, completedMissions);
+        const summary = await refreshXp(newRecords, null, completedMissions);
+
+        await scheduleMotivationalNotifications().catch((err) =>
+            console.log('Erro ao reagendar notificações motivadoras:', err)
+        );
+        await scheduleStreakWarningNotification().catch((err) =>
+            console.log('Erro ao reagendar notificação de streak:', err)
+        );
+
+        showRewards({
+            achievements: newAchievements,
+            missions: newMissions,
+            gained: summary.gained,
+            icon: usedVape ? '📝' : '🚭',
+            title: usedVape ? 'Registro feito, sem culpa' : 'Dia sem cigarro eletrônico!',
+        });
+    };
+
     const handleSave = async () => {
         if (used === null) {
             Alert.alert('Opa', `Você usou o vape ${formatSelectedDateLabel(selectedDate)}? Escolhe uma opção.`);
@@ -149,15 +173,7 @@ export default function RegisterScreen({ navigation }) {
                     time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
                 };
                 await updateRecord(updatedRecord);
-                const [newRecords, device, economy] = await Promise.all([getRecords(), getDevice(), getEconomy()]);
-                await recalcEconomy(newRecords, device);
-                await checkAndUnlockAchievements(newRecords, economy);
-                await scheduleMotivationalNotifications().catch((err) =>
-                    console.log('Erro ao reagendar notificações motivadoras:', err)
-                );
-                await scheduleStreakWarningNotification().catch((err) =>
-                    console.log('Erro ao reagendar notificação de streak:', err)
-                );
+                await grantRewards(used);
                 setExistingRecord(updatedRecord);
             } else {
                 const record = {
@@ -172,15 +188,7 @@ export default function RegisterScreen({ navigation }) {
                     intensity,
                 };
                 await saveRecord(record);
-                const [newRecords, device, economy] = await Promise.all([getRecords(), getDevice(), getEconomy()]);
-                await recalcEconomy(newRecords, device);
-                await checkAndUnlockAchievements(newRecords, economy);
-                await scheduleMotivationalNotifications().catch((err) =>
-                    console.log('Erro ao reagendar notificações motivadoras:', err)
-                );
-                await scheduleStreakWarningNotification().catch((err) =>
-                    console.log('Erro ao reagendar notificação de streak:', err)
-                );
+                await grantRewards(used);
                 setExistingRecord(record);
             }
 
@@ -211,7 +219,7 @@ export default function RegisterScreen({ navigation }) {
     const selectedDateLabel = formatSelectedDateLabel(selectedDate);
 
     return (
-        <AnimatedScreenContent type={transition.type} direction={transition.direction} backgroundColor={colors.background}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView
             style={[styles.scroll, { backgroundColor: colors.background }]}
             contentContainerStyle={styles.container}
@@ -434,7 +442,7 @@ export default function RegisterScreen({ navigation }) {
 
             <View style={{ height: 24 }} />
         </ScrollView>
-        </AnimatedScreenContent>
+        </View>
     );
 }
 

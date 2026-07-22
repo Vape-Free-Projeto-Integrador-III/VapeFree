@@ -16,6 +16,7 @@ AppNavigator
 │    ├─ Device    (DeviceScreen)
 │    ├─ Profile   (Profile)
 │    ├─ Crisis    (CrisisScreen)     modo crise, a partir do card da Home
+│    ├─ Missions  (MissionsScreen)   missões diárias/semanais, a partir do card da Home
 │    └─ Breathing (BreathingScreen)  respiração guiada
 └─ else                      → AuthStack (Stack.Navigator, headerShown: false)
      ├─ Login  (LoginScreen)
