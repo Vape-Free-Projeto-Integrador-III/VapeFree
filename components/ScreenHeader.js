@@ -10,8 +10,10 @@ export default function ScreenHeader({
     toggleTheme,
     onProfilePress,
     onBackPress,
+    onSettingsPress,
     showProfile = true,
     showTheme = true,
+    showSettings = false,
 }) {
     return (
         <View style={[styles.header, { backgroundColor: colors.primary }]}>
@@ -29,20 +31,28 @@ export default function ScreenHeader({
             </View>
 
             <View style={styles.actions}>
-                {showProfile ? (
-                    <TouchableOpacity onPress={onProfilePress} style={styles.profileBtn}>
-                        <Ionicons name="person-circle-outline" size={28} color="#fff" />
+                {showSettings ? (
+                    <TouchableOpacity onPress={onSettingsPress} style={styles.settingsBtn}>
+                        <Ionicons name="settings-outline" size={22} color="#fff" />
                     </TouchableOpacity>
                 ) : (
-                    <View style={styles.profilePlaceholder} />
-                )}
+                    <>
+                        {showProfile ? (
+                            <TouchableOpacity onPress={onProfilePress} style={styles.profileBtn}>
+                                <Ionicons name="person-circle-outline" size={28} color="#fff" />
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.profilePlaceholder} />
+                        )}
 
-                {showTheme ? (
-                    <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
-                        <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
-                    </TouchableOpacity>
-                ) : (
-                    <View style={styles.themePlaceholder} />
+                        {showTheme ? (
+                            <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
+                                <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color="#fff" />
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.themePlaceholder} />
+                        )}
+                    </>
                 )}
             </View>
         </View>
@@ -97,6 +107,14 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.2)',
     },
     themeBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    settingsBtn: {
         width: 38,
         height: 38,
         borderRadius: 19,

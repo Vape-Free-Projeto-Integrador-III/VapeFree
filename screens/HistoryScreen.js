@@ -181,9 +181,8 @@ export default function HistoryScreen({ navigation }) {
                 title="Histórico"
                 subtitle="Sua evolução ao longo do tempo"
                 colors={colors}
-                isDark={isDark}
-                toggleTheme={toggleTheme}
-                onProfilePress={() => navigation.navigate('Profile')}
+                showSettings
+                onSettingsPress={() => navigation.navigate('Settings')}
             />
 
             <View style={styles.filtersRow}>

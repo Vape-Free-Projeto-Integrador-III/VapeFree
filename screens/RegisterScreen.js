@@ -221,9 +221,8 @@ export default function RegisterScreen({ navigation }) {
                 title="Como foi seu dia?"
                 subtitle={`Como foi ${selectedDateLabel}?`}
                 colors={colors}
-                isDark={isDark}
-                toggleTheme={toggleTheme}
-                onProfilePress={() => navigation.navigate('Profile')}
+                showSettings
+                onSettingsPress={() => navigation.navigate('Settings')}
             />
 
             <View style={[styles.card, { backgroundColor: colors.card }, SHADOW.medium]}>

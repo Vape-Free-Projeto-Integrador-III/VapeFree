@@ -64,8 +64,8 @@ export default function HomeScreen({ navigation }) {
         setRefreshing(false);
     };
 
-    function openProfile() {
-        navigation.navigate('Profile');
+    function openSettings() {
+        navigation.navigate('Settings');
     }
 
     const today = todayString();
@@ -102,9 +102,8 @@ export default function HomeScreen({ navigation }) {
                 title="VapeFree"
                 subtitle="Vamos deixar o vape pra trás"
                 colors={colors}
-                isDark={isDark}
-                toggleTheme={toggleTheme}
-                onProfilePress={openProfile}
+                showSettings
+                onSettingsPress={openSettings}
             />
 
             <TouchableOpacity

@@ -35,9 +35,8 @@ export default function AchievementsScreen({ navigation }) {
                 title="Conquistas"
                 subtitle="Veja até onde você já chegou"
                 colors={colors}
-                isDark={isDark}
-                toggleTheme={toggleTheme}
-                onProfilePress={() => navigation.navigate('Profile')}
+                showSettings
+                onSettingsPress={() => navigation.navigate('Settings')}
             />
 
             <View style={[styles.statsCard, { backgroundColor: colors.card }, SHADOW.medium]}>
