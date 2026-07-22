@@ -151,11 +151,29 @@ export default function RegisterScreen({ navigation }) {
             Alert.alert('Opa', `Você usou o vape ${formatSelectedDateLabel(selectedDate)}? Escolhe uma opção.`);
             return;
         }
+
+        // Já existe registro nessa data: confirma antes de sobrescrever.
+        const allRecords = await getRecords();
+        const existing = allRecords.find((r) => r.date === selectedDate);
+        if (existing) {
+            setExistingRecord(existing);
+            Alert.alert(
+                'Dia já registrado',
+                `Você já registrou ${formatSelectedDateLabel(selectedDate)}. Salvar de novo vai sobrescrever o registro anterior.`,
+                [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Sobrescrever', style: 'destructive', onPress: () => performSave(existing) },
+                ]
+            );
+            return;
+        }
+
+        performSave(null);
+    };
+
+    const performSave = async (existing) => {
         setSaving(true);
         try {
-            const allRecords = await getRecords();
-            const existing = allRecords.find((r) => r.date === selectedDate);
-
             const now = new Date();
             const triggerLabels = TRIGGERS.filter((t) => triggers.includes(t.id)).map((t) => t.label);
             if (triggers.includes('outro') && triggerOutro.trim()) {
@@ -294,6 +312,16 @@ export default function RegisterScreen({ navigation }) {
                         </View>
                     </View>
                 </Modal>
+
+                {/* Aviso de registro existente */}
+                {existingRecord && (
+                    <View style={[styles.warningBox, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+                        <Ionicons name="alert-circle-outline" size={20} color={colors.warning} />
+                        <Text style={[styles.warningText, { color: colors.textSecondary }]}>
+                            Esse dia já tem registro ({existingRecord.used ? 'usou o vape' : 'não usou'}). Salvar vai sobrescrever.
+                        </Text>
+                    </View>
+                )}
 
                 {/* Device Type */}
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>Qual dispositivo você usa</Text>
@@ -528,6 +556,16 @@ const styles = StyleSheet.create({
         marginTop: 12,
     },
     successText: { fontSize: 14, fontWeight: '600', flex: 1 },
+    warningBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        borderWidth: 1.5,
+        borderRadius: RADIUS.md,
+        padding: 12,
+        marginBottom: 16,
+    },
+    warningText: { fontSize: 13, fontWeight: '500', flex: 1 },
     dateSelector: {
         flexDirection: 'row',
         alignItems: 'center',
