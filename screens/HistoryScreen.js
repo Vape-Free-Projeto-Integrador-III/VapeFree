@@ -74,6 +74,16 @@ function formatMonthKeyLabel(monthKey) {
     return `${MONTHS[Number(month) - 1]} ${year}`;
 }
 
+const MONTHS_FULL = [
+    'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+];
+
+function formatFullDate(dateStr) {
+    const date = parseLocalDate(dateStr);
+    return `${date.getDate()} de ${MONTHS_FULL[date.getMonth()]} de ${date.getFullYear()}`;
+}
+
 function compareDateKeys(a, b) {
     return a.localeCompare(b);
 }
@@ -145,7 +155,10 @@ export default function HistoryScreen({ navigation }) {
     };
 
     const { labels: chartLabels, data: chartData } = getGroupedData();
-    const allRecords = [...records].sort((a, b) => b.id - a.id);
+    const allRecords = [...records].sort((a, b) => {
+        const byDate = compareDateKeys(b.date, a.date);
+        return byDate !== 0 ? byDate : b.id - a.id;
+    });
 
     const devLabel = (t) => (t === 'desc' ? 'Descartável' : 'Recarregável');
     const intensityIcon = (n) => { if (n <= 3) return '🟢'; if (n <= 6) return '🟡'; return '🔴'; };
@@ -272,7 +285,7 @@ export default function HistoryScreen({ navigation }) {
                     <View key={rec.id} style={[styles.histItem, { backgroundColor: colors.card }, SHADOW.small]}>
                         <View style={styles.histTop}>
                             <View style={{ flex: 1 }}>
-                                <Text style={[styles.histDate, { color: colors.text }]}>{rec.date}</Text>
+                                <Text style={[styles.histDate, { color: colors.text }]}>{formatFullDate(rec.date)}</Text>
                                 <Text style={[styles.histDev, { color: colors.textMuted }]}>{devLabel(rec.devType)}</Text>
                             </View>
                             <View style={{ alignItems: 'flex-end' }}>
