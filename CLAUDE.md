@@ -66,7 +66,7 @@ Não existe pasta `src/` — tudo fica na raiz. Vários arquivos começam com co
 
 1. Nova tela: criar em `screens/`, registrar em `navigation/AppNavigator.js`, usar `ScreenHeader`, ler cores via `useTheme()`.
 2. Novo dado persistido: adicionar par de funções em `utils/storage.js` seguindo o padrão `if (uid) { Firestore } else { AsyncStorage }` — nunca ramificar essa lógica dentro da tela.
-3. Nova conquista: adicionar entrada em `ACHIEVEMENTS` (`utils/achievements.js`) com `condition(records, economy, completedMissions)` pura.
+3. Nova conquista: adicionar entrada em `ACHIEVEMENTS` (`utils/achievements.js`) com `condition(records, economy, completedMissions, context)` pura — `context` é `{ crisisSessions, appOpenDays }`, montado por `checkAndUnlockAchievements`.
 3.1. Nova missão: adicionar entrada em `MISSIONS` (`utils/missions.js`) com `progress(ctx)` pura devolvendo `{ current, target }` — ver `docs/missions.md`. Não renomeie o `id` de uma missão existente (faz parte da chave do que já foi salvo).
 4. Novo texto motivacional/trigger/ajuda: adicionar ao array correspondente em `utils/theme.js` (`TIPS`, `TRIGGERS`, `HELPS`, `MOTIVATIONAL_MESSAGES`).
 5. Ao mexer em auth, ler `docs/auth.md` primeiro — fluxo de migração de dados de convidado é sensível a ordem de chamadas.

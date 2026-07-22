@@ -34,17 +34,6 @@ e voltar
       - Botão "Arrasou!" para fechar
     Disparar após saveRecord() quando newUnlocks.length > 0.
 
-[ ] Mais conquistas para cobrir novos comportamentos
-    As 12 atuais são boas mas focadas em streaks e economia.
-    Adicionar conquistas para:
-      - [x] Primeira missão concluída (first_mission)
-      - Usar a técnica de respiração 5 vezes (botao de crise)
-      - Identificar o mesmo trigger 3 vezes (autoconhecimento)
-      - Abrir o app 7 dias seguidos
-      - Completar o tutorial
-      - Economia de R$ 500 e R$ 1000
-      - Caso tenha uma outra ideia, adicionar
-
 [ ] Streak com "escudo" (proteção de 1 dia)
     Mecânica comum em apps de gamificação (Duolingo, etc).
     O usuário ganha 1 escudo após 7 dias de streak.

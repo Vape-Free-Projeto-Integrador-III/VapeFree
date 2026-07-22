@@ -40,7 +40,12 @@ const KEYS = {
   CRISIS: '@vapefree_crisis',
   MISSIONS: '@vapefree_missions',
   XP: '@vapefree_xp',
+  APP_OPENS: '@vapefree_app_opens',
 };
+
+// Quantos dias de abertura do app ficam guardados. 60 cobre com folga a
+// maior conquista de presença diária (7 dias seguidos).
+const APP_OPENS_LIMIT = 60;
 
 async function readJson(key, fallback) {
   try {
@@ -57,15 +62,17 @@ function getUid() {
 }
 
 export async function getGuestLocalData() {
-  const [records, device, economy, achievements, crisisSessions, missions, xp] = await Promise.all([
-    readJson(KEYS.RECORDS, []),
-    readJson(KEYS.DEVICE, null),
-    readJson(KEYS.ECONOMY, {}),
-    readJson(KEYS.ACHIEVEMENTS, []),
-    readJson(KEYS.CRISIS, []),
-    readJson(KEYS.MISSIONS, []),
-    readJson(KEYS.XP, null),
-  ]);
+  const [records, device, economy, achievements, crisisSessions, missions, xp, appOpenDays] =
+    await Promise.all([
+      readJson(KEYS.RECORDS, []),
+      readJson(KEYS.DEVICE, null),
+      readJson(KEYS.ECONOMY, {}),
+      readJson(KEYS.ACHIEVEMENTS, []),
+      readJson(KEYS.CRISIS, []),
+      readJson(KEYS.MISSIONS, []),
+      readJson(KEYS.XP, null),
+      readJson(KEYS.APP_OPENS, []),
+    ]);
 
   return {
     records: Array.isArray(records) ? records : [],
@@ -75,6 +82,7 @@ export async function getGuestLocalData() {
     crisisSessions: Array.isArray(crisisSessions) ? crisisSessions : [],
     missions: Array.isArray(missions) ? missions : [],
     xp: xp && typeof xp === 'object' ? xp : null,
+    appOpenDays: Array.isArray(appOpenDays) ? appOpenDays : [],
   };
 }
 
@@ -123,6 +131,7 @@ export async function migrateGuestLocalDataToUser(uid = getUid()) {
       device: data.device ?? null,
       economy: data.economy && typeof data.economy === 'object' ? data.economy : {},
       xp: data.xp ?? null,
+      appOpenDays: data.appOpenDays,
     },
     { merge: true }
   );
@@ -348,6 +357,49 @@ export function getMonthLabel(dateStr) {
   return `${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// ─── App Opens ───────────────────────────────────────────────────────────────
+// Lista de datas 'YYYY-MM-DD' em que o app foi aberto (uma entrada por dia,
+// no máximo APP_OPENS_LIMIT dias). Só serve pra conquista de presença diária.
+// Modo conta: campo "appOpenDays" no documento users/{uid}. Convidado:
+// AsyncStorage.
+
+export async function getAppOpenDays() {
+  const uid = getUid();
+  try {
+    if (uid) {
+      const snap = await getDoc(doc(db, 'users', uid));
+      const days = snap.exists() ? snap.data().appOpenDays : null;
+      return Array.isArray(days) ? days : [];
+    }
+    const raw = await AsyncStorage.getItem(KEYS.APP_OPENS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Marca hoje como dia aberto. Idempotente dentro do mesmo dia.
+export async function registerAppOpen() {
+  const uid = getUid();
+  try {
+    const today = todayString();
+    const days = await getAppOpenDays();
+    if (days.includes(today)) {
+      return days;
+    }
+    const updated = [...days, today].sort().slice(-APP_OPENS_LIMIT);
+
+    if (uid) {
+      await setDoc(doc(db, 'users', uid), { appOpenDays: updated }, { merge: true });
+    } else {
+      await AsyncStorage.setItem(KEYS.APP_OPENS, JSON.stringify(updated));
+    }
+    return updated;
+  } catch {
+    return [];
+  }
+}
+
 // ─── Achievements ────────────────────────────────────────────────────────────
 // Modo conta: subcoleção users/{uid}/achievements, um documento por
 // conquista desbloqueada (id do documento = id da conquista). Modo
@@ -554,14 +606,18 @@ export async function checkAndCompleteMissions(records, economy, crisisSessions)
   }
 }
 
-export async function checkAndUnlockAchievements(records, economy, completedMissions) {
+export async function checkAndUnlockAchievements(records, economy, completedMissions, context) {
   try {
     const unlocked = await getAchievements();
     const unlockedIds = new Set(unlocked.map((u) => u.id));
     const missions = completedMissions ?? (await getMissions());
+    const ctx = context ?? {
+      crisisSessions: await getCrisisSessions(),
+      appOpenDays: await getAppOpenDays(),
+    };
     const newUnlocks = [];
 
-    const results = await checkAchievements(records, economy, unlocked, missions);
+    const results = await checkAchievements(records, economy, unlocked, missions, ctx);
     for (const result of results) {
       if (result.unlocked && !unlockedIds.has(result.id)) {
         await saveAchievement(result.id, result.unlockedAt);

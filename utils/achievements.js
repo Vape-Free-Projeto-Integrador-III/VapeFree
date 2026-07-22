@@ -147,7 +147,102 @@ export const ACHIEVEMENTS = [
     icon: '⭐',
     condition: (records) => records.length >= 30,
   },
+  {
+    id: 'economy_500',
+    xp: 300,
+    title: 'Meio Milhar',
+    description: 'Você já guardou R$ 500 não usando o vape',
+    icon: '💎',
+    condition: (records, economy) => {
+      const total = Object.values(economy || {}).reduce((a, v) => a + v, 0);
+      return total >= 500;
+    },
+  },
+  {
+    id: 'economy_1000',
+    xp: 500,
+    title: 'Mil Reais Livres',
+    description: 'Você já guardou R$ 1000 não usando o vape',
+    icon: '👑',
+    condition: (records, economy) => {
+      const total = Object.values(economy || {}).reduce((a, v) => a + v, 0);
+      return total >= 1000;
+    },
+  },
+  {
+    id: 'breathing_5',
+    xp: 60,
+    title: 'Respira Fundo',
+    description: 'Você usou a técnica de respiração 5 vezes',
+    icon: '🫁',
+    condition: (records, economy, completedMissions, context) =>
+      (context?.crisisSessions || []).filter(
+        (s) => s.method === 'respiracao' && s.completed === true
+      ).length >= 5,
+  },
+  {
+    id: 'crisis_passed_3',
+    xp: 80,
+    title: 'Mais Forte que a Vontade',
+    description: 'Você venceu a vontade 3 vezes no modo crise',
+    icon: '🧗',
+    condition: (records, economy, completedMissions, context) =>
+      (context?.crisisSessions || []).filter((s) => s.outcome === 'passou').length >= 3,
+  },
+  {
+    id: 'trigger_aware_3',
+    xp: 50,
+    title: 'Autoconhecimento',
+    description: 'Você identificou o mesmo gatilho 3 vezes',
+    icon: '🔍',
+    condition: (records) => {
+      const counts = new Map();
+      for (const record of records || []) {
+        for (const trigger of record.triggers || []) {
+          const key = String(trigger).trim().toLowerCase();
+          if (!key) continue;
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+      }
+      return [...counts.values()].some((count) => count >= 3);
+    },
+  },
+  {
+    id: 'app_open_7',
+    xp: 70,
+    title: 'Presença Diária',
+    description: 'Você abriu o app 7 dias seguidos',
+    icon: '📆',
+    condition: (records, economy, completedMissions, context) =>
+      calcDayStreak(context?.appOpenDays) >= 7,
+  },
 ];
+
+// Maior sequência de dias consecutivos numa lista de datas 'YYYY-MM-DD'.
+// Usada pelas conquistas que contam dias corridos fora dos registros
+// (ex: abrir o app), então não olha o campo `used` de nada.
+export function calcDayStreak(dates) {
+  const unique = [...new Set((dates || []).filter(Boolean))].sort();
+  if (unique.length === 0) {
+    return 0;
+  }
+
+  let best = 1;
+  let current = 1;
+
+  for (let i = 1; i < unique.length; i++) {
+    const previous = new Date(`${unique[i - 1]}T12:00:00`);
+    previous.setDate(previous.getDate() + 1);
+    if (previous.toISOString().slice(0, 10) === unique[i]) {
+      current += 1;
+      best = Math.max(best, current);
+    } else {
+      current = 1;
+    }
+  }
+
+  return best;
+}
 
 export function calcStreak(records) {
   if (!Array.isArray(records) || records.length === 0) {
@@ -186,11 +281,13 @@ export function calcStreak(records) {
   return streak;
 }
 
+// `context` traz o que não está nos registros: { crisisSessions, appOpenDays }.
 export async function checkAchievements(
   records,
   economy = {},
   unlockedAchievements = [],
-  completedMissions = []
+  completedMissions = [],
+  context = {}
 ) {
   const unlockedMap = new Map((unlockedAchievements || []).map((achievement) => [achievement.id, achievement]));
   const results = [];
@@ -200,7 +297,7 @@ export async function checkAchievements(
     const savedAchievement = unlockedMap.get(achievement.id);
     const unlocked = savedAchievement
       ? true
-      : achievement.condition(records, economy, completedMissions);
+      : achievement.condition(records, economy, completedMissions, context);
     results.push({
       id: achievement.id,
       title: achievement.title,

@@ -24,6 +24,7 @@ import {
     refreshXp,
     calcStreak,
     todayString,
+    registerAppOpen,
 } from '../utils/storage';
 import { getLevel } from '../utils/xp';
 import { buildMissionContext, checkMissions } from '../utils/missions';
@@ -49,6 +50,9 @@ export default function HomeScreen({ navigation }) {
     const [refreshing, setRefreshing] = useState(false);
 
     const load = useCallback(async () => {
+        // Home é a porta de entrada do app — marcar aqui o dia de abertura
+        // alimenta a conquista de presença diária (app_open_7).
+        const appOpenDays = await registerAppOpen();
         const [r, d, e, c] = await Promise.all([
             getRecords(),
             getDevice(),
@@ -64,7 +68,10 @@ export default function HomeScreen({ navigation }) {
         setMissions(checkMissions(buildMissionContext(r, e, c, todayString()), completedMissions));
 
         // Concluir missão pode desbloquear conquista (ex: first_mission).
-        const newAchievements = await checkAndUnlockAchievements(r, e, completedMissions);
+        const newAchievements = await checkAndUnlockAchievements(r, e, completedMissions, {
+            crisisSessions: c,
+            appOpenDays,
+        });
         const summary = await refreshXp(r, null, completedMissions);
         setXp(summary.xp);
         showRewards({ achievements: newAchievements, missions: newMissions, gained: summary.gained });
