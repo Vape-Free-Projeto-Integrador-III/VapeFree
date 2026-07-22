@@ -14,7 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RADIUS, SHADOW } from '../utils/theme';
-import { getRecords, getEconomy, calcStreak } from '../utils/storage';
+import { getRecords, getEconomy, calcStreak, getStreakShield } from '../utils/storage';
 import ScreenHeader from '../components/ScreenHeader';
 
 function getInitials(name, email) {
@@ -35,15 +35,17 @@ export default function Profile({ navigation }) {
     const [busy, setBusy] = React.useState(false);
     const [records, setRecords] = useState([]);
     const [economy, setEconomy] = useState({});
+    const [shieldDates, setShieldDates] = useState([]);
 
     const displayName = isGuest ? 'Convidado' : user?.displayName?.trim() || 'Usuário';
     const email = user?.email?.trim() || 'Sem e-mail cadastrado';
     const initials = getInitials(user?.displayName, user?.email);
 
     const load = useCallback(async () => {
-        const [recs, eco] = await Promise.all([getRecords(), getEconomy()]);
+        const [recs, eco, shield] = await Promise.all([getRecords(), getEconomy(), getStreakShield()]);
         setRecords(recs);
         setEconomy(eco);
+        setShieldDates(shield.usedDates);
     }, []);
 
     useFocusEffect(
@@ -52,7 +54,7 @@ export default function Profile({ navigation }) {
         }, [load])
     );
 
-    const streak = calcStreak(records);
+    const streak = calcStreak(records, shieldDates);
     const totalSaved = Object.values(economy).reduce((a, v) => a + v, 0);
     const startDate = records.length
         ? [...records].map((r) => r.date).sort()[0]

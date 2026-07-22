@@ -16,7 +16,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { TIPS } from './theme';
-import { getRecords, todayString, calcStreak } from './storage';
+import { getRecords, todayString, calcStreak, getStreakShield } from './storage';
 
 // Identificador fixo: usamos sempre o mesmo, assim cancelamos a notificação
 // anterior antes de criar uma nova (evita duplicar notificações).
@@ -101,7 +101,8 @@ async function getStreakWarningContent() {
   const records = await getRecords();
   const today = todayString();
   const hasRecordToday = records.some((record) => record.date === today);
-  const streak = calcStreak(records);
+  const shield = await getStreakShield();
+  const streak = calcStreak(records, shield.usedDates);
 
   if (hasRecordToday || streak <= 0) {
     return null;

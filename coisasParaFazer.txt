@@ -34,12 +34,6 @@ e voltar
       - Botão "Arrasou!" para fechar
     Disparar após saveRecord() quando newUnlocks.length > 0.
 
-[ ] Streak com "escudo" (proteção de 1 dia)
-    Mecânica comum em apps de gamificação (Duolingo, etc).
-    O usuário ganha 1 escudo após 7 dias de streak.
-    Se esquecer de registrar um dia, o escudo é consumido
-    e o streak é mantido. Exibir ícone de escudo na HomeScreen.
-
 ---- SOCIAL ----
 
 [ ] Compartilhar conquista

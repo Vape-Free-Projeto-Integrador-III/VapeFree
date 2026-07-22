@@ -15,8 +15,8 @@ export const ACHIEVEMENTS = [
     title: 'Começando Bem',
     description: '3 dias seguidos sem usar',
     icon: '🔥',
-    condition: (records) => {
-      const streak = calcStreak(records);
+    condition: (records, economy, completedMissions, context) => {
+      const streak = calcStreak(records, context?.shieldDates);
       return streak >= 3;
     },
   },
@@ -26,8 +26,8 @@ export const ACHIEVEMENTS = [
     title: 'Uma Semana',
     description: '7 dias seguidos sem usar',
     icon: '🌟',
-    condition: (records) => {
-      const streak = calcStreak(records);
+    condition: (records, economy, completedMissions, context) => {
+      const streak = calcStreak(records, context?.shieldDates);
       return streak >= 7;
     },
   },
@@ -37,8 +37,8 @@ export const ACHIEVEMENTS = [
     title: 'Duas Semanas',
     description: '14 dias seguidos sem usar',
     icon: '💪',
-    condition: (records) => {
-      const streak = calcStreak(records);
+    condition: (records, economy, completedMissions, context) => {
+      const streak = calcStreak(records, context?.shieldDates);
       return streak >= 14;
     },
   },
@@ -48,8 +48,8 @@ export const ACHIEVEMENTS = [
     title: 'Um Mês',
     description: '30 dias seguidos sem usar',
     icon: '🏆',
-    condition: (records) => {
-      const streak = calcStreak(records);
+    condition: (records, economy, completedMissions, context) => {
+      const streak = calcStreak(records, context?.shieldDates);
       return streak >= 30;
     },
   },
@@ -244,44 +244,67 @@ export function calcDayStreak(dates) {
   return best;
 }
 
-export function calcStreak(records) {
-  if (!Array.isArray(records) || records.length === 0) {
-    return 0;
-  }
-
-  const recordsByDate = records.reduce((groups, record) => {
+function groupRecordsByDate(records) {
+  return records.reduce((groups, record) => {
     if (!groups[record.date]) {
       groups[record.date] = [];
     }
     groups[record.date].push(record);
     return groups;
   }, {});
+}
 
+// Caminha do último registro pra trás enquanto o dia contar como limpo.
+// `protectedDates` são os dias cobertos por escudo de streak (ver
+// utils/storage.js `syncStreakShield`): contam como limpos mesmo que o dia
+// não tenha registro nenhum ou tenha registro com `used === true`.
+// Devolve { streak, breakDate }, onde `breakDate` é o dia que interrompeu a
+// contagem (null quando a sequência chegou no começo do histórico).
+function walkStreak(records, protectedDates = []) {
+  if (!Array.isArray(records) || records.length === 0) {
+    return { streak: 0, breakDate: null };
+  }
+
+  const recordsByDate = groupRecordsByDate(records);
+  const shielded = new Set(protectedDates || []);
   const dates = Object.keys(recordsByDate).sort();
+  const firstRecordDate = dates[0];
   const latestRecordDate = dates[dates.length - 1];
   const cursor = new Date(`${latestRecordDate}T12:00:00`);
   let streak = 0;
 
   while (true) {
     const dateKey = cursor.toISOString().slice(0, 10);
-    const dayRecords = recordsByDate[dateKey] || [];
 
-    if (dayRecords.length === 0) {
-      break;
+    // Passou do primeiro registro do histórico — não existe dia pra proteger.
+    if (dateKey < firstRecordDate) {
+      return { streak, breakDate: null };
     }
 
-    if (dayRecords.some((record) => record.used === true)) {
-      break;
+    const dayRecords = recordsByDate[dateKey] || [];
+    const clean = dayRecords.length > 0 && !dayRecords.some((record) => record.used === true);
+
+    if (!clean && !shielded.has(dateKey)) {
+      return { streak, breakDate: dateKey };
     }
 
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
   }
-
-  return streak;
 }
 
-// `context` traz o que não está nos registros: { crisisSessions, appOpenDays }.
+export function calcStreak(records, protectedDates = []) {
+  return walkStreak(records, protectedDates).streak;
+}
+
+// Dia que está segurando o streak (sem registro ou com uso), ou null.
+// É esse dia que o escudo cobre quando é consumido.
+export function findStreakBreakDate(records, protectedDates = []) {
+  return walkStreak(records, protectedDates).breakDate;
+}
+
+// `context` traz o que não está nos registros:
+// { crisisSessions, appOpenDays, shieldDates }.
 export async function checkAchievements(
   records,
   economy = {},

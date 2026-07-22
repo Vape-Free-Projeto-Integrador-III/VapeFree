@@ -26,7 +26,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { checkAchievements, calcStreak } from './achievements';
+import { checkAchievements, calcStreak, findStreakBreakDate } from './achievements';
 import { buildMissionContext, checkMissions } from './missions';
 import { getXpSummary } from './xp';
 
@@ -41,6 +41,7 @@ const KEYS = {
   MISSIONS: '@vapefree_missions',
   XP: '@vapefree_xp',
   APP_OPENS: '@vapefree_app_opens',
+  STREAK_SHIELD: '@vapefree_streak_shield',
 };
 
 // Quantos dias de abertura do app ficam guardados. 60 cobre com folga a
@@ -62,17 +63,27 @@ function getUid() {
 }
 
 export async function getGuestLocalData() {
-  const [records, device, economy, achievements, crisisSessions, missions, xp, appOpenDays] =
-    await Promise.all([
-      readJson(KEYS.RECORDS, []),
-      readJson(KEYS.DEVICE, null),
-      readJson(KEYS.ECONOMY, {}),
-      readJson(KEYS.ACHIEVEMENTS, []),
-      readJson(KEYS.CRISIS, []),
-      readJson(KEYS.MISSIONS, []),
-      readJson(KEYS.XP, null),
-      readJson(KEYS.APP_OPENS, []),
-    ]);
+  const [
+    records,
+    device,
+    economy,
+    achievements,
+    crisisSessions,
+    missions,
+    xp,
+    appOpenDays,
+    streakShield,
+  ] = await Promise.all([
+    readJson(KEYS.RECORDS, []),
+    readJson(KEYS.DEVICE, null),
+    readJson(KEYS.ECONOMY, {}),
+    readJson(KEYS.ACHIEVEMENTS, []),
+    readJson(KEYS.CRISIS, []),
+    readJson(KEYS.MISSIONS, []),
+    readJson(KEYS.XP, null),
+    readJson(KEYS.APP_OPENS, []),
+    readJson(KEYS.STREAK_SHIELD, null),
+  ]);
 
   return {
     records: Array.isArray(records) ? records : [],
@@ -83,6 +94,7 @@ export async function getGuestLocalData() {
     missions: Array.isArray(missions) ? missions : [],
     xp: xp && typeof xp === 'object' ? xp : null,
     appOpenDays: Array.isArray(appOpenDays) ? appOpenDays : [],
+    streakShield: streakShield && typeof streakShield === 'object' ? streakShield : null,
   };
 }
 
@@ -132,6 +144,7 @@ export async function migrateGuestLocalDataToUser(uid = getUid()) {
       economy: data.economy && typeof data.economy === 'object' ? data.economy : {},
       xp: data.xp ?? null,
       appOpenDays: data.appOpenDays,
+      streakShield: data.streakShield ?? null,
     },
     { merge: true }
   );
@@ -400,6 +413,122 @@ export async function registerAppOpen() {
   }
 }
 
+// ─── Streak Shield ───────────────────────────────────────────────────────────
+// Escudo de streak (mecânica tipo Duolingo): a cada SHIELD_STREAK_STEP dias de
+// sequência o usuário ganha 1 escudo (máximo MAX_SHIELDS guardados). Quando um
+// dia quebra o streak — porque ficou sem registro OU porque o registro teve
+// `used === true` — o escudo é consumido e aquele dia entra em `usedDates`,
+// passando a contar como dia limpo pro `calcStreak`.
+//
+// Estado: { count, usedDates: ['YYYY-MM-DD'], earnedMilestone, earnedAt }.
+// `earnedMilestone` é o múltiplo de 7 que já rendeu escudo (evita ganhar duas
+// vezes pelo mesmo marco) e `earnedAt` é o dia em que o último escudo foi
+// ganho — escudo nunca cobre dia anterior a ele, senão o próprio escudo
+// recém-ganho seria gasto pra emendar o streak com um passado já quebrado.
+//
+// Modo conta: campo "streakShield" no documento users/{uid}. Convidado:
+// AsyncStorage.
+
+const MAX_SHIELDS = 1;
+const SHIELD_STREAK_STEP = 7;
+
+const EMPTY_SHIELD = { count: 0, usedDates: [], earnedMilestone: 0, earnedAt: null };
+
+function normalizeShield(state) {
+  if (!state || typeof state !== 'object') {
+    return { ...EMPTY_SHIELD };
+  }
+  return {
+    count: Number.isFinite(state.count) ? state.count : 0,
+    usedDates: Array.isArray(state.usedDates) ? state.usedDates : [],
+    earnedMilestone: Number.isFinite(state.earnedMilestone) ? state.earnedMilestone : 0,
+    earnedAt: state.earnedAt ?? null,
+  };
+}
+
+export async function getStreakShield() {
+  const uid = getUid();
+  try {
+    if (uid) {
+      const snap = await getDoc(doc(db, 'users', uid));
+      return normalizeShield(snap.exists() ? snap.data().streakShield : null);
+    }
+    const raw = await AsyncStorage.getItem(KEYS.STREAK_SHIELD);
+    return normalizeShield(raw ? JSON.parse(raw) : null);
+  } catch {
+    return { ...EMPTY_SHIELD };
+  }
+}
+
+export async function saveStreakShield(state) {
+  const uid = getUid();
+  try {
+    const entry = { ...normalizeShield(state), updatedAt: new Date().toISOString() };
+    if (uid) {
+      await setDoc(doc(db, 'users', uid), { streakShield: entry }, { merge: true });
+      return true;
+    }
+    await AsyncStorage.setItem(KEYS.STREAK_SHIELD, JSON.stringify(entry));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Consome escudo nos dias que quebraram o streak e concede escudo novo quando
+// a sequência bate um múltiplo de SHIELD_STREAK_STEP. Devolve o estado já
+// atualizado (com `consumedDates`: os dias protegidos agora, pra tela avisar).
+export async function syncStreakShield(records) {
+  try {
+    const recs = records ?? (await getRecords());
+    const state = await getStreakShield();
+    let { count, usedDates, earnedMilestone, earnedAt } = state;
+    const consumedDates = [];
+
+    while (count > 0) {
+      const breakDate = findStreakBreakDate(recs, usedDates);
+      // Sem dia pra proteger, ou quebra anterior ao escudo: não gasta.
+      if (!breakDate || !earnedAt || breakDate < earnedAt) {
+        break;
+      }
+      usedDates = [...usedDates, breakDate].sort();
+      consumedDates.push(breakDate);
+      count -= 1;
+    }
+
+    const streak = calcStreak(recs, usedDates);
+    const milestone = Math.floor(streak / SHIELD_STREAK_STEP);
+    let earned = false;
+    if (milestone < earnedMilestone) {
+      // Streak quebrou de vez (sem escudo pra cobrir): o próximo marco de 7
+      // dias volta a valer escudo.
+      earnedMilestone = milestone;
+    } else if (milestone > earnedMilestone) {
+      earnedMilestone = milestone;
+      if (count < MAX_SHIELDS) {
+        count += 1;
+        earnedAt = todayString();
+        earned = true;
+      }
+    }
+
+    const updated = { count, usedDates, earnedMilestone, earnedAt };
+    const changed =
+      consumedDates.length > 0 ||
+      earned ||
+      updated.earnedMilestone !== state.earnedMilestone;
+
+    if (changed) {
+      await saveStreakShield(updated);
+    }
+
+    return { ...updated, consumedDates, earned, streak };
+  } catch {
+    const fallback = await getStreakShield();
+    return { ...fallback, consumedDates: [], earned: false, streak: 0 };
+  }
+}
+
 // ─── Achievements ────────────────────────────────────────────────────────────
 // Modo conta: subcoleção users/{uid}/achievements, um documento por
 // conquista desbloqueada (id do documento = id da conquista). Modo
@@ -614,6 +743,7 @@ export async function checkAndUnlockAchievements(records, economy, completedMiss
     const ctx = context ?? {
       crisisSessions: await getCrisisSessions(),
       appOpenDays: await getAppOpenDays(),
+      shieldDates: (await getStreakShield()).usedDates,
     };
     const newUnlocks = [];
 

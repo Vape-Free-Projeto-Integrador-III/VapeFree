@@ -25,6 +25,7 @@ import {
     calcStreak,
     todayString,
     registerAppOpen,
+    syncStreakShield,
 } from '../utils/storage';
 import { getLevel } from '../utils/xp';
 import { buildMissionContext, checkMissions } from '../utils/missions';
@@ -47,6 +48,7 @@ export default function HomeScreen({ navigation }) {
     const [economy, setEconomy] = useState({});
     const [missions, setMissions] = useState([]);
     const [xp, setXp] = useState(0);
+    const [shield, setShield] = useState({ count: 0, usedDates: [] });
     const [refreshing, setRefreshing] = useState(false);
 
     const load = useCallback(async () => {
@@ -63,6 +65,10 @@ export default function HomeScreen({ navigation }) {
         setDevice(d);
         setEconomy(e);
 
+        // Antes de qualquer contagem de streak: consome/concede escudo.
+        const shieldState = await syncStreakShield(r);
+        setShield(shieldState);
+
         const newMissions = await checkAndCompleteMissions(r, e, c);
         const completedMissions = await getMissions();
         setMissions(checkMissions(buildMissionContext(r, e, c, todayString()), completedMissions));
@@ -71,6 +77,7 @@ export default function HomeScreen({ navigation }) {
         const newAchievements = await checkAndUnlockAchievements(r, e, completedMissions, {
             crisisSessions: c,
             appOpenDays,
+            shieldDates: shieldState.usedDates,
         });
         const summary = await refreshXp(r, null, completedMissions);
         setXp(summary.xp);
@@ -96,7 +103,7 @@ export default function HomeScreen({ navigation }) {
     const today = todayString();
     const todayRecs = records.filter((r) => r.date === today);
     const todayPuffs = todayRecs.reduce((a, r) => a + (r.puffs || 0), 0);
-    const streak = calcStreak(records);
+    const streak = calcStreak(records, shield.usedDates);
     const last7 = getLastNDays(7);
     const weekPuffs = last7.reduce((sum, d) => {
         return sum + records.filter((r) => r.date === d).reduce((a, r) => a + (r.puffs || 0), 0);
@@ -112,6 +119,23 @@ export default function HomeScreen({ navigation }) {
 
     const todayEco = economy[today] || 0;
     const totalEco = Object.values(economy).reduce((a, v) => a + v, 0);
+
+    // Escudo: protege 1 dia perdido (sem registro ou com uso) por vez.
+    const hasShield = shield.count > 0;
+    const lastShieldUse = (shield.usedDates || [])[(shield.usedDates || []).length - 1];
+    const shieldMessage = (() => {
+        if (shield.consumedDates?.length > 0) {
+            const [, month, day] = shield.consumedDates[shield.consumedDates.length - 1].split('-');
+            return `Escudo usado em ${day}/${month} — sua sequência continua! 💪`;
+        }
+        if (hasShield) {
+            return 'Escudo pronto: se você falhar um dia, a sequência não zera';
+        }
+        if (lastShieldUse) {
+            return 'Escudo gasto. Complete mais 7 dias seguidos pra ganhar outro';
+        }
+        return 'Complete 7 dias seguidos pra ganhar um escudo de sequência';
+    })();
 
     const level = getLevel(xp);
     const tip = TIPS[new Date().getDate() % TIPS.length];
@@ -161,6 +185,22 @@ export default function HomeScreen({ navigation }) {
                         <Text style={[styles.statNum, { color: colors.primaryDark }]}>{weekPuffs}</Text>
                         <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Esta{'\n'}semana</Text>
                     </View>
+                </View>
+
+                <View
+                    style={[
+                        styles.shieldRow,
+                        { backgroundColor: colors.primaryLight, borderColor: hasShield ? colors.primary : colors.borderLight },
+                    ]}
+                >
+                    <Ionicons
+                        name={hasShield ? 'shield-checkmark' : 'shield-outline'}
+                        size={20}
+                        color={hasShield ? colors.primary : colors.textMuted}
+                    />
+                    <Text style={[styles.shieldText, { color: hasShield ? colors.primaryDark : colors.textSecondary }]}>
+                        {shieldMessage}
+                    </Text>
                 </View>
             </View>
 
@@ -310,6 +350,16 @@ const styles = StyleSheet.create({
         padding: 12,
         alignItems: 'center',
     },
+    shieldRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 10,
+        padding: 10,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+    },
+    shieldText: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 16 },
     statNum: { fontSize: 26, fontWeight: '800' },
     statLabel: { fontSize: 11, textAlign: 'center', marginTop: 2, lineHeight: 14 },
     xpHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },

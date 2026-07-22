@@ -26,6 +26,7 @@ import {
     refreshXp,
     getEconomy,
     todayString,
+    syncStreakShield,
 } from '../utils/storage';
 import { scheduleMotivationalNotifications } from '../utils/notifications';
 import { scheduleStreakWarningNotification } from '../utils/notifications';
@@ -119,6 +120,10 @@ export default function RegisterScreen({ navigation }) {
         const [newRecords, device] = await Promise.all([getRecords(), getDevice()]);
         const economy = device ? await recalcEconomy(newRecords, device) : await getEconomy();
         const crisisSessions = await getCrisisSessions();
+
+        // Registrar um dia com uso pode ser coberto pelo escudo — sincroniza
+        // antes das conquistas pra elas verem o streak já protegido.
+        await syncStreakShield(newRecords);
 
         const newMissions = await checkAndCompleteMissions(newRecords, economy, crisisSessions);
         const completedMissions = await getMissions();
