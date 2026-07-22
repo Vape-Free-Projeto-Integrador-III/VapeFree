@@ -12,8 +12,6 @@ e voltar
 
 [ ] Verificar modo crise e arrumar insights dela
 
-[ ] Verificar sistema de escudo de streak
-
 ---- URGENTE ----
 
 [ ] Tutorial / onboarding

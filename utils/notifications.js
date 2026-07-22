@@ -16,7 +16,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { DICAS } from './theme';
-import { obterRegistros, dataDeHoje, calcularStreak, obterEscudoDeStreak } from './storage';
+import { obterRegistros, dataDeHoje, calcularStreak } from './storage';
 
 // Identificador fixo: usamos sempre o mesmo, assim cancelamos a notificação
 // anterior antes de criar uma nova (evita duplicar notificações).
@@ -101,8 +101,7 @@ async function conteudoDoAvisoDeStreak() {
   const registros = await obterRegistros();
   const hoje = dataDeHoje();
   const temRegistroHoje = registros.some((registro) => registro.date === hoje);
-  const escudo = await obterEscudoDeStreak();
-  const streak = calcularStreak(registros, escudo.usedDates);
+  const streak = calcularStreak(registros);
 
   if (temRegistroHoje || streak <= 0) {
     return null;

@@ -30,12 +30,12 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
-import { verificarConquistas, calcularStreak, encontrarDataDeQuebraDeStreak } from './achievements';
+import { verificarConquistas, calcularStreak, calcularEstadoDeStreak } from './achievements';
 import { montarContextoDeMissoes, verificarMissoes } from './missions';
 import { normalizarRegistro, somarPuxadas } from './records';
 import { resumoDeXp } from './xp';
 
-export { calcularStreak };
+export { calcularStreak, calcularEstadoDeStreak };
 
 const CHAVES = {
   REGISTROS: '@vapefree_records',
@@ -46,7 +46,6 @@ const CHAVES = {
   MISSOES: '@vapefree_missions',
   XP: '@vapefree_xp',
   ABERTURAS: '@vapefree_app_opens',
-  ESCUDO_DE_STREAK: '@vapefree_streak_shield',
 };
 
 // Quantos dias de abertura do app ficam guardados. 60 cobre com folga a
@@ -77,7 +76,6 @@ export async function obterDadosLocaisDoConvidado() {
     missoes,
     xp,
     diasDeAbertura,
-    escudoDeStreak,
   ] = await Promise.all([
     lerJson(CHAVES.REGISTROS, []),
     lerJson(CHAVES.APARELHO, null),
@@ -87,7 +85,6 @@ export async function obterDadosLocaisDoConvidado() {
     lerJson(CHAVES.MISSOES, []),
     lerJson(CHAVES.XP, null),
     lerJson(CHAVES.ABERTURAS, []),
-    lerJson(CHAVES.ESCUDO_DE_STREAK, null),
   ]);
 
   return {
@@ -99,8 +96,6 @@ export async function obterDadosLocaisDoConvidado() {
     missoes: Array.isArray(missoes) ? missoes : [],
     xp: xp && typeof xp === 'object' ? xp : null,
     diasDeAbertura: Array.isArray(diasDeAbertura) ? diasDeAbertura : [],
-    escudoDeStreak:
-      escudoDeStreak && typeof escudoDeStreak === 'object' ? escudoDeStreak : null,
   };
 }
 
@@ -150,7 +145,6 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
       economy: dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
       xp: dados.xp ?? null,
       appOpenDays: dados.diasDeAbertura,
-      streakShield: dados.escudoDeStreak ?? null,
     },
     { merge: true }
   );
@@ -182,9 +176,27 @@ export async function obterRegistros() {
   }
 }
 
+// Janela em que dá pra criar registro: hoje ou até DIAS_PARA_TRAS_NO_REGISTRO
+// dias atrás. Sem isso o usuário podia preencher anos de histórico falso e
+// inflar XP/conquistas (o XP é derivado dos registros — ver utils/xp.js).
+// Vale só pra criação: editar um registro antigo pela tela de histórico
+// continua liberado.
+export const DIAS_PARA_TRAS_NO_REGISTRO = 7;
+
+export function datasRegistraveis() {
+  return ultimosNDias(DIAS_PARA_TRAS_NO_REGISTRO + 1);
+}
+
+export function dataEhRegistravel(data) {
+  return datasRegistraveis().includes(data);
+}
+
 export async function salvarRegistro(novoRegistro) {
   const uid = obterUid();
   const registro = normalizarRegistro(novoRegistro);
+  if (!dataEhRegistravel(registro.date)) {
+    return false;
+  }
   try {
     if (uid) {
       await setDoc(doc(db, 'users', uid, 'records', String(registro.id)), registro);
@@ -424,123 +436,6 @@ export async function registrarAberturaDoApp() {
   }
 }
 
-// ─── Escudo de streak ────────────────────────────────────────────────────────
-// Escudo de streak (mecânica tipo Duolingo): a cada PASSO_DE_STREAK_DO_ESCUDO
-// dias de sequência o usuário ganha 1 escudo (máximo MAX_ESCUDOS guardados).
-// Quando um dia quebra o streak — porque ficou sem registro OU porque o
-// registro teve `used === true` — o escudo é consumido e aquele dia entra em
-// `usedDates`, passando a contar como dia limpo pro `calcularStreak`.
-//
-// Estado: { count, usedDates: ['YYYY-MM-DD'], earnedMilestone, earnedAt }.
-// `earnedMilestone` é o múltiplo de 7 que já rendeu escudo (evita ganhar duas
-// vezes pelo mesmo marco) e `earnedAt` é o dia em que o último escudo foi
-// ganho — escudo nunca cobre dia anterior a ele, senão o próprio escudo
-// recém-ganho seria gasto pra emendar o streak com um passado já quebrado.
-//
-// Modo conta: campo "streakShield" no documento users/{uid}. Convidado:
-// AsyncStorage.
-
-const MAX_ESCUDOS = 1;
-const PASSO_DE_STREAK_DO_ESCUDO = 7;
-
-const ESCUDO_VAZIO = { count: 0, usedDates: [], earnedMilestone: 0, earnedAt: null };
-
-function normalizarEscudo(estado) {
-  if (!estado || typeof estado !== 'object') {
-    return { ...ESCUDO_VAZIO };
-  }
-  return {
-    count: Number.isFinite(estado.count) ? estado.count : 0,
-    usedDates: Array.isArray(estado.usedDates) ? estado.usedDates : [],
-    earnedMilestone: Number.isFinite(estado.earnedMilestone) ? estado.earnedMilestone : 0,
-    earnedAt: estado.earnedAt ?? null,
-  };
-}
-
-export async function obterEscudoDeStreak() {
-  const uid = obterUid();
-  try {
-    if (uid) {
-      const snap = await getDoc(doc(db, 'users', uid));
-      return normalizarEscudo(snap.exists() ? snap.data().streakShield : null);
-    }
-    const bruto = await AsyncStorage.getItem(CHAVES.ESCUDO_DE_STREAK);
-    return normalizarEscudo(bruto ? JSON.parse(bruto) : null);
-  } catch {
-    return { ...ESCUDO_VAZIO };
-  }
-}
-
-export async function salvarEscudoDeStreak(estado) {
-  const uid = obterUid();
-  try {
-    const entrada = { ...normalizarEscudo(estado), updatedAt: new Date().toISOString() };
-    if (uid) {
-      await setDoc(doc(db, 'users', uid), { streakShield: entrada }, { merge: true });
-      return true;
-    }
-    await AsyncStorage.setItem(CHAVES.ESCUDO_DE_STREAK, JSON.stringify(entrada));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Consome escudo nos dias que quebraram o streak e concede escudo novo quando
-// a sequência bate um múltiplo de PASSO_DE_STREAK_DO_ESCUDO. Devolve o estado
-// já atualizado (com `diasConsumidos`: os dias protegidos agora, pra tela
-// avisar).
-export async function sincronizarEscudoDeStreak(registros) {
-  try {
-    const regs = registros ?? (await obterRegistros());
-    const estado = await obterEscudoDeStreak();
-    let { count, usedDates, earnedMilestone, earnedAt } = estado;
-    const diasConsumidos = [];
-
-    while (count > 0) {
-      const dataDaQuebra = encontrarDataDeQuebraDeStreak(regs, usedDates);
-      // Sem dia pra proteger, ou quebra anterior ao escudo: não gasta.
-      if (!dataDaQuebra || !earnedAt || dataDaQuebra < earnedAt) {
-        break;
-      }
-      usedDates = [...usedDates, dataDaQuebra].sort();
-      diasConsumidos.push(dataDaQuebra);
-      count -= 1;
-    }
-
-    const streak = calcularStreak(regs, usedDates);
-    const marco = Math.floor(streak / PASSO_DE_STREAK_DO_ESCUDO);
-    let ganhou = false;
-    if (marco < earnedMilestone) {
-      // Streak quebrou de vez (sem escudo pra cobrir): o próximo marco de 7
-      // dias volta a valer escudo.
-      earnedMilestone = marco;
-    } else if (marco > earnedMilestone) {
-      earnedMilestone = marco;
-      if (count < MAX_ESCUDOS) {
-        count += 1;
-        earnedAt = dataDeHoje();
-        ganhou = true;
-      }
-    }
-
-    const atualizado = { count, usedDates, earnedMilestone, earnedAt };
-    const mudou =
-      diasConsumidos.length > 0 ||
-      ganhou ||
-      atualizado.earnedMilestone !== estado.earnedMilestone;
-
-    if (mudou) {
-      await salvarEscudoDeStreak(atualizado);
-    }
-
-    return { ...atualizado, diasConsumidos, ganhou, streak };
-  } catch {
-    const reserva = await obterEscudoDeStreak();
-    return { ...reserva, diasConsumidos: [], ganhou: false, streak: 0 };
-  }
-}
-
 // ─── Conquistas ──────────────────────────────────────────────────────────────
 // Modo conta: subcoleção users/{uid}/achievements, um documento por
 // conquista desbloqueada (id do documento = id da conquista). Modo
@@ -763,7 +658,6 @@ export async function verificarEDesbloquearConquistas(
     const ctx = contexto ?? {
       sessoesDeCrise: await obterSessoesDeCrise(),
       diasDeAbertura: await obterDiasDeAbertura(),
-      diasComEscudo: (await obterEscudoDeStreak()).usedDates,
     };
     const novasDesbloqueadas = [];
 

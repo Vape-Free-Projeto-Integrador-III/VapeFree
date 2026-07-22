@@ -14,7 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { usarAuth } from '../context/AuthContext';
 import { usarTema } from '../context/ThemeContext';
 import { RAIO, SOMBRA } from '../utils/theme';
-import { obterRegistros, obterEconomia, calcularStreak, obterEscudoDeStreak } from '../utils/storage';
+import { obterRegistros, obterEconomia, calcularStreak } from '../utils/storage';
 import ScreenHeader from '../components/ScreenHeader';
 
 function obterIniciais(nome, email) {
@@ -35,17 +35,15 @@ export default function Profile({ navigation }) {
     const [ocupado, setOcupado] = React.useState(false);
     const [registros, setRegistros] = useState([]);
     const [economia, setEconomia] = useState({});
-    const [datasDoEscudo, setDatasDoEscudo] = useState([]);
 
     const nomeExibido = ehConvidado ? 'Convidado' : usuario?.displayName?.trim() || 'Usuário';
     const email = usuario?.email?.trim() || 'Sem e-mail cadastrado';
     const iniciais = obterIniciais(usuario?.displayName, usuario?.email);
 
     const carregar = useCallback(async () => {
-        const [regs, eco, escudo] = await Promise.all([obterRegistros(), obterEconomia(), obterEscudoDeStreak()]);
+        const [regs, eco] = await Promise.all([obterRegistros(), obterEconomia()]);
         setRegistros(regs);
         setEconomia(eco);
-        setDatasDoEscudo(escudo.usedDates);
     }, []);
 
     useFocusEffect(
@@ -54,7 +52,7 @@ export default function Profile({ navigation }) {
         }, [carregar])
     );
 
-    const streak = calcularStreak(registros, datasDoEscudo);
+    const streak = calcularStreak(registros);
     const totalEconomizado = Object.values(economia).reduce((a, v) => a + v, 0);
     const dataDeInicio = registros.length
         ? [...registros].map((r) => r.date).sort()[0]

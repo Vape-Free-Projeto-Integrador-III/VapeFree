@@ -22,14 +22,14 @@ import {
     verificarEConcluirMissoes,
     verificarEDesbloquearConquistas,
     atualizarXp,
-    calcularStreak,
+    calcularEstadoDeStreak,
     dataDeHoje,
     registrarAberturaDoApp,
-    sincronizarEscudoDeStreak,
 } from '../utils/storage';
 import { somarPuxadas } from '../utils/records';
 import { obterNivel } from '../utils/xp';
 import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
+import { DIAS_PARA_ESCUDO } from '../utils/achievements';
 import { RAIO, SOMBRA, DICAS } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToastDeXp } from '../context/XpToastContext';
@@ -47,7 +47,6 @@ export default function HomeScreen({ navigation }) {
     const [economia, setEconomia] = useState({});
     const [missoes, setMissoes] = useState([]);
     const [xp, setXp] = useState(0);
-    const [escudo, setEscudo] = useState({ count: 0, usedDates: [] });
     const [atualizando, setAtualizando] = useState(false);
 
     const carregar = useCallback(async () => {
@@ -64,10 +63,6 @@ export default function HomeScreen({ navigation }) {
         setAparelho(d);
         setEconomia(e);
 
-        // Antes de qualquer contagem de streak: consome/concede escudo.
-        const estadoDoEscudo = await sincronizarEscudoDeStreak(r);
-        setEscudo(estadoDoEscudo);
-
         const novasMissoes = await verificarEConcluirMissoes(r, e, c);
         const missoesConcluidas = await obterMissoes();
         setMissoes(verificarMissoes(montarContextoDeMissoes(r, e, c, dataDeHoje()), missoesConcluidas));
@@ -76,7 +71,6 @@ export default function HomeScreen({ navigation }) {
         const novasConquistas = await verificarEDesbloquearConquistas(r, e, missoesConcluidas, {
             sessoesDeCrise: c,
             diasDeAbertura,
-            diasComEscudo: estadoDoEscudo.usedDates,
         });
         const resumo = await atualizarXp(r, null, missoesConcluidas);
         setXp(resumo.xp);
@@ -102,7 +96,8 @@ export default function HomeScreen({ navigation }) {
     const hoje = dataDeHoje();
     const registrosDeHoje = registros.filter((r) => r.date === hoje);
     const puxadasDeHoje = somarPuxadas(registrosDeHoje);
-    const streak = calcularStreak(registros, escudo.usedDates);
+    const { streak, escudos, progresso, ultimoDiaProtegido, gastouEscudoNoUltimoDia } =
+        calcularEstadoDeStreak(registros);
     const ultimos7Dias = ultimosNDias(7);
     const puxadasDaSemana = ultimos7Dias.reduce((soma, d) => {
         return soma + somarPuxadas(registros.filter((r) => r.date === d));
@@ -117,21 +112,18 @@ export default function HomeScreen({ navigation }) {
     const economiaDeHoje = economia[hoje] || 0;
     const economiaTotal = Object.values(economia).reduce((a, v) => a + v, 0);
 
-    // Escudo: protege 1 dia perdido (sem registro ou com uso) por vez.
-    const temEscudo = escudo.count > 0;
-    const ultimoUsoDoEscudo = (escudo.usedDates || [])[(escudo.usedDates || []).length - 1];
+    // Escudo: derivado dos registros, protege um dia com uso registrado.
+    const temEscudo = escudos > 0;
     const mensagemDoEscudo = (() => {
-        if (escudo.diasConsumidos?.length > 0) {
-            const [, mes, dia] = escudo.diasConsumidos[escudo.diasConsumidos.length - 1].split('-');
+        if (temEscudo) {
+            return 'Escudo pronto: se você registrar uso, a sequência não zera';
+        }
+        if (gastouEscudoNoUltimoDia && streak > 0) {
+            const [, mes, dia] = ultimoDiaProtegido.split('-');
             return `Escudo usado em ${dia}/${mes} — sua sequência continua! 💪`;
         }
-        if (temEscudo) {
-            return 'Escudo pronto: se você falhar um dia, a sequência não zera';
-        }
-        if (ultimoUsoDoEscudo) {
-            return 'Escudo gasto. Complete mais 7 dias seguidos pra ganhar outro';
-        }
-        return 'Complete 7 dias seguidos pra ganhar um escudo de sequência';
+        const faltam = DIAS_PARA_ESCUDO - progresso;
+        return `Faltam ${faltam} ${faltam === 1 ? 'dia' : 'dias'} sem uso pra ganhar um escudo`;
     })();
 
     const nivel = obterNivel(xp);

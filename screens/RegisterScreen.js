@@ -26,7 +26,9 @@ import {
     atualizarXp,
     obterEconomia,
     dataDeHoje,
-    sincronizarEscudoDeStreak,
+    datasRegistraveis,
+    dataEhRegistravel,
+    DIAS_PARA_TRAS_NO_REGISTRO,
 } from '../utils/storage';
 import { agendarNotificacoesMotivacionais } from '../utils/notifications';
 import { agendarNotificacaoDeStreak } from '../utils/notifications';
@@ -38,10 +40,23 @@ import { usarTema } from '../context/ThemeContext';
 import { usarToastDeXp } from '../context/XpToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 
+const NOMES_DOS_DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
 function formatarRotuloDaDataSelecionada(dataStr) {
     if (dataStr === dataDeHoje()) return 'hoje';
     const [ano, mes, dia] = dataStr.split('-');
     return `no dia ${dia}/${mes}/${ano}`;
+}
+
+// Rótulo de cada opção do seletor: "Hoje", "Ontem" ou "Sexta, 18/07".
+function formatarOpcaoDeData(dataStr, hoje) {
+    const [, mes, dia] = dataStr.split('-');
+    if (dataStr === hoje) return `Hoje · ${dia}/${mes}`;
+    const data = new Date(`${dataStr}T12:00:00`);
+    const ontem = new Date(`${hoje}T12:00:00`);
+    ontem.setDate(ontem.getDate() - 1);
+    if (dataStr === ontem.toISOString().slice(0, 10)) return `Ontem · ${dia}/${mes}`;
+    return `${NOMES_DOS_DIAS[data.getDay()]} · ${dia}/${mes}`;
 }
 
 export default function RegisterScreen({ navigation }) {
@@ -61,15 +76,9 @@ export default function RegisterScreen({ navigation }) {
     const [mostrarSeletorDeData, setMostrarSeletorDeData] = useState(false);
     const [registroExistente, setRegistroExistente] = useState(null);
 
-    const [anoDoSeletor, setAnoDoSeletor] = useState(new Date().getFullYear());
-    const [mesDoSeletor, setMesDoSeletor] = useState(new Date().getMonth() + 1);
-    const [diaDoSeletor, setDiaDoSeletor] = useState(new Date().getDate());
-
-    const anos = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
-    const nomesDosMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const valoresDosMeses = Array.from({ length: 12 }, (_, i) => i + 1);
-    const diasNoMes = new Date(anoDoSeletor, mesDoSeletor, 0).getDate();
-    const dias = Array.from({ length: diasNoMes }, (_, i) => i + 1);
+    // Só dá pra registrar hoje e os DIAS_PARA_TRAS_NO_REGISTRO dias anteriores
+    // (mais recente primeiro na lista).
+    const datasDisponiveis = datasRegistraveis().slice().reverse();
 
     React.useEffect(() => {
         const verificarRegistroExistente = async () => {
@@ -81,6 +90,9 @@ export default function RegisterScreen({ navigation }) {
     }, [dataSelecionada]);
 
     const animacaoDeFade = useRef(new Animated.Value(0)).current;
+    // `salvando` (state) é só pro botão; a trava contra duplo toque precisa ser
+    // ref, senão o segundo toque lê o state antigo antes do re-render.
+    const salvandoRef = useRef(false);
 
     const mostrarSucesso = (msg) => {
         setMensagemDeSucesso(msg);
@@ -121,10 +133,6 @@ export default function RegisterScreen({ navigation }) {
         const economia = aparelho ? await recalcularEconomia(novosRegistros, aparelho) : await obterEconomia();
         const sessoesDeCrise = await obterSessoesDeCrise();
 
-        // Registrar um dia com uso pode ser coberto pelo escudo — sincroniza
-        // antes das conquistas pra elas verem o streak já protegido.
-        await sincronizarEscudoDeStreak(novosRegistros);
-
         const novasMissoes = await verificarEConcluirMissoes(novosRegistros, economia, sessoesDeCrise);
         const missoesConcluidas = await obterMissoes();
         const novasConquistas = await verificarEDesbloquearConquistas(novosRegistros, economia, missoesConcluidas);
@@ -152,9 +160,31 @@ export default function RegisterScreen({ navigation }) {
             return;
         }
 
+        if (!dataEhRegistravel(dataSelecionada)) {
+            Alert.alert(
+                'Data fora do prazo',
+                `Só dá pra registrar hoje ou até ${DIAS_PARA_TRAS_NO_REGISTRO} dias atrás.`
+            );
+            setDataSelecionada(dataDeHoje());
+            return;
+        }
+
+        // A trava evita que dois toques rápidos passem os dois pela checagem de
+        // registro existente e criem dois registros pro mesmo dia.
+        if (salvandoRef.current) return;
+        salvandoRef.current = true;
+        setSalvando(true);
+
         // Já existe registro nessa data: confirma antes de sobrescrever.
-        const todosOsRegistros = await obterRegistros();
-        const existente = todosOsRegistros.find((r) => r.date === dataSelecionada);
+        let existente;
+        try {
+            const todosOsRegistros = await obterRegistros();
+            existente = todosOsRegistros.find((r) => r.date === dataSelecionada);
+        } finally {
+            salvandoRef.current = false;
+            setSalvando(false);
+        }
+
         if (existente) {
             setRegistroExistente(existente);
             Alert.alert(
@@ -172,6 +202,8 @@ export default function RegisterScreen({ navigation }) {
     };
 
     const salvarDeFato = async (existente) => {
+        if (salvandoRef.current) return;
+        salvandoRef.current = true;
         setSalvando(true);
         try {
             const agora = new Date();
@@ -220,22 +252,14 @@ export default function RegisterScreen({ navigation }) {
         } catch (erro) {
             Alert.alert('Erro', 'Não deu pra salvar o registro. Tenta de novo.');
         } finally {
+            salvandoRef.current = false;
             setSalvando(false);
         }
     };
 
-    const selecionarData = () => {
-        const dataStr = `${anoDoSeletor}-${String(mesDoSeletor).padStart(2, '0')}-${String(diaDoSeletor).padStart(2, '0')}`;
+    const selecionarData = (dataStr) => {
         setDataSelecionada(dataStr);
         setMostrarSeletorDeData(false);
-    };
-
-    const abrirSeletorDeData = () => {
-        const [y, m, d] = dataSelecionada.split('-').map(Number);
-        setAnoDoSeletor(y || new Date().getFullYear());
-        setMesDoSeletor(m || new Date().getMonth() + 1);
-        setDiaDoSeletor(d || new Date().getDate());
-        setMostrarSeletorDeData(true);
     };
 
     const corDaIntensidade = intensidade <= 3 ? cores.primary : intensidade <= 6 ? cores.warning : cores.danger;
@@ -261,7 +285,7 @@ export default function RegisterScreen({ navigation }) {
                 <Text style={[styles.fieldLabel, { color: cores.text }]}>Data</Text>
                 <TouchableOpacity
                     style={[styles.dateSelector, { borderColor: cores.border, backgroundColor: cores.card }]}
-                    onPress={abrirSeletorDeData}
+                    onPress={() => setMostrarSeletorDeData(true)}
                 >
                     <Ionicons name="calendar-outline" size={18} color={cores.primary} />
                     <Text style={[styles.dateSelectorText, { color: cores.text }]}>{dataSelecionada}</Text>
@@ -281,34 +305,24 @@ export default function RegisterScreen({ navigation }) {
                                     <Text style={[styles.datePickerCancel, { color: cores.textMuted }]}>Cancelar</Text>
                                 </TouchableOpacity>
                                 <Text style={[styles.datePickerTitle, { color: cores.text }]}>Escolher data</Text>
-                                <TouchableOpacity onPress={selecionarData}>
-                                    <Text style={[styles.datePickerDone, { color: cores.primary }]}>Confirmar</Text>
-                                </TouchableOpacity>
+                                <View style={styles.datePickerSpacer} />
                             </View>
-                            <View style={styles.datePickerRow}>
-                                {[
-                                    { rotulo: 'Dia', valores: dias, selecionado: diaDoSeletor, aoSelecionar: setDiaDoSeletor },
-                                    { rotulo: 'Mês', valores: valoresDosMeses, selecionado: mesDoSeletor, aoSelecionar: setMesDoSeletor, exibir: (m) => nomesDosMeses[m - 1] },
-                                    { rotulo: 'Ano', valores: anos, selecionado: anoDoSeletor, aoSelecionar: setAnoDoSeletor },
-                                ].map(({ rotulo, valores, selecionado, aoSelecionar, exibir }) => (
-                                    <View key={rotulo} style={styles.pickerColumn}>
-                                        <Text style={[styles.pickerLabel, { color: cores.textMuted }]}>{rotulo}</Text>
-                                        <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
-                                            {valores.map((v) => (
-                                                <TouchableOpacity
-                                                    key={v}
-                                                    style={[styles.pickerItem, v === selecionado && { backgroundColor: cores.primaryLight }]}
-                                                    onPress={() => aoSelecionar(v)}
-                                                >
-                                                    <Text style={[styles.pickerItemText, { color: cores.text }, v === selecionado && { color: cores.primaryDark, fontWeight: '600' }]}>
-                                                        {exibir ? exibir(v) : v}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </ScrollView>
-                                    </View>
+                            <Text style={[styles.pickerLabel, { color: cores.textMuted }]}>
+                                Dá pra registrar hoje ou até {DIAS_PARA_TRAS_NO_REGISTRO} dias atrás
+                            </Text>
+                            <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                                {datasDisponiveis.map((data) => (
+                                    <TouchableOpacity
+                                        key={data}
+                                        style={[styles.pickerItem, data === dataSelecionada && { backgroundColor: cores.primaryLight }]}
+                                        onPress={() => selecionarData(data)}
+                                    >
+                                        <Text style={[styles.pickerItemText, { color: cores.text }, data === dataSelecionada && { color: cores.primaryDark, fontWeight: '600' }]}>
+                                            {formatarOpcaoDeData(data, dataDeHoje())}
+                                        </Text>
+                                    </TouchableOpacity>
                                 ))}
-                            </View>
+                            </ScrollView>
                         </View>
                     </View>
                 </Modal>
@@ -600,15 +614,9 @@ const styles = StyleSheet.create({
     },
     datePickerTitle: { fontSize: 18, fontWeight: '700' },
     datePickerCancel: { fontSize: 16 },
-    datePickerDone: { fontSize: 16, fontWeight: '600' },
-    datePickerRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        paddingTop: 10,
-    },
-    pickerColumn: { alignItems: 'center', width: 80 },
-    pickerLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
-    pickerScroll: { height: 150 },
-    pickerItem: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: RAIO.sm },
+    datePickerSpacer: { width: 60 },
+    pickerLabel: { fontSize: 12, fontWeight: '600', marginTop: 12, marginBottom: 8, paddingHorizontal: 16 },
+    pickerScroll: { maxHeight: 300, paddingHorizontal: 16 },
+    pickerItem: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: RAIO.sm },
     pickerItemText: { fontSize: 16 },
 });

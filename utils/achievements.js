@@ -15,10 +15,7 @@ export const CONQUISTAS = [
     titulo: 'Começando Bem',
     descricao: '3 dias seguidos sem usar',
     icone: '🔥',
-    condicao: (registros, economia, missoesConcluidas, contexto) => {
-      const streak = calcularStreak(registros, contexto?.diasComEscudo);
-      return streak >= 3;
-    },
+    condicao: (registros) => calcularStreak(registros) >= 3,
   },
   {
     id: 'streak_7',
@@ -26,10 +23,7 @@ export const CONQUISTAS = [
     titulo: 'Uma Semana',
     descricao: '7 dias seguidos sem usar',
     icone: '🌟',
-    condicao: (registros, economia, missoesConcluidas, contexto) => {
-      const streak = calcularStreak(registros, contexto?.diasComEscudo);
-      return streak >= 7;
-    },
+    condicao: (registros) => calcularStreak(registros) >= 7,
   },
   {
     id: 'streak_14',
@@ -37,10 +31,7 @@ export const CONQUISTAS = [
     titulo: 'Duas Semanas',
     descricao: '14 dias seguidos sem usar',
     icone: '💪',
-    condicao: (registros, economia, missoesConcluidas, contexto) => {
-      const streak = calcularStreak(registros, contexto?.diasComEscudo);
-      return streak >= 14;
-    },
+    condicao: (registros) => calcularStreak(registros) >= 14,
   },
   {
     id: 'streak_30',
@@ -48,10 +39,7 @@ export const CONQUISTAS = [
     titulo: 'Um Mês',
     descricao: '30 dias seguidos sem usar',
     icone: '🏆',
-    condicao: (registros, economia, missoesConcluidas, contexto) => {
-      const streak = calcularStreak(registros, contexto?.diasComEscudo);
-      return streak >= 30;
-    },
+    condicao: (registros) => calcularStreak(registros) >= 30,
   },
   {
     id: 'no_puffs_1',
@@ -254,58 +242,111 @@ function agruparRegistrosPorData(registros) {
   }, {});
 }
 
-// Caminha do último registro pra trás enquanto o dia contar como limpo.
-// `diasProtegidos` são os dias cobertos por escudo de streak (ver
-// utils/storage.js `sincronizarEscudoDeStreak`): contam como limpos mesmo que
-// o dia não tenha registro nenhum ou tenha registro com `used === true`.
-// Devolve { streak, dataDaQuebra }, onde `dataDaQuebra` é o dia que
-// interrompeu a contagem (null quando a sequência chegou no começo do
-// histórico).
-function percorrerStreak(registros, diasProtegidos = []) {
+// ─── Streak + escudo ─────────────────────────────────────────────────────────
+// O escudo NÃO é dado persistido: é derivado do histórico de registros, junto
+// com o streak, por `calcularEstadoDeStreak`. Foi assim que a mecânica voltou
+// depois de a versão antiga (estado incremental salvo no Firestore) ficar
+// permanentemente dessincronizada — aqui, editar ou apagar um registro antigo
+// recalcula tudo sozinho.
+//
+// Regras:
+// - Dia limpo = dia com pelo menos um registro e nenhum com `used === true`.
+// - A cada DIAS_PARA_ESCUDO dias limpos ganha 1 escudo (máximo MAX_ESCUDOS).
+// - Dia com uso registrado, tendo escudo e streak: gasta o escudo, o streak
+//   ainda soma 1 e o contador pro próximo escudo volta a zero (esse dia não
+//   conta pros próximos 7).
+// - Dia sem registro nenhum zera o streak — escudo não cobre esquecimento.
+// - Quando o streak zera, o escudo guardado se perde junto.
+
+export const DIAS_PARA_ESCUDO = 7;
+const MAX_ESCUDOS = 1;
+
+// Simula o histórico pra frente, do primeiro ao último dia com registro. Dias
+// depois do último registro não são avaliados: senão o streak quebraria
+// sozinho antes de o usuário registrar o dia de hoje.
+export function calcularEstadoDeStreak(registros) {
+  const vazio = {
+    streak: 0,
+    escudos: 0,
+    progresso: 0,
+    diasProtegidos: [],
+    ultimoDiaProtegido: null,
+    gastouEscudoNoUltimoDia: false,
+  };
+
   if (!Array.isArray(registros) || registros.length === 0) {
-    return { streak: 0, dataDaQuebra: null };
+    return vazio;
   }
 
   const registrosPorData = agruparRegistrosPorData(registros);
-  const protegidos = new Set(diasProtegidos || []);
   const datas = Object.keys(registrosPorData).sort();
-  const dataDoPrimeiroRegistro = datas[0];
   const dataDoUltimoRegistro = datas[datas.length - 1];
-  const cursor = new Date(`${dataDoUltimoRegistro}T12:00:00`);
+  const cursor = new Date(`${datas[0]}T12:00:00`);
+
   let streak = 0;
+  let escudos = 0;
+  let progresso = 0;
+  const diasProtegidos = [];
 
   while (true) {
     const chaveDaData = cursor.toISOString().slice(0, 10);
-
-    // Passou do primeiro registro do histórico — não existe dia pra proteger.
-    if (chaveDaData < dataDoPrimeiroRegistro) {
-      return { streak, dataDaQuebra: null };
-    }
-
     const registrosDoDia = registrosPorData[chaveDaData] || [];
-    const limpo = registrosDoDia.length > 0 && !registrosDoDia.some((registro) => registro.used === true);
+    const temRegistro = registrosDoDia.length > 0;
+    const limpo = temRegistro && !registrosDoDia.some((registro) => registro.used === true);
 
-    if (!limpo && !protegidos.has(chaveDaData)) {
-      return { streak, dataDaQuebra: chaveDaData };
+    if (limpo) {
+      streak += 1;
+      progresso += 1;
+      if (progresso >= DIAS_PARA_ESCUDO) {
+        if (escudos < MAX_ESCUDOS) {
+          escudos = MAX_ESCUDOS;
+          progresso = 0;
+        } else {
+          // Já está com o escudo cheio: congela em vez de transbordar, senão
+          // gastar o escudo devolveria outro na hora.
+          progresso = DIAS_PARA_ESCUDO;
+        }
+      }
+    } else if (temRegistro && escudos > 0 && streak > 0) {
+      escudos = 0;
+      progresso = 0;
+      streak += 1;
+      diasProtegidos.push(chaveDaData);
+    } else {
+      // Sequência quebrou de vez: o escudo pertence à sequência, morre com ela.
+      streak = 0;
+      escudos = 0;
+      progresso = 0;
     }
 
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
+    if (chaveDaData >= dataDoUltimoRegistro) {
+      break;
+    }
+    cursor.setDate(cursor.getDate() + 1);
   }
+
+  const ultimoDiaProtegido = diasProtegidos.length
+    ? diasProtegidos[diasProtegidos.length - 1]
+    : null;
+
+  return {
+    streak,
+    escudos,
+    progresso,
+    diasProtegidos,
+    ultimoDiaProtegido,
+    // Só o dia mais recente do histórico é "acabou de acontecer" — é o que a
+    // Home usa pra avisar que o escudo foi gasto agora, e não semanas atrás.
+    gastouEscudoNoUltimoDia: ultimoDiaProtegido === dataDoUltimoRegistro,
+  };
 }
 
-export function calcularStreak(registros, diasProtegidos = []) {
-  return percorrerStreak(registros, diasProtegidos).streak;
-}
-
-// Dia que está segurando o streak (sem registro ou com uso), ou null.
-// É esse dia que o escudo cobre quando é consumido.
-export function encontrarDataDeQuebraDeStreak(registros, diasProtegidos = []) {
-  return percorrerStreak(registros, diasProtegidos).dataDaQuebra;
+export function calcularStreak(registros) {
+  return calcularEstadoDeStreak(registros).streak;
 }
 
 // `contexto` traz o que não está nos registros:
-// { sessoesDeCrise, diasDeAbertura, diasComEscudo }.
+// { sessoesDeCrise, diasDeAbertura }.
 export async function verificarConquistas(
   registros,
   economia = {},

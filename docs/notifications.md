@@ -5,7 +5,7 @@ Só notificações **locais** (`expo-notifications`), sem servidor/push remoto. 
 ## Duas notificações agendadas, diárias, mesmo horário (9h por padrão)
 
 - **Motivacional** (`vapefree-motivational-daily`): se o usuário não registrou nada hoje, lembra de registrar; se já registrou, manda uma dica aleatória de `DICAS` (`utils/theme.js`).
-- **Aviso de streak** (`vapefree-streak-warning-daily`): só é agendada se `calcularStreak(records, shield.usedDates) > 0` **e** ainda não houver registro hoje — avisa pra não perder a sequência. Se não houver streak ativo ou já tiver registrado hoje, a chamada cancela a notificação existente e não agenda nova (retorna sem criar).
+- **Aviso de streak** (`vapefree-streak-warning-daily`): só é agendada se `calcularStreak(records) > 0` **e** ainda não houver registro hoje — avisa pra não perder a sequência. Se não houver streak ativo ou já tiver registrado hoje, a chamada cancela a notificação existente e não agenda nova (retorna sem criar).
 
 Ambas usam um `identifier` fixo — reagendar sempre cancela a anterior primeiro (`cancelScheduledNotificationAsync`), evitando duplicar.
 
