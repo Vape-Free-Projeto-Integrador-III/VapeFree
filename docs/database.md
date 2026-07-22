@@ -27,6 +27,8 @@ Não há cache/estado duplicado entre as duas fontes — cada chamada relê a fo
 ```
 Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Convidado: array em `@vapefree_records`.
 
+`saveRecord`/`updateRecord` passam o registro por `normalizeRecord` (`utils/records.js`) antes de gravar: com `used: false`, `puffs` vira `0` e `triggers` vira `[]`. Para somar puxadas em qualquer lugar (gráficos, totais, economia, insights) use `recordPuffs(record)` / `sumPuffs(records)` do mesmo arquivo — nunca `record.puffs` direto, porque registros salvos antes dessa normalização podem ter `puffs > 0` com `used: false` (foi editado de "usei" para "não usei").
+
 **Device** (um por usuário):
 ```js
 { name, type /* 'desc'|'rec' */, price, totalPuffs, days }

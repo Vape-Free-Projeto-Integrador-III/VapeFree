@@ -346,7 +346,11 @@ export default function RegisterScreen({ navigation }) {
                         <TouchableOpacity
                             key={label}
                             style={[styles.toggleBtn, { borderColor: colors.border, backgroundColor: colors.card }, used === val && { borderColor: colors.primary, backgroundColor: colors.primary }]}
-                            onPress={() => setUsed(val)}
+                            onPress={() => {
+                                setUsed(val);
+                                // Usou = pelo menos 1 puxada.
+                                if (val) setPuffs((p) => Math.max(1, p));
+                            }}
                         >
                             <Text style={[styles.toggleBtnText, { color: colors.textSecondary }, used === val && { color: '#fff' }]}>{label}</Text>
                         </TouchableOpacity>
@@ -360,7 +364,7 @@ export default function RegisterScreen({ navigation }) {
                         <View style={styles.counterRow}>
                             <TouchableOpacity
                                 style={[styles.counterBtn, { borderColor: colors.primary, backgroundColor: colors.card }]}
-                                onPress={() => setPuffs((p) => Math.max(0, p - 1))}
+                                onPress={() => setPuffs((p) => Math.max(1, p - 1))}
                             >
                                 <Text style={[styles.counterBtnText, { color: colors.primary }]}>−</Text>
                             </TouchableOpacity>

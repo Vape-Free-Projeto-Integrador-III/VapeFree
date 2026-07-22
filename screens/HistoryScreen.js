@@ -26,6 +26,7 @@ import {
     getEconomy,
     getCrisisSessions,
 } from '../utils/storage';
+import { recordPuffs } from '../utils/records';
 import { RADIUS, SHADOW, TRIGGERS, HELPS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -104,7 +105,7 @@ function groupRecordsBy(records, getKey, metric) {
     return records.reduce((groups, record) => {
         const key = getKey(record.date);
         if (!groups[key]) groups[key] = 0;
-        groups[key] += record.puffs || 0;
+        groups[key] += recordPuffs(record);
         return groups;
     }, {});
 }
@@ -363,7 +364,7 @@ export default function HistoryScreen({ navigation }) {
                                         <TouchableOpacity
                                             key={label}
                                             style={[styles.toggleBtn, { borderColor: colors.border, backgroundColor: colors.card }, editingRecord.used === val && { borderColor: colors.primary, backgroundColor: colors.primary }]}
-                                            onPress={() => setEditingRecord({ ...editingRecord, used: val })}
+                                            onPress={() => setEditingRecord({ ...editingRecord, used: val, puffs: val ? Math.max(1, editingRecord.puffs || 0) : editingRecord.puffs })}
                                         >
                                             <Text style={[styles.toggleBtnText, { color: colors.textSecondary }, editingRecord.used === val && { color: '#fff' }]}>{label}</Text>
                                         </TouchableOpacity>
@@ -376,7 +377,7 @@ export default function HistoryScreen({ navigation }) {
                                         <View style={styles.counterRow}>
                                             <TouchableOpacity
                                                 style={[styles.counterBtn, { borderColor: colors.primary, backgroundColor: colors.card }]}
-                                                onPress={() => setEditingRecord({ ...editingRecord, puffs: Math.max(0, editingRecord.puffs - 1) })}
+                                                onPress={() => setEditingRecord({ ...editingRecord, puffs: Math.max(1, editingRecord.puffs - 1) })}
                                             >
                                                 <Text style={[styles.counterBtnText, { color: colors.primary }]}>−</Text>
                                             </TouchableOpacity>

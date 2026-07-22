@@ -27,6 +27,7 @@ import {
     registerAppOpen,
     syncStreakShield,
 } from '../utils/storage';
+import { sumPuffs } from '../utils/records';
 import { getLevel } from '../utils/xp';
 import { buildMissionContext, checkMissions } from '../utils/missions';
 import { RADIUS, SHADOW, TIPS } from '../utils/theme';
@@ -102,20 +103,18 @@ export default function HomeScreen({ navigation }) {
 
     const today = todayString();
     const todayRecs = records.filter((r) => r.date === today);
-    const todayPuffs = todayRecs.reduce((a, r) => a + (r.puffs || 0), 0);
+    const todayPuffs = sumPuffs(todayRecs);
     const streak = calcStreak(records, shield.usedDates);
     const last7 = getLastNDays(7);
     const weekPuffs = last7.reduce((sum, d) => {
-        return sum + records.filter((r) => r.date === d).reduce((a, r) => a + (r.puffs || 0), 0);
+        return sum + sumPuffs(records.filter((r) => r.date === d));
     }, 0);
 
     const chartLabels = last7.map((d) => {
         const [, month, day] = d.split('-');
         return `${day}/${month}`;
     });
-    const chartData = last7.map((d) =>
-        records.filter((r) => r.date === d).reduce((a, r) => a + (r.puffs || 0), 0)
-    );
+    const chartData = last7.map((d) => sumPuffs(records.filter((r) => r.date === d)));
 
     const todayEco = economy[today] || 0;
     const totalEco = Object.values(economy).reduce((a, v) => a + v, 0);

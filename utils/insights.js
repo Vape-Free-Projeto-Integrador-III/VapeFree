@@ -9,6 +9,7 @@
 // formulário foi salvo, não a hora em que a pessoa usou o vape (o registro
 // pode ser retroativo pelo date picker). Insight de horário sairia errado.
 
+import { recordPuffs } from './records';
 import { TRIGGERS, HELPS } from './theme';
 
 export const MIN_RECORDS_FOR_INSIGHTS = 7;
@@ -87,7 +88,7 @@ function riskiestWeekday(records) {
   records.forEach((record) => {
     const day = parseLocalDate(record.date).getDay();
     if (!byWeekday[day]) byWeekday[day] = { total: 0, count: 0 };
-    byWeekday[day].total += record.puffs || 0;
+    byWeekday[day].total += recordPuffs(record);
     byWeekday[day].count += 1;
   });
 

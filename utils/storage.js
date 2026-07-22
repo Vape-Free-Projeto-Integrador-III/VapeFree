@@ -28,6 +28,7 @@ import {
 import { auth, db } from '../services/firebase';
 import { checkAchievements, calcStreak, findStreakBreakDate } from './achievements';
 import { buildMissionContext, checkMissions } from './missions';
+import { normalizeRecord, sumPuffs } from './records';
 import { getXpSummary } from './xp';
 
 export { calcStreak };
@@ -176,8 +177,9 @@ export async function getRecords() {
   }
 }
 
-export async function saveRecord(record) {
+export async function saveRecord(newRecord) {
   const uid = getUid();
+  const record = normalizeRecord(newRecord);
   try {
     if (uid) {
       await setDoc(doc(db, 'users', uid, 'records', String(record.id)), record);
@@ -208,8 +210,9 @@ export async function deleteRecord(id) {
   }
 }
 
-export async function updateRecord(updatedRecord) {
+export async function updateRecord(record) {
   const uid = getUid();
+  const updatedRecord = normalizeRecord(record);
   try {
     if (uid) {
       await setDoc(doc(db, 'users', uid, 'records', String(updatedRecord.id)), updatedRecord);
@@ -309,7 +312,7 @@ export async function recalcEconomy(records, device) {
 
   const economyMap = {};
   Object.entries(byDate).forEach(([date, recs]) => {
-    const usedToday = recs.reduce((sum, r) => sum + (r.puffs || 0), 0);
+    const usedToday = sumPuffs(recs);
     const notGiven = Math.max(0, dailyGoal - usedToday);
     economyMap[date] = parseFloat((notGiven * costPerPuff).toFixed(2));
   });
