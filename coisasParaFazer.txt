@@ -30,17 +30,6 @@ e voltar
     Card com o nome da conquista, quantos dias de streak,
     e branding do VapeFree. Útil para engajamento orgânico.
 
-
----- UX / INTERFACE ----
-
-[ ] Feedback tátil (haptics)
-    Usar expo-haptics para dar feedback ao:
-      - Salvar um registro
-      - Desbloquear conquista
-      - Completar missão
-      - Usar o botão de emergência
-    Melhora muito a sensação de resposta do app
-
 ---- TÉCNICO ----
 
 [ ] Tratamento de erros mais visível para o usuário

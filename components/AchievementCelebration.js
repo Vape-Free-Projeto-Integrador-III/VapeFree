@@ -4,7 +4,8 @@
 // Quem dispara é o XpToastProvider (context/XpToastContext.js), uma conquista
 // por vez — o botão "Arrasou!" chama aoFechar e o provider mostra a próxima.
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Vibration, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 
@@ -68,7 +69,9 @@ export default function AchievementCelebration({ conquista, aoFechar }) {
     useEffect(() => {
         if (!conquista) return undefined;
 
-        Vibration.vibrate([0, 40, 60, 40]);
+        // Haptic de sucesso (só nativo; noop no web). Falha silenciosa se o
+        // aparelho não suportar.
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
         entrada.setValue(0);
         confete.setValue(0);

@@ -17,11 +17,11 @@ export const REGRAS_DE_XP = {
 };
 
 export const NIVEIS = [
-  { nome: 'Iniciante', icone: '🌱', minimo: 0, maximo: 200 },
-  { nome: 'Resistente', icone: '🛡️', minimo: 200, maximo: 500 },
-  { nome: 'Guerreiro', icone: '⚔️', minimo: 500, maximo: 1000 },
-  { nome: 'Campeão', icone: '🏆', minimo: 1000, maximo: 2000 },
-  { nome: 'Lendário', icone: '👑', minimo: 2000, maximo: Infinity },
+  { nome: 'Iniciante', icone: '🌱', minimo: 0, maximo: 1000 },
+  { nome: 'Resistente', icone: '🛡️', minimo: 1000, maximo: 2500 },
+  { nome: 'Guerreiro', icone: '⚔️', minimo: 2500, maximo: 5000 },
+  { nome: 'Campeão', icone: '🏆', minimo: 5000, maximo: 10000 },
+  { nome: 'Lendário', icone: '👑', minimo: 10000, maximo: Infinity },
 ];
 
 // Maior sequência de dias seguidos sem usar já feita (não só a atual) —
