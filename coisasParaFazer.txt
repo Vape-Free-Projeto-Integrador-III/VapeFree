@@ -22,18 +22,6 @@ e voltar
     adolescentes. Salvar flag "onboarding_concluido" no storage
     para não exibir novamente.
 
-
----- GAMIFICAÇÃO ----
-
-[ ] Celebração visual ao desbloquear conquista
-    Hoje o desbloqueio acontece silenciosamente.
-    Implementar um modal que aparece automaticamente com:
-      - Emoji/ícone grande da conquista
-      - Nome e descrição
-      - Animação (confete, brilho, ou vibração via Haptics)
-      - Botão "Arrasou!" para fechar
-    Disparar após saveRecord() quando newUnlocks.length > 0.
-
 ---- SOCIAL ----
 
 [ ] Compartilhar conquista
