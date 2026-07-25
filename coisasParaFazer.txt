@@ -22,14 +22,6 @@ e voltar
     adolescentes. Salvar flag "onboarding_concluido" no storage
     para não exibir novamente.
 
----- SOCIAL ----
-
-[ ] Compartilhar conquista
-    Ao desbloquear uma conquista, opção de compartilhar
-    um card gerado no app (usando expo-sharing ou similar).
-    Card com o nome da conquista, quantos dias de streak,
-    e branding do VapeFree. Útil para engajamento orgânico.
-
 ---- TÉCNICO ----
 
 [ ] Tratamento de erros mais visível para o usuário

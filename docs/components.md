@@ -53,6 +53,20 @@ Popup pequeno no topo da tela ("Missão: X · +25 XP"). Não use direto: chame `
 
 O provider mostra um toast por vez, na ordem da fila, e fica montado em `App.js` dentro do `SafeAreaProvider`. O `Animated.View` é `pointerEvents="none"`, então nunca bloqueia toque. **Quem calcula o quanto foi ganho é `atualizarXp` (campo `ganho`)** — não incremente XP na mão para alimentar o toast.
 
+## `AchievementCelebration` (`components/AchievementCelebration.js`) + `AchievementShareCard`
+
+Modal de conquista desbloqueada (emoji com pulso, confete, haptic). Quem monta é o `XpToastProvider`, uma conquista por vez: props `conquista` e `aoFechar`.
+
+Botões: "Arrasou!" (fecha, avança a fila) e, abaixo, "Compartilhar 📤" — gera um PNG do `AchievementShareCard` com `captureRef` (`react-native-view-shot`) e abre o menu do sistema com `Sharing.shareAsync` (`expo-sharing`). Detalhes:
+
+- O botão só aparece se `Sharing.isAvailableAsync()` for `true` (no web é `false`).
+- `AchievementShareCard` é renderizado fora da tela (`top: -10000`, `pointerEvents="none"`) dentro do próprio modal — precisa estar montado com layout real pra ser capturado, e o wrapper tem `collapsable={false}` (sem isso o Android descarta a View e a captura falha).
+- As cores do card compartilhado são **fixas** (verde da marca, texto branco), não vêm de `usarTema()`: a imagem sai do app e deve ter sempre a mesma cara.
+- O streak que aparece no card vem de `obterRegistros` + `calcularStreak` dentro do modal, não por prop (o provider só conhece a conquista).
+- Falha de captura/compartilhamento é silenciosa — o modal continua aberto.
+
+Ambas as libs são nativas: depois de instalar, precisa rebuildar (`npm run android` / `npm run ios`), não basta recarregar o Metro.
+
 ## Padrões de UI repetidos entre telas (não componentizados)
 
 Esses padrões existem em várias telas com estilo copiado, não como componente — ao criar tela nova, replique o padrão em vez de inventar um novo:

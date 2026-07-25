@@ -3,11 +3,15 @@
 // Emoji grande com pulso, confete animado (Animated puro, sem lib) e vibração.
 // Quem dispara é o XpToastProvider (context/XpToastContext.js), uma conquista
 // por vez — o botão "Arrasou!" chama aoFechar e o provider mostra a próxima.
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import * as Sharing from 'expo-sharing';
+import { captureRef } from 'react-native-view-shot';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
+import { obterRegistros, calcularStreak } from '../utils/storage';
+import AchievementShareCard from './AchievementShareCard';
 
 const { width: LARGURA_DA_TELA } = Dimensions.get('window');
 const EMOJIS_DE_CONFETE = ['🎉', '✨', '🎊', '⭐', '💚'];
@@ -65,6 +69,51 @@ export default function AchievementCelebration({ conquista, aoFechar }) {
     const entrada = useRef(new Animated.Value(0)).current;
     const pulso = useRef(new Animated.Value(1)).current;
     const confete = useRef(new Animated.Value(0)).current;
+    // Ref do card escondido que o view-shot captura pra virar imagem.
+    const cardParaCompartilhar = useRef(null);
+    const [streak, setStreak] = useState(0);
+    const [podeCompartilhar, setPodeCompartilhar] = useState(false);
+    const [compartilhando, setCompartilhando] = useState(false);
+
+    // Streak entra no card compartilhado. Vem do storage e não por prop porque
+    // quem monta esse modal é o XpToastProvider, que só conhece a conquista.
+    useEffect(() => {
+        if (!conquista) return undefined;
+        let ativo = true;
+
+        (async () => {
+            const registros = await obterRegistros();
+            if (ativo) setStreak(calcularStreak(registros));
+        })();
+
+        // No web (e em aparelho sem app de compartilhamento) o botão nem aparece.
+        Sharing.isAvailableAsync()
+            .then((disponivel) => {
+                if (ativo) setPodeCompartilhar(disponivel);
+            })
+            .catch(() => {});
+
+        return () => {
+            ativo = false;
+        };
+    }, [conquista]);
+
+    const compartilhar = useCallback(async () => {
+        if (compartilhando || !cardParaCompartilhar.current) return;
+        setCompartilhando(true);
+        try {
+            const uri = await captureRef(cardParaCompartilhar, { format: 'png', quality: 1 });
+            await Sharing.shareAsync(uri, {
+                mimeType: 'image/png',
+                dialogTitle: 'Compartilhar conquista',
+            });
+        } catch {
+            // Falha de captura/compartilhamento é silenciosa: o usuário continua
+            // com o modal aberto e pode só fechar.
+        } finally {
+            setCompartilhando(false);
+        }
+    }, [compartilhando]);
 
     useEffect(() => {
         if (!conquista) return undefined;
@@ -127,7 +176,27 @@ export default function AchievementCelebration({ conquista, aoFechar }) {
                     <TouchableOpacity style={[styles.botao, { backgroundColor: cores.primary }]} onPress={aoFechar} activeOpacity={0.85}>
                         <Text style={styles.botaoTexto}>Arrasou!</Text>
                     </TouchableOpacity>
+
+                    {podeCompartilhar && (
+                        <TouchableOpacity
+                            style={[styles.botaoSecundario, { borderColor: cores.primary }]}
+                            onPress={compartilhar}
+                            activeOpacity={0.85}
+                            disabled={compartilhando}
+                        >
+                            <Text style={[styles.botaoSecundarioTexto, { color: cores.primary }]}>
+                                {compartilhando ? 'Gerando card...' : 'Compartilhar 📤'}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </Animated.View>
+
+                {/* Fora da tela: só existe pra virar imagem no compartilhamento. */}
+                <View style={styles.areaDeCaptura} pointerEvents="none">
+                    <View ref={cardParaCompartilhar} collapsable={false}>
+                        <AchievementShareCard conquista={conquista} streak={streak} />
+                    </View>
+                </View>
             </View>
         </Modal>
     );
@@ -171,4 +240,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     botaoTexto: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+    botaoSecundario: {
+        marginTop: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 40,
+        borderRadius: RAIO.full,
+        borderWidth: 2,
+        alignSelf: 'stretch',
+        alignItems: 'center',
+    },
+    botaoSecundarioTexto: { fontSize: 15, fontWeight: '800' },
+    areaDeCaptura: { position: 'absolute', top: -10000, left: 0, opacity: 1 },
 });

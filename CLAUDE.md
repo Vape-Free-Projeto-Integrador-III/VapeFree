@@ -13,6 +13,7 @@ Detalhes por assunto ficam em `docs/`. Este arquivo só traz regras permanentes 
 - **AsyncStorage** para modo convidado (sem conta) e preferências locais (tema, flag de convidado).
 - **StyleSheet.create** do React Native para estilos — sem NativeWind/Tailwind, sem styled-components.
 - `react-native-chart-kit` (gráficos), `@miblanchard/react-native-slider` (sliders), `@expo/vector-icons` (ícones Ionicons).
+- `react-native-view-shot` + `expo-sharing` — só no compartilhamento de conquista (`components/AchievementCelebration.js`).
 - `react-native-paper` está no `package.json` mas **não é usado em nenhum lugar do código** — não assuma que está configurado/wired.
 - Sem ESLint, Prettier, Jest, `babel.config.js`, `metro.config.js` ou `eas.json` no repo — projeto roda só com os defaults do Expo.
 
