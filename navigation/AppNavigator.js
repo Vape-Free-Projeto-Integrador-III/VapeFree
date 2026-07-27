@@ -16,6 +16,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import CrisisScreen from '../screens/CrisisScreen';
 import MissionsScreen from '../screens/MissionsScreen';
 import BreathingScreen from '../screens/BreathingScreen';
+import OfflineBanner from '../components/OfflineBanner';
 import { SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarAuth } from '../context/AuthContext';
@@ -115,7 +116,11 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <View style={{ flex: 1 }}>
+      {/* Faixa de "sem internet". Fica fora do NavigationContainer pra
+          aparecer igual em qualquer tela, sem mexer em cada ScreenHeader. */}
+      <OfflineBanner />
+      <NavigationContainer>
       {/*
         A troca entre MainStack e AuthStack acontece automaticamente
         sempre que "usuario" ou "ehConvidado" mudam (login, logout ou escolha de
@@ -125,7 +130,8 @@ export default function AppNavigator() {
         Firebase (via onAuthStateChanged) e o AuthContext (modo convidado)
         é quem controla isso.
       */}
-      {usuario || ehConvidado ? <MainStack /> : <AuthStack rotaInicial={telaDeAuth} />}
-    </NavigationContainer>
+        {usuario || ehConvidado ? <MainStack /> : <AuthStack rotaInicial={telaDeAuth} />}
+      </NavigationContainer>
+    </View>
   );
 }

@@ -10,7 +10,8 @@ Detalhes por assunto ficam em `docs/`. Este arquivo só traz regras permanentes 
 - **JavaScript puro** — sem TypeScript (`.js` em todo o projeto, sem `tsconfig.json`).
 - **React Navigation** (`bottom-tabs` + `native-stack`) — sem Expo Router.
 - **Firebase** (`firebase` JS SDK v12): Auth + Firestore. Sem backend próprio.
-- **AsyncStorage** para modo convidado (sem conta) e preferências locais (tema, flag de convidado).
+- **AsyncStorage** para modo convidado (sem conta), preferências locais (tema, flag de convidado) e o espelho/fila offline do modo conta (`utils/offline.js`).
+- `@react-native-community/netinfo` — detecção de conexão, usada só por `utils/offline.js` e `context/ConnectionContext.js`.
 - **StyleSheet.create** do React Native para estilos — sem NativeWind/Tailwind, sem styled-components.
 - `react-native-chart-kit` (gráficos), `@miblanchard/react-native-slider` (sliders), `@expo/vector-icons` (ícones Ionicons).
 - `react-native-view-shot` + `expo-sharing` — só no compartilhamento de conquista (`components/AchievementCelebration.js`).
@@ -27,9 +28,9 @@ index.js            # registerRootComponent (entry point Expo)
 navigation/          # AppNavigator.js — toda a árvore de navegação
 screens/             # uma tela por arquivo, PascalCase
 components/          # componentes reutilizáveis entre telas
-context/             # AuthContext, ThemeContext (React Context API)
+context/             # AuthContext, ThemeContext, ConnectionContext (React Context API)
 services/            # firebase.native.js / firebase.web.js
-utils/               # storage.js (dados), achievements.js, notifications.js, theme.js
+utils/               # storage.js (dados), offline.js (espelho+fila), achievements.js, notifications.js, theme.js
 assets/              # ícones/splash do app.json
 docs/                # documentação detalhada por assunto (este índice)
 coisasParaFazer.txt  # backlog/roadmap do projeto — ver antes de propor features novas
@@ -66,7 +67,7 @@ Não existe pasta `src/` — tudo fica na raiz. Vários arquivos começam com co
 ## Instruções para futuras implementações
 
 1. Nova tela: criar em `screens/`, registrar em `navigation/AppNavigator.js`, usar `ScreenHeader`, ler cores via `usarTema()`.
-2. Novo dado persistido: adicionar par de funções em `utils/storage.js` seguindo o padrão `if (uid) { Firestore } else { AsyncStorage }` — nunca ramificar essa lógica dentro da tela.
+2. Novo dado persistido: adicionar par de funções em `utils/storage.js` seguindo o padrão `if (uid) { lerDaConta/escreverNaConta } else { AsyncStorage }` — nunca ramificar essa lógica dentro da tela, e nunca chamar Firestore direto no branch logado (quebraria o offline). Registre também o nome do espelho em `ESPELHOS` (`utils/offline.js`). Ver `docs/database.md`.
 3. Nova conquista: adicionar entrada em `CONQUISTAS` (`utils/achievements.js`) com `condicao(registros, economia, missoesConcluidas, contexto)` pura — `contexto` é `{ sessoesDeCrise, diasDeAbertura }`, montado por `verificarEDesbloquearConquistas`.
 3.1. Nova missão: adicionar entrada em `MISSOES` (`utils/missions.js`) com `progresso(ctx)` pura devolvendo `{ atual, alvo }` — ver `docs/missions.md`. Não renomeie o `id` de uma missão existente (faz parte da chave do que já foi salvo).
 4. Novo texto motivacional/trigger/ajuda: adicionar ao array correspondente em `utils/theme.js` (`DICAS`, `GATILHOS`, `AJUDAS`, `MENSAGENS_MOTIVACIONAIS`).

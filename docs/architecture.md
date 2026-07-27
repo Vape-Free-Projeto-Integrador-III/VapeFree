@@ -5,12 +5,15 @@
 ```
 screens/          → UI + orquestração (chama utils/, context/)
 components/        → UI reutilizável, sem lógica de dados própria
-context/            → estado global (auth, tema)
+context/            → estado global (auth, tema, conexão)
 utils/storage.js    → única porta de entrada para dados (decide AsyncStorage vs Firestore)
+utils/offline.js    → espelho local + fila de sincronização do modo conta (só storage.js usa)
 services/firebase.*  → inicialização do SDK Firebase
 ```
 
 Ao lado de `utils/storage.js` existem os **módulos puros de derivação** — `utils/achievements.js` (quais conquistas o histórico desbloqueia) e `utils/insights.js` (quais padrões o histórico revela). Eles não leem nem escrevem nada: recebem `registros` já carregados e devolvem o resultado calculado. Lógica nova que só transforma registros em informação deve entrar nesse formato, não dentro da tela.
+
+Da mesma forma, **nenhuma tela sabe se está online.** `utils/offline.js` guarda um espelho local do Firestore e uma fila de escritas pendentes; `storage.js` usa isso por baixo, então uma tela offline lê e escreve exatamente como online. A única exceção é a migração convidado→conta, que exige rede. Ver [database.md](database.md). O `ConnectionContext` existe só pra UI (banner de "sem internet") — não é por onde os dados passam.
 
 Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda função de `utils/storage.js` (`obterRegistros`, `salvarAparelho`, etc.) decide isso internamente olhando `auth.currentUser`. Isso é o que torna o app "isomórfico" entre os dois modos sem duplicar telas. Detalhe do modelo de dados em [database.md](database.md).
 
@@ -21,12 +24,13 @@ Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda 
 ```
 <AuthProvider>
   <ThemeProvider>
-    <AppContent> (SafeAreaProvider + StatusBar + AppNavigator)
-  </ThemeProvider>
-</AuthProvider>
+    <AppContent> (SafeAreaProvider + StatusBar)
+      <ConnectionProvider>
+        <XpToastProvider>
+          <AppNavigator>
 ```
 
-`AuthProvider` fica fora de `ThemeProvider` porque nada em Theme depende de Auth, mas telas dependem dos dois.
+`AuthProvider` fica fora de `ThemeProvider` porque nada em Theme depende de Auth, mas telas dependem dos dois. `ConnectionProvider` fica dentro dos dois porque precisa do `uid` (só sincroniza usuário logado) e o banner usa as cores do tema.
 
 ## Split nativo/web do Firebase
 

@@ -15,7 +15,30 @@ function getUid() {
 - **Logado** (`uid` existe) → Cloud Firestore, sob `users/{uid}/...`.
 - **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
 
-Não há cache/estado duplicado entre as duas fontes — cada chamada relê a fonte atual.
+O modo convidado fala direto com o `AsyncStorage`. O modo conta **não** fala direto com o Firestore: passa pelo espelho local + fila de `utils/offline.js` (ver abaixo).
+
+## Offline-first (modo conta)
+
+`utils/offline.js` é o motor; só `utils/storage.js` importa dele (a UI usa `context/ConnectionContext.js`). Duas peças:
+
+- **Espelho** — cópia local do que está no Firestore, no `AsyncStorage`, sob `@vapefree_cache_{uid}_{nome}`, com `nome` ∈ `records`, `achievements`, `crisisSessions`, `missions`, `device`, `economy`, `xp`, `appOpenDays`.
+- **Fila** — `@vapefree_queue_{uid}`, array ordenado de mutações `{ id, tipo, colecao, docId, dados, tentativas }`, com `tipo` ∈ `'set' | 'delete' | 'merge_usuario'` (esse último = `setDoc(users/{uid}, dados, { merge: true })`, usado por device/economy/xp/appOpenDays).
+
+Como cada operação se comporta:
+
+- **Leitura** (`lerDaConta`): tenta drenar a fila; se sobrou pendência, devolve o espelho. Senão busca no Firestore, atualiza o espelho e devolve. Sincronizar antes de ler é o que evita o dado remoto antigo sobrescrever o que o usuário acabou de escrever offline.
+- **Escrita** (`escreverNaConta`): aplica no espelho, empilha a mutação e chama `sincronizar` sem `await` — a tela nunca espera a rede.
+- **`comTempoLimite(promessa, 8000)`** envolve toda chamada de rede. É obrigatório: offline, o `setDoc` do SDK **não rejeita**, a promise fica pendurada pra sempre. Sem timeout a tela travava no "salvando", sem erro e sem sucesso.
+- **Conflito**: last-write-wins com a fila local vencendo — a mutação enfileirada sobrescreve o servidor.
+- **Compactação**: ao enfileirar, mutações anteriores do mesmo `(colecao, docId)` (ou do mesmo campo, no `merge_usuario`) são removidas, pra fila não crescer sem limite em dias offline.
+- **Valores derivados** (`economy`, `xp`, `appOpenDays`) sobem inteiros, não documento por documento. `podeEscreverDerivado` bloqueia essa escrita quando o espelho de origem ainda está frio **e** não há rede — senão um cálculo feito em cima de histórico vazio apagaria o que está na conta. A próxima leitura online refaz. As subcoleções não precisam disso: usam `set`/`delete` por doc.
+- Uma mutação que falha `LIMITE_DE_TENTATIVAS` (5) vezes é descartada — erro permanente (regra de segurança, dado inválido) não pode prender a fila inteira.
+
+Por que fila própria e não `enablePersistence()`: o `persistentLocalCache` do firebase JS SDK depende de IndexedDB, que não existe em React Native. Só o `@react-native-firebase` (SDK nativo) teria essa opção.
+
+`precarregarEspelho()` (em `storage.js`) aquece o espelho depois do login/reconexão — sem isso, quem loga e fica offline antes de abrir as telas ainda veria o app vazio. Chamado por `ConnectionContext`.
+
+`descartarEspelhoDaConta(uid)` é usado no logout, e **só** quando a fila está vazia: com pendência, espelho e fila ficam salvos pra subir no próximo login nesse aparelho.
 
 ## Retorno das escritas
 
@@ -23,11 +46,13 @@ Escritas **iniciadas pelo usuário** devolvem `{ ok: true }` ou `{ ok: false, mo
 
 `salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `definirEconomia`, `salvarSessaoDeCrise`.
 
-Motivos: `'rede'` (falha de Firestore/AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToastDeXp()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou. Antes essas funções retornavam `false` mudo e o app fingia sucesso.
+Motivos: `'rede'` (falha de AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToastDeXp()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou.
+
+Com o offline-first, `'rede'` praticamente sumiu do modo conta: a escrita é aceita no espelho e sobe depois. O contrato continua o mesmo pras telas (nada muda nelas), e `'rede'` segue possível no modo convidado.
 
 Escritas **de fundo** continuam retornando boolean silencioso: `salvarConquista`, `salvarMissao`, `salvarEstadoDeXp`, `registrarAberturaDoApp`. Não têm ação de usuário atrás e são reprocessadas no próximo foco de tela.
 
-**Leituras** seguem com fallback neutro no catch (`[]`, `{}`, `null`) — não dá pra distinguir "vazio" de "falhou".
+**Leituras** seguem com fallback neutro (`[]`, `{}`, `null`) quando nem servidor nem espelho respondem — aí sim não dá pra distinguir "vazio" de "falhou". Com espelho quente, offline devolve o dado real.
 
 ## Modelo de dados
 
@@ -47,9 +72,9 @@ Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Con
 ```js
 { name, type /* 'desc'|'rec' */, price, totalPuffs, days }
 ```
-Firestore: campo `aparelho` no doc `users/{uid}`. Convidado: `@vapefree_device`.
+Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
-**Economy**: mapa `{ [date]: valorEconomizadoNoDia }`, recalculado por `recalcularEconomia(records, device)` — nunca editado manualmente pela UI. Firestore: campo `economia` no doc `users/{uid}`. Convidado: `@vapefree_economy`.
+**Economy**: mapa `{ [date]: valorEconomizadoNoDia }`, recalculado por `recalcularEconomia(records, device)` — nunca editado manualmente pela UI. Firestore: campo `economy` no doc `users/{uid}`. Convidado: `@vapefree_economy`.
 
 **Achievement (desbloqueada)**: `{ id, unlockedAt }`. Firestore: subcoleção `users/{uid}/achievements`, doc id = `String(achievementId)`. Convidado: array em `@vapefree_achievements`. Lista completa de conquistas possíveis (não persistida, é código) está em `utils/achievements.js` — ver `CONQUISTAS`. Cada `condicao(records, economy, completedMissions, context)` recebe em `contexto` o que não está nos registros: `{ crisisSessions, appOpenDays }` (montado por `verificarEDesbloquearConquistas`, ou passado pronto pela tela que já carregou esses dados).
 
@@ -67,7 +92,9 @@ Firestore: campo `aparelho` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
 ## Migração convidado → conta
 
-`migrarDadosDoConvidadoParaConta(uid)`: lê tudo do `AsyncStorage`, grava `aparelho`/`economia`/`xp` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `registros`, `conquistas`, `sessoesDeCrise` e `missoes` (apaga os docs existentes na conta antes de escrever — é uma sobreposição, não um merge de listas), depois limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
+`migrarDadosDoConvidadoParaConta(uid)`: lê tudo do `AsyncStorage`, grava `device`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements`, `crisisSessions` e `missions` (apaga os docs existentes na conta antes de escrever — é uma sobreposição, não um merge de listas), preenche o espelho local com o que subiu e só então limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
+
+É a **única operação que exige internet**: sai devolvendo `false` se `estaOnline()` for falso, e qualquer erro no meio é capturado — nesse caso os dados locais do convidado ficam intactos, pra dar pra tentar de novo. Não entra na fila offline porque apaga documentos remotos antes de escrever; parar no meio disso deixaria a conta pela metade.
 
 ## Helpers puros (sem I/O)
 

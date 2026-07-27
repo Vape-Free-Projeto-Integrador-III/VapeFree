@@ -44,6 +44,10 @@ Modal central usado só pela `CrisisScreen`, ao encerrar uma sessão de modo cri
 
 Card da `HomeScreen` com as missões **diárias** do dia. Props: `missoes` (já calculadas pela tela via `verificarMissoes`), `cores`, `aoPressionar` (navega para `Missions`). É só apresentação — não lê storage nem decide conclusão. Ver [missions.md](missions.md).
 
+## `OfflineBanner` (`components/OfflineBanner.js`)
+
+Faixa fina no topo, sem props, montada uma única vez em `navigation/AppNavigator.js` acima do `NavigationContainer` — não replique por tela nem mexa no `ScreenHeader`. Lê `usarConexao()` (`context/ConnectionContext.js`) e só aparece quando está offline **e** tem usuário logado (convidado é sempre local, nunca tem pendência). Texto muda conforme `pendentes`: "Sem internet — N alterações vão sincronizar depois" ou, com a fila zerada, "Sem internet — seus dados estão salvos no aparelho". Ver [database.md](database.md).
+
 ## `XpToast` (`components/XpToast.js`) + `XpToastProvider` (`context/XpToastContext.js`)
 
 Popup pequeno no topo da tela ("Missão: X · +25 XP"). Não use direto: chame `usarToastDeXp()` e enfileire.

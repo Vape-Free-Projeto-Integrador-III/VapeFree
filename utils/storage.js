@@ -13,8 +13,13 @@
 //   - Usuário CONVIDADO (sem login)              -> AsyncStorage local,
 //     como já era antes. Os dados ficam só naquele aparelho.
 //
-// Isso é decidido olhando "auth.currentUser" no momento da chamada — não
-// existe nenhum estado duplicado pra manter sincronizado.
+// Isso é decidido olhando "auth.currentUser" no momento da chamada.
+//
+// No modo conta o Firestore não é acessado direto: passa pelo espelho local +
+// fila de utils/offline.js. Leitura serve o espelho quando não tem rede;
+// escrita aplica no espelho na hora e sobe depois. Ou seja, escrita de usuário
+// logado praticamente não retorna mais falha('rede') — ela é aceita local e
+// sincroniza sozinha. Ver docs/database.md.
 //
 // IMPORTANTE: os NOMES DOS CAMPOS gravados (date, puffs, used, triggers,
 // price, totalPuffs, unlockedAt, ...) e as chaves do AsyncStorage continuam
@@ -30,6 +35,17 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
+import {
+  ESPELHOS,
+  comTempoLimite,
+  enfileirar,
+  escreverCache,
+  estaOnline,
+  lerCache,
+  limparCacheEFila,
+  sincronizar,
+  temEspelho,
+} from './offline';
 import { verificarConquistas, calcularStreak, calcularEstadoDeStreak } from './achievements';
 import { montarContextoDeMissoes, verificarMissoes } from './missions';
 import { normalizarRegistro, somarPuxadas } from './records';
@@ -73,6 +89,67 @@ async function lerJson(chave, padrao) {
 // Retorna o uid do usuário logado, ou null se estiver em modo convidado.
 function obterUid() {
   return auth.currentUser ? auth.currentUser.uid : null;
+}
+
+// ─── Modo conta: leitura e escrita via espelho ───────────────────────────────
+
+// Leitura do usuário logado. Tenta esvaziar a fila antes de ir no servidor —
+// senão um dado remoto antigo sobrescreveria o que o usuário acabou de
+// escrever offline. Com fila pendente, ou com o servidor fora do ar, serve o
+// espelho local.
+async function lerDaConta(uid, nome, buscarNoServidor, padrao) {
+  const { pendentes } = await sincronizar(uid);
+  if (pendentes > 0) {
+    return lerCache(uid, nome, padrao);
+  }
+  try {
+    const remoto = await comTempoLimite(buscarNoServidor());
+    await escreverCache(uid, nome, remoto);
+    return remoto;
+  } catch {
+    return lerCache(uid, nome, padrao);
+  }
+}
+
+// Escrita do usuário logado: espelho na hora, fila depois, sincronização em
+// segundo plano (sem await de propósito — a tela não pode esperar a rede).
+async function escreverNaConta(uid, nome, valorNoEspelho, mutacao) {
+  await escreverCache(uid, nome, valorNoEspelho);
+  await enfileirar(uid, mutacao);
+  sincronizar(uid);
+}
+
+// Economia, XP e dias de abertura são valores DERIVADOS que sobem inteiros
+// (não são um documento por item). Se o espelho de origem ainda está frio e
+// não tem rede, esse valor teria sido calculado em cima de um histórico vazio
+// e apagaria o que está na conta — nesse caso é melhor não escrever nada e
+// deixar a próxima leitura online refazer a conta.
+async function podeEscreverDerivado(uid, nomeDeOrigem) {
+  if (await temEspelho(uid, nomeDeOrigem)) return true;
+  return estaOnline();
+}
+
+// Aquece o espelho logo depois do login/reconexão, pra que o app já funcione
+// se o usuário ficar offline antes de abrir cada tela. Ver ConnectionContext.
+export async function precarregarEspelho() {
+  const uid = obterUid();
+  if (!uid || !(await estaOnline())) return false;
+  await Promise.all([
+    obterRegistros(),
+    obterConquistas(),
+    obterSessoesDeCrise(),
+    obterMissoes(),
+    obterAparelho(),
+    obterEconomia(),
+    obterEstadoDeXp(),
+    obterDiasDeAbertura(),
+  ]);
+  return true;
+}
+
+// Chamada no logout: só descarta o espelho se não sobrou nada pra subir.
+export async function descartarEspelhoDaConta(uid) {
+  await limparCacheEFila(uid);
 }
 
 export async function obterDadosLocaisDoConvidado() {
@@ -140,28 +217,53 @@ async function substituirDocsDaColecao(uid, subcolecao, entradas) {
   );
 }
 
+// Migração é a única operação que NÃO funciona offline: ela apaga os
+// documentos remotos antes de escrever os novos (substituirDocsDaColecao), e
+// parar no meio disso deixaria a conta pela metade. Por isso exige rede e só
+// limpa os dados locais depois que tudo subiu.
 export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
-  if (!uid) {
+  if (!uid || !(await estaOnline())) {
     return false;
   }
 
   const dados = await obterDadosLocaisDoConvidado();
 
-  await setDoc(
-    doc(db, 'users', uid),
-    {
-      device: dados.aparelho ?? null,
-      economy: dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
-      xp: dados.xp ?? null,
-      appOpenDays: dados.diasDeAbertura,
-    },
-    { merge: true }
-  );
+  try {
+    await setDoc(
+      doc(db, 'users', uid),
+      {
+        device: dados.aparelho ?? null,
+        economy: dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
+        xp: dados.xp ?? null,
+        appOpenDays: dados.diasDeAbertura,
+      },
+      { merge: true }
+    );
 
-  await substituirDocsDaColecao(uid, 'records', dados.registros);
-  await substituirDocsDaColecao(uid, 'achievements', dados.conquistas);
-  await substituirDocsDaColecao(uid, 'crisisSessions', dados.sessoesDeCrise);
-  await substituirDocsDaColecao(uid, 'missions', dados.missoes);
+    await substituirDocsDaColecao(uid, 'records', dados.registros);
+    await substituirDocsDaColecao(uid, 'achievements', dados.conquistas);
+    await substituirDocsDaColecao(uid, 'crisisSessions', dados.sessoesDeCrise);
+    await substituirDocsDaColecao(uid, 'missions', dados.missoes);
+  } catch (e) {
+    // Os dados locais ficam intactos de propósito: o usuário pode tentar
+    // importar de novo com internet.
+    console.log('Erro ao migrar dados de convidado:', e);
+    return false;
+  }
+
+  // Já aquece o espelho com o que acabou de subir, pra conta nova funcionar
+  // offline sem precisar de uma leitura remota antes.
+  await Promise.all([
+    escreverCache(uid, ESPELHOS.REGISTROS, dados.registros),
+    escreverCache(uid, ESPELHOS.CONQUISTAS, dados.conquistas),
+    escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, dados.sessoesDeCrise),
+    escreverCache(uid, ESPELHOS.MISSOES, dados.missoes),
+    escreverCache(uid, ESPELHOS.APARELHO, dados.aparelho ?? null),
+    escreverCache(uid, ESPELHOS.ECONOMIA, dados.economia),
+    escreverCache(uid, ESPELHOS.XP, dados.xp ?? null),
+    escreverCache(uid, ESPELHOS.ABERTURAS, dados.diasDeAbertura),
+  ]);
+
   await limparDadosLocaisDoConvidado();
   return true;
 }
@@ -173,16 +275,18 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
 
 export async function obterRegistros() {
   const uid = obterUid();
-  try {
-    if (uid) {
-      const snap = await getDocs(collection(db, 'users', uid, 'records'));
-      return snap.docs.map((d) => d.data());
-    }
-    const bruto = await AsyncStorage.getItem(CHAVES.REGISTROS);
-    return bruto ? JSON.parse(bruto) : [];
-  } catch {
-    return [];
+  if (uid) {
+    return lerDaConta(
+      uid,
+      ESPELHOS.REGISTROS,
+      async () => {
+        const snap = await getDocs(collection(db, 'users', uid, 'records'));
+        return snap.docs.map((d) => d.data());
+      },
+      []
+    );
   }
+  return lerJson(CHAVES.REGISTROS, []);
 }
 
 // Janela em que dá pra criar registro: hoje ou até DIAS_PARA_TRAS_NO_REGISTRO
@@ -208,7 +312,13 @@ export async function salvarRegistro(novoRegistro) {
   }
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid, 'records', String(registro.id)), registro);
+      const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
+      await escreverNaConta(
+        uid,
+        ESPELHOS.REGISTROS,
+        [...registros.filter((r) => r.id !== registro.id), registro],
+        { tipo: 'set', colecao: 'records', docId: String(registro.id), dados: registro }
+      );
       return OK;
     }
     const registros = await obterRegistros();
@@ -224,7 +334,13 @@ export async function excluirRegistro(id) {
   const uid = obterUid();
   try {
     if (uid) {
-      await deleteDoc(doc(db, 'users', uid, 'records', String(id)));
+      const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
+      await escreverNaConta(
+        uid,
+        ESPELHOS.REGISTROS,
+        registros.filter((r) => r.id !== id),
+        { tipo: 'delete', colecao: 'records', docId: String(id) }
+      );
       return OK;
     }
     const registros = await obterRegistros();
@@ -241,9 +357,17 @@ export async function atualizarRegistro(registro) {
   const registroAtualizado = normalizarRegistro(registro);
   try {
     if (uid) {
-      await setDoc(
-        doc(db, 'users', uid, 'records', String(registroAtualizado.id)),
-        registroAtualizado
+      const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
+      await escreverNaConta(
+        uid,
+        ESPELHOS.REGISTROS,
+        [...registros.filter((r) => r.id !== registroAtualizado.id), registroAtualizado],
+        {
+          tipo: 'set',
+          colecao: 'records',
+          docId: String(registroAtualizado.id),
+          dados: registroAtualizado,
+        }
       );
       return OK;
     }
@@ -266,23 +390,28 @@ export async function atualizarRegistro(registro) {
 
 export async function obterAparelho() {
   const uid = obterUid();
-  try {
-    if (uid) {
-      const snap = await getDoc(doc(db, 'users', uid));
-      return snap.exists() ? snap.data().device ?? null : null;
-    }
-    const bruto = await AsyncStorage.getItem(CHAVES.APARELHO);
-    return bruto ? JSON.parse(bruto) : null;
-  } catch {
-    return null;
+  if (uid) {
+    return lerDaConta(
+      uid,
+      ESPELHOS.APARELHO,
+      async () => {
+        const snap = await getDoc(doc(db, 'users', uid));
+        return snap.exists() ? snap.data().device ?? null : null;
+      },
+      null
+    );
   }
+  return lerJson(CHAVES.APARELHO, null);
 }
 
 export async function salvarAparelho(aparelho) {
   const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid), { device: aparelho }, { merge: true });
+      await escreverNaConta(uid, ESPELHOS.APARELHO, aparelho, {
+        tipo: 'merge_usuario',
+        dados: { device: aparelho },
+      });
       return OK;
     }
     await AsyncStorage.setItem(CHAVES.APARELHO, JSON.stringify(aparelho));
@@ -298,23 +427,31 @@ export async function salvarAparelho(aparelho) {
 
 export async function obterEconomia() {
   const uid = obterUid();
-  try {
-    if (uid) {
-      const snap = await getDoc(doc(db, 'users', uid));
-      return snap.exists() ? snap.data().economy ?? {} : {};
-    }
-    const bruto = await AsyncStorage.getItem(CHAVES.ECONOMIA);
-    return bruto ? JSON.parse(bruto) : {};
-  } catch {
-    return {};
+  if (uid) {
+    return lerDaConta(
+      uid,
+      ESPELHOS.ECONOMIA,
+      async () => {
+        const snap = await getDoc(doc(db, 'users', uid));
+        return snap.exists() ? snap.data().economy ?? {} : {};
+      },
+      {}
+    );
   }
+  return lerJson(CHAVES.ECONOMIA, {});
 }
 
 export async function definirEconomia(mapaDeEconomia) {
   const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid), { economy: mapaDeEconomia }, { merge: true });
+      if (!(await podeEscreverDerivado(uid, ESPELHOS.REGISTROS))) {
+        return falha('rede');
+      }
+      await escreverNaConta(uid, ESPELHOS.ECONOMIA, mapaDeEconomia, {
+        tipo: 'merge_usuario',
+        dados: { economy: mapaDeEconomia },
+      });
       return OK;
     }
     await AsyncStorage.setItem(CHAVES.ECONOMIA, JSON.stringify(mapaDeEconomia));
@@ -346,7 +483,13 @@ export async function recalcularEconomia(registros, aparelho) {
     mapaDeEconomia[data] = parseFloat((naoDadas * custoPorPuxada).toFixed(2));
   });
 
-  await definirEconomia(mapaDeEconomia);
+  // O retorno continua sendo o mapa (as telas usam pra setState). Uma falha
+  // aqui é rara — no modo conta a escrita vai pra fila e sempre dá ok — mas
+  // não pode passar totalmente em branco.
+  const resultado = await definirEconomia(mapaDeEconomia);
+  if (!resultado.ok) {
+    console.log('Não deu pra salvar a economia:', resultado.motivo);
+  }
   return mapaDeEconomia;
 }
 
@@ -410,17 +553,19 @@ export function rotuloMes(dataStr) {
 
 export async function obterDiasDeAbertura() {
   const uid = obterUid();
-  try {
-    if (uid) {
-      const snap = await getDoc(doc(db, 'users', uid));
-      const dias = snap.exists() ? snap.data().appOpenDays : null;
-      return Array.isArray(dias) ? dias : [];
-    }
-    const bruto = await AsyncStorage.getItem(CHAVES.ABERTURAS);
-    return bruto ? JSON.parse(bruto) : [];
-  } catch {
-    return [];
+  if (uid) {
+    return lerDaConta(
+      uid,
+      ESPELHOS.ABERTURAS,
+      async () => {
+        const snap = await getDoc(doc(db, 'users', uid));
+        const dias = snap.exists() ? snap.data().appOpenDays : null;
+        return Array.isArray(dias) ? dias : [];
+      },
+      []
+    );
   }
+  return lerJson(CHAVES.ABERTURAS, []);
 }
 
 // Marca hoje como dia aberto. Idempotente dentro do mesmo dia.
@@ -435,7 +580,13 @@ export async function registrarAberturaDoApp() {
     const atualizados = [...dias, hoje].sort().slice(-LIMITE_DE_ABERTURAS);
 
     if (uid) {
-      await setDoc(doc(db, 'users', uid), { appOpenDays: atualizados }, { merge: true });
+      if (!(await podeEscreverDerivado(uid, ESPELHOS.ABERTURAS))) {
+        return dias;
+      }
+      await escreverNaConta(uid, ESPELHOS.ABERTURAS, atualizados, {
+        tipo: 'merge_usuario',
+        dados: { appOpenDays: atualizados },
+      });
     } else {
       await AsyncStorage.setItem(CHAVES.ABERTURAS, JSON.stringify(atualizados));
     }
@@ -452,16 +603,18 @@ export async function registrarAberturaDoApp() {
 
 export async function obterConquistas() {
   const uid = obterUid();
-  try {
-    if (uid) {
-      const snap = await getDocs(collection(db, 'users', uid, 'achievements'));
-      return snap.docs.map((d) => d.data());
-    }
-    const bruto = await AsyncStorage.getItem(CHAVES.CONQUISTAS);
-    return bruto ? JSON.parse(bruto) : [];
-  } catch {
-    return [];
+  if (uid) {
+    return lerDaConta(
+      uid,
+      ESPELHOS.CONQUISTAS,
+      async () => {
+        const snap = await getDocs(collection(db, 'users', uid, 'achievements'));
+        return snap.docs.map((d) => d.data());
+      },
+      []
+    );
   }
+  return lerJson(CHAVES.CONQUISTAS, []);
 }
 
 export async function salvarConquista(idDaConquista, desbloqueadaEm) {
@@ -472,7 +625,18 @@ export async function salvarConquista(idDaConquista, desbloqueadaEm) {
       unlockedAt: desbloqueadaEm || new Date().toISOString(),
     };
     if (uid) {
-      await setDoc(doc(db, 'users', uid, 'achievements', String(idDaConquista)), entrada);
+      const conquistas = await lerCache(uid, ESPELHOS.CONQUISTAS, []);
+      await escreverNaConta(
+        uid,
+        ESPELHOS.CONQUISTAS,
+        conquistas.find((c) => c.id === idDaConquista) ? conquistas : [...conquistas, entrada],
+        {
+          tipo: 'set',
+          colecao: 'achievements',
+          docId: String(idDaConquista),
+          dados: entrada,
+        }
+      );
       return true;
     }
     const conquistas = await obterConquistas();
@@ -494,23 +658,31 @@ export async function salvarConquista(idDaConquista, desbloqueadaEm) {
 
 export async function obterEstadoDeXp() {
   const uid = obterUid();
-  try {
-    if (uid) {
-      const snap = await getDoc(doc(db, 'users', uid));
-      return snap.exists() ? snap.data().xp ?? null : null;
-    }
-    const bruto = await AsyncStorage.getItem(CHAVES.XP);
-    return bruto ? JSON.parse(bruto) : null;
-  } catch {
-    return null;
+  if (uid) {
+    return lerDaConta(
+      uid,
+      ESPELHOS.XP,
+      async () => {
+        const snap = await getDoc(doc(db, 'users', uid));
+        return snap.exists() ? snap.data().xp ?? null : null;
+      },
+      null
+    );
   }
+  return lerJson(CHAVES.XP, null);
 }
 
 export async function salvarEstadoDeXp(estado) {
   const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid), { xp: estado }, { merge: true });
+      if (!(await podeEscreverDerivado(uid, ESPELHOS.REGISTROS))) {
+        return false;
+      }
+      await escreverNaConta(uid, ESPELHOS.XP, estado, {
+        tipo: 'merge_usuario',
+        dados: { xp: estado },
+      });
       return true;
     }
     await AsyncStorage.setItem(CHAVES.XP, JSON.stringify(estado));
@@ -551,23 +723,31 @@ export async function atualizarXp(registros, conquistasDesbloqueadas, missoesCon
 
 export async function obterSessoesDeCrise() {
   const uid = obterUid();
-  try {
-    if (uid) {
-      const snap = await getDocs(collection(db, 'users', uid, 'crisisSessions'));
-      return snap.docs.map((d) => d.data());
-    }
-    const bruto = await AsyncStorage.getItem(CHAVES.CRISE);
-    return bruto ? JSON.parse(bruto) : [];
-  } catch {
-    return [];
+  if (uid) {
+    return lerDaConta(
+      uid,
+      ESPELHOS.SESSOES_DE_CRISE,
+      async () => {
+        const snap = await getDocs(collection(db, 'users', uid, 'crisisSessions'));
+        return snap.docs.map((d) => d.data());
+      },
+      []
+    );
   }
+  return lerJson(CHAVES.CRISE, []);
 }
 
 export async function salvarSessaoDeCrise(sessao) {
   const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid, 'crisisSessions', String(sessao.id)), sessao);
+      const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
+      await escreverNaConta(
+        uid,
+        ESPELHOS.SESSOES_DE_CRISE,
+        [...sessoes.filter((s) => s.id !== sessao.id), sessao],
+        { tipo: 'set', colecao: 'crisisSessions', docId: String(sessao.id), dados: sessao }
+      );
       return OK;
     }
     const sessoes = await obterSessoesDeCrise();
@@ -589,23 +769,31 @@ export async function salvarSessaoDeCrise(sessao) {
 
 export async function obterMissoes() {
   const uid = obterUid();
-  try {
-    if (uid) {
-      const snap = await getDocs(collection(db, 'users', uid, 'missions'));
-      return snap.docs.map((d) => d.data());
-    }
-    const bruto = await AsyncStorage.getItem(CHAVES.MISSOES);
-    return bruto ? JSON.parse(bruto) : [];
-  } catch {
-    return [];
+  if (uid) {
+    return lerDaConta(
+      uid,
+      ESPELHOS.MISSOES,
+      async () => {
+        const snap = await getDocs(collection(db, 'users', uid, 'missions'));
+        return snap.docs.map((d) => d.data());
+      },
+      []
+    );
   }
+  return lerJson(CHAVES.MISSOES, []);
 }
 
 export async function salvarMissao(entrada) {
   const uid = obterUid();
   try {
     if (uid) {
-      await setDoc(doc(db, 'users', uid, 'missions', String(entrada.id)), entrada);
+      const missoes = await lerCache(uid, ESPELHOS.MISSOES, []);
+      await escreverNaConta(
+        uid,
+        ESPELHOS.MISSOES,
+        missoes.find((m) => m.id === entrada.id) ? missoes : [...missoes, entrada],
+        { tipo: 'set', colecao: 'missions', docId: String(entrada.id), dados: entrada }
+      );
       return true;
     }
     const missoes = await obterMissoes();

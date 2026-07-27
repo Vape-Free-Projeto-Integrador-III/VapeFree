@@ -8,6 +8,7 @@ import AppNavigator from './navigation/AppNavigator';
 import { ThemeProvider, usarTema } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { XpToastProvider } from './context/XpToastContext';
+import { ConnectionProvider } from './context/ConnectionContext';
 import { configurarHandlerDeNotificacoes } from './utils/notifications';
 import './services/firebase';
 
@@ -22,9 +23,11 @@ function AppContent() {
     return (
         <SafeAreaProvider>
             <StatusBar style={estaEscuro ? 'light' : 'light'} />
-            <XpToastProvider>
-                <AppNavigator />
-            </XpToastProvider>
+            <ConnectionProvider>
+                <XpToastProvider>
+                    <AppNavigator />
+                </XpToastProvider>
+            </ConnectionProvider>
         </SafeAreaProvider>
     );
 }

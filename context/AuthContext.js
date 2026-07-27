@@ -18,6 +18,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
+import { contarPendencias, sincronizar } from '../utils/offline';
+import { descartarEspelhoDaConta } from '../utils/storage';
 import {
   agendarNotificacoesMotivacionais,
   agendarNotificacaoDeStreak,
@@ -83,7 +85,7 @@ export function AuthProvider({ children }) {
         // persistência), não deixamos a tela presa em loading: tratamos
         // como "sem usuário autenticado" e mostramos a tela de Login.
         console.log('Erro no onAuthStateChanged:', erro);
-        setUser(null);
+        setUsuario(null);
         setInicializando(false);
       }
     );
@@ -133,7 +135,15 @@ export function AuthProvider({ children }) {
   // próxima vez.
   async function sair(proximaTelaDeAuth = 'Login') {
     try {
-      if (auth.currentUser) {
+      const uid = auth.currentUser?.uid ?? null;
+      if (uid) {
+        // Tenta subir o que ficou na fila antes de sair. Se ainda sobrar algo
+        // (sem internet), o espelho e a fila FICAM salvos — ao logar de novo
+        // nesse aparelho o dado sobe. Só descartamos com a fila zerada.
+        const { pendentes } = await sincronizar(uid);
+        if (pendentes === 0 && (await contarPendencias(uid)) === 0) {
+          await descartarEspelhoDaConta(uid);
+        }
         await signOut(auth);
       }
     } finally {

@@ -25,11 +25,3 @@ e voltar
     adolescentes. Salvar flag "onboarding_concluido" no storage
     para não exibir novamente.
 
----- TÉCNICO ----
-
-[ ] Offline-first melhorado
-    Quando sem internet, operações no Firestore falham silenciosamente.
-    Implementar fila local: salvar no AsyncStorage e sincronizar
-    quando a conexão voltar. Firestore SDK tem suporte a isso
-    com enablePersistence().
-

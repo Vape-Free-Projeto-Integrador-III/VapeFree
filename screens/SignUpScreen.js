@@ -73,7 +73,12 @@ export default function SignUpScreen({ navigation }) {
         if (escolha === 'import') {
             const importado = await migrarDadosDoConvidadoParaConta(uid);
             if (!importado) {
-                Alert.alert('Erro', 'Não deu pra transferir seus dados de convidado. Tenta de novo.');
+                // Transferir dados exige internet: é a única operação que não
+                // funciona offline (ver migrarDadosDoConvidadoParaConta).
+                Alert.alert(
+                    'Erro',
+                    'Não deu pra transferir seus dados de convidado. Confira sua conexão e tenta de novo — eles continuam salvos aqui no aparelho.'
+                );
                 return false;
             }
         }
