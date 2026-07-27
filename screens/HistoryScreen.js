@@ -29,6 +29,7 @@ import {
 import { puxadasDoRegistro } from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
+import { usarToastDeXp } from '../context/XpToastContext';
 
 const { width } = Dimensions.get('window');
 const LARGURA_DO_GRAFICO = width - 64;
@@ -110,7 +111,8 @@ function agruparRegistrosPor(registros, obterChave, metrica) {
 }
 
 export default function HistoryScreen({ navigation }) {
-    const { cores, estaEscuro, alternarTema } = usarTema();
+    const { cores } = usarTema();
+    const { mostrarErro } = usarToastDeXp();
     const [registros, setRegistros] = useState([]);
     const [sessoesDeCrise, setSessoesDeCrise] = useState([]);
     const [filtro, setFiltro] = useState('day');
@@ -162,7 +164,12 @@ export default function HistoryScreen({ navigation }) {
 
     const salvarEdicao = async () => {
         if (!registroEmEdicao) return;
-        await atualizarRegistro(registroEmEdicao);
+        const resultado = await atualizarRegistro(registroEmEdicao);
+        // Não fecha o modal se não gravou — senão o usuário perde a edição.
+        if (!resultado.ok) {
+            mostrarErro('Não deu pra salvar a edição', 'Verifique sua conexão e tente de novo.');
+            return;
+        }
         const [todosOsRegs, aparelho, economia] = await Promise.all([obterRegistros(), obterAparelho(), obterEconomia()]);
         await recalcularEconomia(todosOsRegs, aparelho);
         setRegistros(todosOsRegs);
@@ -171,12 +178,15 @@ export default function HistoryScreen({ navigation }) {
 
     const excluir = async () => {
         if (!idParaExcluirConfirmacao) return;
-        try {
-            await excluirRegistro(idParaExcluirConfirmacao);
-            const [todosOsRegs, aparelho] = await Promise.all([obterRegistros(), obterAparelho()]);
-            await recalcularEconomia(todosOsRegs, aparelho);
-            setRegistros(todosOsRegs);
-        } catch (e) { }
+        const resultado = await excluirRegistro(idParaExcluirConfirmacao);
+        if (!resultado.ok) {
+            mostrarErro('Não deu pra excluir', 'Verifique sua conexão e tente de novo.');
+            setIdParaExcluirConfirmacao(null);
+            return;
+        }
+        const [todosOsRegs, aparelho] = await Promise.all([obterRegistros(), obterAparelho()]);
+        await recalcularEconomia(todosOsRegs, aparelho);
+        setRegistros(todosOsRegs);
         setIdParaExcluirConfirmacao(null);
     };
 

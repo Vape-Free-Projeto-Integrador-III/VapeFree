@@ -40,7 +40,7 @@ const { width } = Dimensions.get('window');
 const LARGURA_DO_GRAFICO = width - 64;
 
 export default function HomeScreen({ navigation }) {
-    const { cores, estaEscuro, alternarTema } = usarTema();
+    const { cores } = usarTema();
     const { mostrarRecompensas } = usarToastDeXp();
     const [registros, setRegistros] = useState([]);
     const [aparelho, setAparelho] = useState(null);

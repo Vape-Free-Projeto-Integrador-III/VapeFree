@@ -6,13 +6,10 @@ export default function ScreenHeader({
     titulo,
     subtitulo,
     cores,
-    estaEscuro,
-    alternarTema,
     aoPressionarPerfil,
     aoPressionarVoltar,
     aoPressionarConfiguracoes,
     mostrarPerfil = true,
-    mostrarTema = true,
     mostrarConfiguracoes = false,
 }) {
     return (
@@ -35,24 +32,12 @@ export default function ScreenHeader({
                     <TouchableOpacity onPress={aoPressionarConfiguracoes} style={styles.settingsBtn}>
                         <Ionicons name="settings-outline" size={22} color="#fff" />
                     </TouchableOpacity>
+                ) : mostrarPerfil ? (
+                    <TouchableOpacity onPress={aoPressionarPerfil} style={styles.profileBtn}>
+                        <Ionicons name="person-circle-outline" size={28} color="#fff" />
+                    </TouchableOpacity>
                 ) : (
-                    <>
-                        {mostrarPerfil ? (
-                            <TouchableOpacity onPress={aoPressionarPerfil} style={styles.profileBtn}>
-                                <Ionicons name="person-circle-outline" size={28} color="#fff" />
-                            </TouchableOpacity>
-                        ) : (
-                            <View style={styles.profilePlaceholder} />
-                        )}
-
-                        {mostrarTema ? (
-                            <TouchableOpacity onPress={alternarTema} style={styles.themeBtn}>
-                                <Ionicons name={estaEscuro ? 'sunny' : 'moon'} size={22} color="#fff" />
-                            </TouchableOpacity>
-                        ) : (
-                            <View style={styles.themePlaceholder} />
-                        )}
-                    </>
+                    <View style={styles.profilePlaceholder} />
                 )}
             </View>
         </View>
@@ -106,14 +91,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         backgroundColor: 'rgba(255,255,255,0.2)',
     },
-    themeBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
     settingsBtn: {
         width: 38,
         height: 38,
@@ -123,10 +100,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     profilePlaceholder: {
-        width: 38,
-        height: 38,
-    },
-    themePlaceholder: {
         width: 38,
         height: 38,
     },

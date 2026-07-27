@@ -11,6 +11,9 @@ ao importar, as informacoes estarem corretas, sem ter que entrar no historico
 e voltar
 
 [ ] Verificar modo crise e arrumar insights dela
+    Fazer com que o modo crise só conte caso o usuario tenha registrado algo
+    Caso tenha clicado em Agora não, para nao registrar nada, nao registrar crise
+    Apenas registrar caso usuario tenha colocado que deu certo, errado, etc.
 
 ---- URGENTE ----
 
@@ -24,20 +27,9 @@ e voltar
 
 ---- TÉCNICO ----
 
-[ ] Tratamento de erros mais visível para o usuário
-    Atualmente os catch blocks apenas retornam false/[].
-    Adicionar feedback visual (toast ou alert) quando uma
-    operação falha, especialmente ao salvar registro.
-
 [ ] Offline-first melhorado
     Quando sem internet, operações no Firestore falham silenciosamente.
     Implementar fila local: salvar no AsyncStorage e sincronizar
     quando a conexão voltar. Firestore SDK tem suporte a isso
     com enablePersistence().
-
-[ ] Testes básicos nas funções de cálculo
-    calcStreak(), recalcEconomy() e checkAchievements() são funções
-    puras (ou quase) que podem ser testadas com Jest sem precisar
-    de device. Adicionar ao menos testes das condições de borda
-    (streak zerado, economy sem device, etc).
 

@@ -1,12 +1,16 @@
 // src/context/XpToastContext.js
-// Fila global de toasts de XP. Qualquer tela chama usarToastDeXp() e enfileira
+// Fila global de toasts. Qualquer tela chama usarToastDeXp() e enfileira
 // o que ganhou; o provider mostra um de cada vez, na ordem.
 //
 // Uso típico depois de salvar algo:
 //   const { mostrarRecompensas } = usarToastDeXp();
 //   mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho });
+//
+// A mesma fila também carrega os avisos de falha ao salvar:
+//   const { mostrarErro } = usarToastDeXp();
+//   mostrarErro('Não deu pra salvar', 'Verifique sua conexão e tente de novo.');
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import XpToast from '../components/XpToast';
+import XpToast, { DURACAO_DO_TOAST_DE_ERRO } from '../components/XpToast';
 import AchievementCelebration from '../components/AchievementCelebration';
 
 const XpToastContext = createContext(null);
@@ -15,10 +19,32 @@ export function XpToastProvider({ children }) {
     const [fila, setFila] = useState([]);
     const [filaDeConquistas, setFilaDeConquistas] = useState([]);
 
-    const mostrarXp = useCallback((toast) => {
-        if (!toast || !toast.xp || toast.xp <= 0) return;
+    const enfileirar = useCallback((toast) => {
         setFila((anterior) => [...anterior, { key: `${Date.now()}_${anterior.length}`, ...toast }]);
     }, []);
+
+    const mostrarXp = useCallback(
+        (toast) => {
+            if (!toast || !toast.xp || toast.xp <= 0) return;
+            enfileirar({ variante: 'xp', ...toast });
+        },
+        [enfileirar]
+    );
+
+    // Falha de escrita: não passa pelo guard de XP acima (não tem Xp nenhum) e
+    // fica mais tempo na tela, porque a mensagem é mais longa de ler.
+    const mostrarErro = useCallback(
+        (titulo, subtitulo) => {
+            enfileirar({
+                variante: 'erro',
+                icone: '⚠️',
+                titulo,
+                subtitulo,
+                duracao: DURACAO_DO_TOAST_DE_ERRO,
+            });
+        },
+        [enfileirar]
+    );
 
     const mostrarGanhoDeXp = useCallback(
         (ganho, { icone = '⭐', titulo = 'Você ganhou XP' } = {}) => {
@@ -67,8 +93,8 @@ export function XpToastProvider({ children }) {
     }, []);
 
     const valor = useMemo(
-        () => ({ mostrarXp, mostrarGanhoDeXp, mostrarRecompensas }),
-        [mostrarXp, mostrarGanhoDeXp, mostrarRecompensas]
+        () => ({ mostrarXp, mostrarGanhoDeXp, mostrarRecompensas, mostrarErro }),
+        [mostrarXp, mostrarGanhoDeXp, mostrarRecompensas, mostrarErro]
     );
 
     const atual = fila[0] || null;

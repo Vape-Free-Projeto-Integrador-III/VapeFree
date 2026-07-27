@@ -14,10 +14,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { obterAparelho, salvarAparelho, obterRegistros, recalcularEconomia } from '../utils/storage';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
+import { usarToastDeXp } from '../context/XpToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 
 export default function DeviceScreen({ navigation }) {
-    const { cores, estaEscuro, alternarTema } = usarTema();
+    const { cores } = usarTema();
+    const { mostrarErro } = usarToastDeXp();
     const [nome, setNome] = useState('');
     const [tipo, setTipo] = useState('desc');
     const [preco, setPreco] = useState('');
@@ -58,7 +60,12 @@ export default function DeviceScreen({ navigation }) {
         if (isNaN(d) || d <= 0) { Alert.alert('Opa', 'Quantos dias ele costuma durar?'); return; }
         setSalvando(true);
         const aparelho = { name: nome.trim(), type: tipo, price: p, totalPuffs: tp, days: d };
-        await salvarAparelho(aparelho);
+        const resultado = await salvarAparelho(aparelho);
+        if (!resultado.ok) {
+            setSalvando(false);
+            mostrarErro('Não deu pra salvar o aparelho', 'Verifique sua conexão e tente de novo.');
+            return;
+        }
         const todosRegistros = await obterRegistros();
         await recalcularEconomia(todosRegistros, aparelho);
         setSalvando(false);
@@ -86,10 +93,9 @@ export default function DeviceScreen({ navigation }) {
                 titulo="Seu Dispositivo"
                 subtitulo="Conta pra gente como ele é"
                 cores={cores}
-                estaEscuro={estaEscuro}
-                alternarTema={alternarTema}
+                mostrarConfiguracoes
+                aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
                 aoPressionarVoltar={() => navigation.goBack()}
-                aoPressionarPerfil={() => navigation.navigate('Profile')}
             />
 
             <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>

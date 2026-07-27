@@ -78,7 +78,7 @@ function horaAtualString() {
 
 export default function CrisisScreen({ navigation, route }) {
     const { cores } = usarTema();
-    const { mostrarRecompensas } = usarToastDeXp();
+    const { mostrarRecompensas, mostrarErro } = usarToastDeXp();
 
     const [mensagem, setMensagem] = useState(null);
     const [recomendado, setRecomendado] = useState(null);
@@ -166,7 +166,7 @@ export default function CrisisScreen({ navigation, route }) {
         if (salvandoRef.current) return;
         salvandoRef.current = true;
 
-        await salvarSessaoDeCrise({
+        const resultado = await salvarSessaoDeCrise({
             id: Date.now(),
             date: dataDeHoje(),
             time: horaAtualString(),
@@ -176,6 +176,14 @@ export default function CrisisScreen({ navigation, route }) {
             outcome: desfecho ?? null,
             note: nota ?? null,
         });
+
+        // Sessão não gravou: nada de XP nem de fechar a tela como se tivesse dado
+        // certo — o modal continua aberto pro usuário tentar de novo.
+        if (!resultado.ok) {
+            mostrarErro('Não deu pra salvar a sessão', 'Verifique sua conexão e tente de novo.');
+            salvandoRef.current = false;
+            return;
+        }
 
         // Vencer a vontade é missão diária — concede o XP antes de sair.
         const [registros, economia, sessoesDeCrise] = await Promise.all([

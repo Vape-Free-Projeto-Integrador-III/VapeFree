@@ -6,7 +6,7 @@ Sem Redux/Zustand/Recoil/Jotai. Dois níveis:
 
 - **`AuthContext`** (`context/AuthContext.js`): sessão do usuário (`usuario`, `ehConvidado`, `inicializando`, `telaDeAuth`) + `continuarSemConta`/`sair`. Detalhe em [auth.md](auth.md).
 - **`ThemeContext`** (`context/ThemeContext.js`): `estaEscuro`, `alternarTema`, `cores`. Detalhe em [styling.md](styling.md).
-- **`XpToastContext`** (`context/XpToastContext.js`): fila global dos toasts de XP (`mostrarRecompensas`, `mostrarXp`, `mostrarGanhoDeXp`). Não guarda dado de domínio — só a fila de exibição. Fica dentro do `SafeAreaProvider`, envolvendo o `AppNavigator`. Detalhe em [components.md](components.md).
+- **`XpToastContext`** (`context/XpToastContext.js`): fila global dos toasts de XP e dos avisos de falha ao salvar (`mostrarRecompensas`, `mostrarXp`, `mostrarGanhoDeXp`, `mostrarErro`). Não guarda dado de domínio — só a fila de exibição. Fica dentro do `SafeAreaProvider`, envolvendo o `AppNavigator`. Detalhe em [components.md](components.md).
 
 Ambos seguem o mesmo formato: `createContext` com valor default tipado por exemplo, `XProvider` com `useState`/`useEffect`, hook `useX()` que só faz `useContext`. Se precisar de um terceiro contexto global, siga esse mesmo molde — não introduza uma lib de state management nova sem alinhar com o usuário antes.
 

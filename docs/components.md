@@ -4,13 +4,13 @@
 
 ## `ScreenHeader` (`components/ScreenHeader.js`)
 
-Cabeçalho colorido (`cores.primary`) usado no topo de toda tela. Props: `titulo`, `subtitulo`, `cores`, `estaEscuro`, `alternarTema`, `aoPressionarPerfil`, `aoPressionarVoltar`, `aoPressionarConfiguracoes`, `mostrarPerfil` (default `true`), `mostrarTema` (default `true`), `mostrarConfiguracoes` (default `false`).
+Cabeçalho colorido (`cores.primary`) usado no topo de toda tela. Props: `titulo`, `subtitulo`, `cores`, `aoPressionarPerfil`, `aoPressionarVoltar`, `aoPressionarConfiguracoes`, `mostrarPerfil` (default `true`), `mostrarConfiguracoes` (default `false`). Não existe mais toggle de tema no header — modo escuro só se altera dentro de `SettingsScreen` (`Switch` + `alternarTema` de `usarTema()`).
 
-- Sem `onBackPress` → mostra espaço vazio à esquerda (tabs de nível raiz: Home, Register, History, Achievements).
-- Com `onBackPress` → mostra seta de voltar (telas de stack: Device, Profile).
-- `showProfile={false}` na tela `Profile` (não faz sentido ter botão de perfil dentro do próprio perfil).
+- Sem `aoPressionarVoltar` → mostra espaço vazio à esquerda (tabs de nível raiz: Home, Register, History, Achievements).
+- Com `aoPressionarVoltar` → mostra seta de voltar (telas de stack: Device, Profile, Crisis, Breathing, Missions, Settings).
+- Praticamente toda tela passa `mostrarConfiguracoes` + `aoPressionarConfiguracoes={() => navigation.navigate('Settings')}`. Exceções: `SettingsScreen` e `Profile`, que usam `mostrarPerfil={false}` sem `mostrarConfiguracoes` (não faz sentido abrir configurações a partir de configurações, nem a partir do perfil que já é acessado via configurações).
 
-Toda tela nova deve renderizar `<ScreenHeader>` como primeiro filho do `ScrollView`, passando `cores`/`estaEscuro`/`alternarTema` de `usarTema()`.
+Toda tela nova deve renderizar `<ScreenHeader>` como primeiro filho do `ScrollView`, passando `cores` de `usarTema()` e `mostrarConfiguracoes`/`aoPressionarConfiguracoes` apontando para `Settings`.
 
 ## `GuestDataChoiceModal` (`components/GuestDataChoiceModal.js`)
 
@@ -50,8 +50,11 @@ Popup pequeno no topo da tela ("Missão: X · +25 XP"). Não use direto: chame `
 
 - `mostrarRecompensas({ conquistas, missoes, ganho, icone, titulo })` — um toast por conquista/missão nova, mais um genérico com o XP que sobrou (registro, dia limpo, streak). `icone`/`titulo` personalizam só esse genérico: a `RegisterScreen` usa "🚭 Dia sem cigarro eletrônico!" quando `used === false` e "📝 Registro feito, sem culpa" quando o usuário usou.
 - `mostrarXp({ icone, titulo, xp })` / `mostrarGanhoDeXp(xp)` para casos avulsos.
+- `mostrarErro(titulo, subtitulo)` — mesma fila, variante `'erro'`: borda `cores.danger`, ícone ⚠️, sem o "+N XP" e com duração maior (`DURACAO_DO_TOAST_DE_ERRO`, 3500ms contra 2200ms). É o feedback padrão de falha ao salvar — ver o contrato `{ ok, motivo }` em [database.md](database.md).
 
 O provider mostra um toast por vez, na ordem da fila, e fica montado em `App.js` dentro do `SafeAreaProvider`. O `Animated.View` é `pointerEvents="none"`, então nunca bloqueia toque. **Quem calcula o quanto foi ganho é `atualizarXp` (campo `ganho`)** — não incremente XP na mão para alimentar o toast.
+
+`mostrarXp` ignora toast com `xp <= 0` (contrato antigo de quem já usava); `mostrarErro` entra direto na fila, sem esse guard.
 
 ## `AchievementCelebration` (`components/AchievementCelebration.js`) + `AchievementShareCard`
 

@@ -16,10 +16,8 @@ export default function SettingsScreen({ navigation }) {
                 titulo="Configurações"
                 subtitulo="Ajuste o app do seu jeito"
                 cores={cores}
-                estaEscuro={estaEscuro}
                 aoPressionarVoltar={() => navigation.goBack()}
                 mostrarPerfil={false}
-                mostrarTema={false}
             />
 
             <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}>

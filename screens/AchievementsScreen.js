@@ -10,7 +10,7 @@ import { usarTema } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
 
 export default function AchievementsScreen({ navigation }) {
-    const { cores, estaEscuro, alternarTema } = usarTema();
+    const { cores } = usarTema();
     const [conquistas, setConquistas] = useState([]);
 
     const carregar = useCallback(async () => {

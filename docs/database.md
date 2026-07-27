@@ -17,6 +17,18 @@ function getUid() {
 
 Não há cache/estado duplicado entre as duas fontes — cada chamada relê a fonte atual.
 
+## Retorno das escritas
+
+Escritas **iniciadas pelo usuário** devolvem `{ ok: true }` ou `{ ok: false, motivo }`:
+
+`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `definirEconomia`, `salvarSessaoDeCrise`.
+
+Motivos: `'rede'` (falha de Firestore/AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToastDeXp()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou. Antes essas funções retornavam `false` mudo e o app fingia sucesso.
+
+Escritas **de fundo** continuam retornando boolean silencioso: `salvarConquista`, `salvarMissao`, `salvarEstadoDeXp`, `registrarAberturaDoApp`. Não têm ação de usuário atrás e são reprocessadas no próximo foco de tela.
+
+**Leituras** seguem com fallback neutro no catch (`[]`, `{}`, `null`) — não dá pra distinguir "vazio" de "falhou".
+
 ## Modelo de dados
 
 **Record** (um por `salvarRegistro`, id = `Date.now()`):
@@ -29,7 +41,7 @@ Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Con
 
 `salvarRegistro`/`atualizarRegistro` passam o registro por `normalizarRegistro` (`utils/records.js`) antes de gravar: com `used: false`, `puffs` vira `0` e `triggers` vira `[]`. Para somar puxadas em qualquer lugar (gráficos, totais, economia, insights) use `puxadasDoRegistro(record)` / `somarPuxadas(records)` do mesmo arquivo — nunca `record.puffs` direto, porque registros salvos antes dessa normalização podem ter `puffs > 0` com `used: false` (foi editado de "usei" para "não usei").
 
-**Janela de criação**: `salvarRegistro` recusa (`return false`) qualquer `date` fora de `datasRegistraveis()` — hoje ou até `DIAS_PARA_TRAS_NO_REGISTRO` (7) dias atrás. Vale só pra criação: `atualizarRegistro` continua aceitando qualquer data, pra edição de registro antigo pelo histórico seguir funcionando. Existe porque o XP é derivado dos registros (ver `utils/xp.js`) — sem o limite dava pra preencher anos de dias limpos falsos e inflar XP/conquistas. A RegisterScreen usa a mesma lista pra montar o seletor de data, mas a checagem no storage é a que vale.
+**Janela de criação**: `salvarRegistro` recusa (`{ ok: false, motivo: 'data_invalida' }`) qualquer `date` fora de `datasRegistraveis()` — hoje ou até `DIAS_PARA_TRAS_NO_REGISTRO` (7) dias atrás. Vale só pra criação: `atualizarRegistro` continua aceitando qualquer data, pra edição de registro antigo pelo histórico seguir funcionando. Existe porque o XP é derivado dos registros (ver `utils/xp.js`) — sem o limite dava pra preencher anos de dias limpos falsos e inflar XP/conquistas. A RegisterScreen usa a mesma lista pra montar o seletor de data, mas a checagem no storage é a que vale.
 
 **Device** (um por usuário):
 ```js

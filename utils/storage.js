@@ -52,6 +52,15 @@ const CHAVES = {
 // maior conquista de presença diária (7 dias seguidos).
 const LIMITE_DE_ABERTURAS = 60;
 
+// Resultado das escritas iniciadas pelo usuário (registro, aparelho, economia,
+// sessão de crise). Elas não podem falhar em silêncio: a tela checa `ok` e
+// mostra um toast de erro. `motivo` distingue falha de infra ('rede') de regra
+// de negócio ('data_invalida', 'nao_encontrado').
+// As escritas de gamificação (conquista, missão, XP, abertura) continuam
+// retornando boolean — são de fundo e se reprocessam no próximo foco de tela.
+const OK = { ok: true };
+const falha = (motivo) => ({ ok: false, motivo });
+
 async function lerJson(chave, padrao) {
   try {
     const bruto = await AsyncStorage.getItem(chave);
@@ -195,19 +204,19 @@ export async function salvarRegistro(novoRegistro) {
   const uid = obterUid();
   const registro = normalizarRegistro(novoRegistro);
   if (!dataEhRegistravel(registro.date)) {
-    return false;
+    return falha('data_invalida');
   }
   try {
     if (uid) {
       await setDoc(doc(db, 'users', uid, 'records', String(registro.id)), registro);
-      return true;
+      return OK;
     }
     const registros = await obterRegistros();
     registros.push(registro);
     await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(registros));
-    return true;
+    return OK;
   } catch {
-    return false;
+    return falha('rede');
   }
 }
 
@@ -216,14 +225,14 @@ export async function excluirRegistro(id) {
   try {
     if (uid) {
       await deleteDoc(doc(db, 'users', uid, 'records', String(id)));
-      return true;
+      return OK;
     }
     const registros = await obterRegistros();
     const restantes = registros.filter((r) => r.id !== id);
     await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
-    return true;
+    return OK;
   } catch {
-    return false;
+    return falha('rede');
   }
 }
 
@@ -236,18 +245,18 @@ export async function atualizarRegistro(registro) {
         doc(db, 'users', uid, 'records', String(registroAtualizado.id)),
         registroAtualizado
       );
-      return true;
+      return OK;
     }
     const registros = await obterRegistros();
     const indice = registros.findIndex((r) => r.id === registroAtualizado.id);
     if (indice !== -1) {
       registros[indice] = registroAtualizado;
       await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(registros));
-      return true;
+      return OK;
     }
-    return false;
+    return falha('nao_encontrado');
   } catch {
-    return false;
+    return falha('rede');
   }
 }
 
@@ -274,12 +283,12 @@ export async function salvarAparelho(aparelho) {
   try {
     if (uid) {
       await setDoc(doc(db, 'users', uid), { device: aparelho }, { merge: true });
-      return true;
+      return OK;
     }
     await AsyncStorage.setItem(CHAVES.APARELHO, JSON.stringify(aparelho));
-    return true;
+    return OK;
   } catch {
-    return false;
+    return falha('rede');
   }
 }
 
@@ -306,12 +315,12 @@ export async function definirEconomia(mapaDeEconomia) {
   try {
     if (uid) {
       await setDoc(doc(db, 'users', uid), { economy: mapaDeEconomia }, { merge: true });
-      return true;
+      return OK;
     }
     await AsyncStorage.setItem(CHAVES.ECONOMIA, JSON.stringify(mapaDeEconomia));
-    return true;
+    return OK;
   } catch {
-    return false;
+    return falha('rede');
   }
 }
 
@@ -559,14 +568,14 @@ export async function salvarSessaoDeCrise(sessao) {
   try {
     if (uid) {
       await setDoc(doc(db, 'users', uid, 'crisisSessions', String(sessao.id)), sessao);
-      return true;
+      return OK;
     }
     const sessoes = await obterSessoesDeCrise();
     sessoes.push(sessao);
     await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(sessoes));
-    return true;
+    return OK;
   } catch {
-    return false;
+    return falha('rede');
   }
 }
 

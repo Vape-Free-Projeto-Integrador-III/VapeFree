@@ -45,7 +45,7 @@ function formatarRelogio(totalSegundos) {
 }
 
 export default function BreathingScreen({ navigation, route }) {
-    const { cores, estaEscuro, alternarTema } = usarTema();
+    const { cores } = usarTema();
     const veioDaCrise = route?.params?.fromCrisis === true;
 
     const [duracao, setDuracao] = useState(DURACOES[1]);
@@ -163,9 +163,8 @@ export default function BreathingScreen({ navigation, route }) {
                 titulo="Respiração"
                 subtitulo="Box breathing 4-4-4-4"
                 cores={cores}
-                estaEscuro={estaEscuro}
-                alternarTema={alternarTema}
-                mostrarPerfil={false}
+                mostrarConfiguracoes
+                aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
                 aoPressionarVoltar={() => navigation.goBack()}
             />
 

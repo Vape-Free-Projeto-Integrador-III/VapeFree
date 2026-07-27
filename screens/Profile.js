@@ -30,7 +30,7 @@ function obterIniciais(nome, email) {
 }
 
 export default function Profile({ navigation }) {
-    const { cores, estaEscuro, alternarTema } = usarTema();
+    const { cores } = usarTema();
     const { usuario, ehConvidado, sair } = usarAuth();
     const [ocupado, setOcupado] = React.useState(false);
     const [registros, setRegistros] = useState([]);
@@ -111,8 +111,6 @@ export default function Profile({ navigation }) {
                 titulo="Perfil"
                 subtitulo={ehConvidado ? 'Você tá no modo convidado' : 'Seus dados'}
                 cores={cores}
-                estaEscuro={estaEscuro}
-                alternarTema={alternarTema}
                 aoPressionarVoltar={handleVoltar}
                 mostrarPerfil={false}
             />

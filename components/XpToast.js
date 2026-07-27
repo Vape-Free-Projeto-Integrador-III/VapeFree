@@ -1,5 +1,7 @@
 // src/components/XpToast.js
-// Popup pequeno no topo da tela avisando que o usuário ganhou XP.
+// Popup pequeno no topo da tela. Duas variantes:
+//   'xp'   -> ganho de XP (borda verde, "+N XP" à direita)
+//   'erro' -> falha ao salvar (borda vermelha, sem XP, dura mais)
 // Não bloqueia toque (pointerEvents="none") e some sozinho.
 // Quem dispara é o XpToastProvider (context/XpToastContext.js).
 import React, { useEffect, useRef } from 'react';
@@ -9,6 +11,7 @@ import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 
 export const DURACAO_DO_TOAST = 2200;
+export const DURACAO_DO_TOAST_DE_ERRO = 3500;
 
 export default function XpToast({ toast, aoEsconder }) {
     const { cores } = usarTema();
@@ -30,7 +33,7 @@ export default function XpToast({ toast, aoEsconder }) {
                         if (finished && !cancelado) aoEsconder();
                     }
                 );
-            }, DURACAO_DO_TOAST);
+            }, toast.duracao ?? DURACAO_DO_TOAST);
         });
 
         return () => {
@@ -40,6 +43,8 @@ export default function XpToast({ toast, aoEsconder }) {
     }, [toast, animacao, aoEsconder]);
 
     if (!toast) return null;
+
+    const ehErro = toast.variante === 'erro';
 
     return (
         <Animated.View
@@ -58,22 +63,30 @@ export default function XpToast({ toast, aoEsconder }) {
             <View
                 style={[
                     styles.toast,
-                    { backgroundColor: cores.card, borderLeftColor: cores.primary },
+                    {
+                        backgroundColor: cores.card,
+                        borderLeftColor: ehErro ? cores.danger : cores.primary,
+                    },
                     SOMBRA.media,
                 ]}
             >
-                <Text style={styles.icon}>{toast.icone || '⭐'}</Text>
+                <Text style={styles.icon}>{toast.icone || (ehErro ? '⚠️' : '⭐')}</Text>
                 <View style={{ flex: 1 }}>
                     <Text style={[styles.title, { color: cores.text }]} numberOfLines={1}>
                         {toast.titulo}
                     </Text>
                     {!!toast.subtitulo && (
-                        <Text style={[styles.subtitle, { color: cores.textSecondary }]} numberOfLines={1}>
+                        <Text
+                            style={[styles.subtitle, { color: cores.textSecondary }]}
+                            numberOfLines={ehErro ? 2 : 1}
+                        >
                             {toast.subtitulo}
                         </Text>
                     )}
                 </View>
-                <Text style={[styles.xp, { color: cores.primaryDark }]}>+{toast.xp} XP</Text>
+                {!ehErro && (
+                    <Text style={[styles.xp, { color: cores.primaryDark }]}>+{toast.xp} XP</Text>
+                )}
             </View>
         </Animated.View>
     );

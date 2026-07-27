@@ -60,8 +60,8 @@ function formatarOpcaoDeData(dataStr, hoje) {
 }
 
 export default function RegisterScreen({ navigation }) {
-    const { cores, estaEscuro, alternarTema } = usarTema();
-    const { mostrarRecompensas } = usarToastDeXp();
+    const { cores } = usarTema();
+    const { mostrarRecompensas, mostrarErro } = usarToastDeXp();
     const [tipoDeAparelho, setTipoDeAparelho] = useState('desc');
     const [usou, setUsou] = useState(null);
     const [puxadas, setPuxadas] = useState(0);
@@ -227,7 +227,11 @@ export default function RegisterScreen({ navigation }) {
                     intensity: intensidade,
                     time: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
                 };
-                await atualizarRegistro(registroAtualizado);
+                const resultado = await atualizarRegistro(registroAtualizado);
+                if (!resultado.ok) {
+                    mostrarErro('Não deu pra salvar', 'Verifique sua conexão e tente de novo.');
+                    return;
+                }
                 await concederRecompensas(usou);
                 setRegistroExistente(registroAtualizado);
             } else {
@@ -242,7 +246,16 @@ export default function RegisterScreen({ navigation }) {
                     helps: rotulosDeAjudas,
                     intensity: intensidade,
                 };
-                await salvarRegistro(registro);
+                const resultado = await salvarRegistro(registro);
+                if (!resultado.ok) {
+                    mostrarErro(
+                        'Não deu pra salvar',
+                        resultado.motivo === 'data_invalida'
+                            ? `Só dá pra registrar hoje ou até ${DIAS_PARA_TRAS_NO_REGISTRO} dias atrás.`
+                            : 'Verifique sua conexão e tente de novo.'
+                    );
+                    return;
+                }
                 await concederRecompensas(usou);
                 setRegistroExistente(registro);
             }
