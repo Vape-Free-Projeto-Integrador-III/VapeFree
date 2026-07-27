@@ -7,6 +7,7 @@ React Navigation clássico (`@react-navigation/native` + `bottom-tabs` + `native
 ```
 AppNavigator
 ├─ inicializando=true        → LoadingScreen (spinner)
+├─ tutorial não concluído    → OnboardingScreen (tela solta, fora de qualquer navigator)
 ├─ user || ehConvidado           → MainStack (Stack.Navigator, headerShown: false)
 │    ├─ Main   → HomeTabs (Tab.Navigator)
 │    │    ├─ Home          (HomeScreen)         label "Início"
@@ -24,6 +25,8 @@ AppNavigator
 ```
 
 A troca `MainStack` ↔ `AuthStack` é automática: acontece porque `usuario`/`ehConvidado` (de `usarAuth()`) mudam e re-renderizam `AppNavigator` com uma árvore diferente. **Nunca use `navigation.replace('Main')` ou similar** para forçar essa troca — quem decide é sempre o `AuthContext` (via `onAuthStateChanged` do Firebase ou `continuarSemConta`/`sair`). Ver [auth.md](auth.md).
+
+`OnboardingScreen` (`screens/OnboardingScreen.js`) vem **antes** da decisão de login e não é um `Stack.Screen`: `AppNavigator` a renderiza direto, passando `aoConcluir`. São 5 passos horizontais (`FlatList` com `pagingEnabled`), com botão "Pular". Ao concluir/pular, grava a flag `@vapefree_onboarding` via `concluirOnboarding()` e o estado local em `AppNavigator` cai pra `false`, revelando `AuthStack`/`MainStack`. A flag é lida uma vez na montagem — enquanto isso o app mostra o `LoadingScreen`, pra o tutorial não piscar pra quem já passou por ele.
 
 `AuthStack` aceita `initialRouteName` (vindo de `telaDeAuth` no `AuthContext`) para poder abrir direto em `SignUp` quando o usuário clica "Cadastrar" na tela de Perfil em modo convidado.
 

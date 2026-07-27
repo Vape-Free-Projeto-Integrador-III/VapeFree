@@ -330,7 +330,7 @@ export default function RegisterScreen({ navigation }) {
                                         style={[styles.pickerItem, data === dataSelecionada && { backgroundColor: cores.primaryLight }]}
                                         onPress={() => selecionarData(data)}
                                     >
-                                        <Text style={[styles.pickerItemText, { color: cores.text }, data === dataSelecionada && { color: cores.primaryDark, fontWeight: '600' }]}>
+                                        <Text style={[styles.pickerItemText, { color: cores.text }, data === dataSelecionada && { color: cores.primaryDark, fontFamily: 'Poppins_600SemiBold' }]}>
                                             {formatarOpcaoDeData(data, dataDeHoje())}
                                         </Text>
                                     </TouchableOpacity>
@@ -389,19 +389,16 @@ export default function RegisterScreen({ navigation }) {
                     <>
                         <Text style={[styles.fieldLabel, { color: cores.text }]}>Quantas puxadas?</Text>
                         <View style={styles.counterRow}>
-                            <TouchableOpacity
-                                style={[styles.counterBtn, { borderColor: cores.primary, backgroundColor: cores.card }]}
-                                onPress={() => setPuxadas((p) => Math.max(1, p - 1))}
-                            >
-                                <Text style={[styles.counterBtnText, { color: cores.primary }]}>−</Text>
-                            </TouchableOpacity>
-                            <Text style={[styles.counterVal, { color: cores.text }]}>{puxadas}</Text>
-                            <TouchableOpacity
-                                style={[styles.counterBtn, { borderColor: cores.primary, backgroundColor: cores.card }]}
-                                onPress={() => setPuxadas((p) => p + 1)}
-                            >
-                                <Text style={[styles.counterBtnText, { color: cores.primary }]}>+</Text>
-                            </TouchableOpacity>
+                            <TextInput
+                                style={[styles.counterInput, { borderColor: cores.primary, backgroundColor: cores.inputBg, color: cores.text }]}
+                                keyboardType="number-pad"
+                                value={String(puxadas)}
+                                onChangeText={(texto) => {
+                                    const numero = parseInt(texto.replace(/[^0-9]/g, ''), 10);
+                                    setPuxadas(Number.isNaN(numero) ? 0 : numero);
+                                }}
+                                onBlur={() => setPuxadas((p) => Math.max(1, p))}
+                            />
                         </View>
 
                         <Text style={[styles.fieldLabel, { color: cores.text }]}>O que te deu vontade?</Text>
@@ -519,7 +516,7 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginTop: 16,
     },
-    fieldLabel: { fontSize: 14, fontWeight: '700', marginBottom: 10, marginTop: 6 },
+    fieldLabel: { fontSize: 14, fontFamily: 'Poppins_700Bold', marginBottom: 10, marginTop: 6 },
     toggleRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
     toggleBtn: {
         flex: 1,
@@ -528,7 +525,7 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
         alignItems: 'center',
     },
-    toggleBtnText: { fontSize: 14, fontWeight: '600' },
+    toggleBtnText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
     counterRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -536,16 +533,16 @@ const styles = StyleSheet.create({
         gap: 24,
         marginBottom: 18,
     },
-    counterBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+    counterInput: {
+        fontSize: 40,
+        fontFamily: 'Poppins_800ExtraBold',
+        minWidth: 100,
+        textAlign: 'center',
         borderWidth: 2,
-        alignItems: 'center',
-        justifyContent: 'center',
+        borderRadius: RAIO.md,
+        paddingVertical: 6,
+        paddingHorizontal: 16,
     },
-    counterBtnText: { fontSize: 24, fontWeight: '700', lineHeight: 28 },
-    counterVal: { fontSize: 40, fontWeight: '800', minWidth: 60, textAlign: 'center' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     chip: {
         paddingVertical: 7,
@@ -553,19 +550,19 @@ const styles = StyleSheet.create({
         borderRadius: RAIO.full,
         borderWidth: 1.5,
     },
-    chipText: { fontSize: 13, fontWeight: '500' },
+    chipText: { fontSize: 13, fontFamily: 'Poppins_500Medium' },
     input: {
         borderWidth: 1.5,
         borderRadius: RAIO.md,
         padding: 12,
-        fontSize: 14,
+        fontSize: 14, fontFamily: 'Poppins_400Regular',
         marginBottom: 14,
     },
     sliderWrap: { marginBottom: 18 },
     slider: { width: '100%', height: 40 },
-    intensityVal: { fontSize: 36, fontWeight: '800', textAlign: 'center', marginBottom: 4 },
+    intensityVal: { fontSize: 36, fontFamily: 'Poppins_800ExtraBold', textAlign: 'center', marginBottom: 4 },
     sliderLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-    sliderLabel: { fontSize: 10 },
+    sliderLabel: { fontSize: 10 , fontFamily: 'Poppins_400Regular'},
     saveBtn: {
         borderRadius: RAIO.md,
         paddingVertical: 15,
@@ -576,7 +573,7 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     saveBtnDisabled: { opacity: 0.7 },
-    saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    saveBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins_700Bold' },
     successBox: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -586,7 +583,7 @@ const styles = StyleSheet.create({
         padding: 14,
         marginTop: 12,
     },
-    successText: { fontSize: 14, fontWeight: '600', flex: 1 },
+    successText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold', flex: 1 },
     warningBox: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -596,7 +593,7 @@ const styles = StyleSheet.create({
         padding: 12,
         marginBottom: 16,
     },
-    warningText: { fontSize: 13, fontWeight: '500', flex: 1 },
+    warningText: { fontSize: 13, fontFamily: 'Poppins_500Medium', flex: 1 },
     dateSelector: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -607,7 +604,7 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
         marginBottom: 18,
     },
-    dateSelectorText: { flex: 1, fontSize: 15, fontWeight: '600' },
+    dateSelectorText: { flex: 1, fontSize: 15, fontFamily: 'Poppins_600SemiBold' },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
@@ -625,11 +622,11 @@ const styles = StyleSheet.create({
         padding: 16,
         borderBottomWidth: 1,
     },
-    datePickerTitle: { fontSize: 18, fontWeight: '700' },
-    datePickerCancel: { fontSize: 16 },
+    datePickerTitle: { fontSize: 18, fontFamily: 'Poppins_700Bold' },
+    datePickerCancel: { fontSize: 16 , fontFamily: 'Poppins_400Regular'},
     datePickerSpacer: { width: 60 },
-    pickerLabel: { fontSize: 12, fontWeight: '600', marginTop: 12, marginBottom: 8, paddingHorizontal: 16 },
+    pickerLabel: { fontSize: 12, fontFamily: 'Poppins_600SemiBold', marginTop: 12, marginBottom: 8, paddingHorizontal: 16 },
     pickerScroll: { maxHeight: 300, paddingHorizontal: 16 },
     pickerItem: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: RAIO.sm },
-    pickerItemText: { fontSize: 16 },
+    pickerItemText: { fontSize: 16 , fontFamily: 'Poppins_400Regular'},
 });

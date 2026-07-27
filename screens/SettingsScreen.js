@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     rowLabel: {
         flex: 1,
         fontSize: 15,
-        fontWeight: '600',
+        fontFamily: 'Poppins_600SemiBold',
     },
     divider: { height: StyleSheet.hairlineWidth },
 });

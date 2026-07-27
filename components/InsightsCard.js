@@ -74,12 +74,12 @@ export default function InsightsCard({ registros, sessoesDeCrise = [], cores }) 
 const styles = StyleSheet.create({
   card: { borderRadius: RAIO.lg, padding: 16, marginHorizontal: 16, marginTop: 14 },
   waitingCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
-  waitingText: { fontSize: 12, flex: 1 },
-  cardTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
+  waitingText: { fontSize: 12, fontFamily: 'Poppins_400Regular', flex: 1 },
+  cardTitle: { fontSize: 12, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.8 },
   sectionSpacing: { marginTop: 16 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12 },
-  rowIcon: { fontSize: 18, lineHeight: 22 },
+  rowIcon: { fontSize: 18, fontFamily: 'Poppins_400Regular', lineHeight: 22 },
   rowBody: { flex: 1 },
-  rowTitle: { fontSize: 14, fontWeight: '600' },
-  rowDetail: { fontSize: 12, marginTop: 3 },
+  rowTitle: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
+  rowDetail: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 3 },
 });

@@ -48,5 +48,5 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  texto: { fontSize: 12, fontWeight: '600' },
+  texto: { fontSize: 12, fontFamily: 'Poppins_600SemiBold' },
 });

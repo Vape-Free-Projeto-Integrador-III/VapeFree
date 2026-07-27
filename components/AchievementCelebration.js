@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
         padding: 28,
         alignItems: 'center',
     },
-    rotulo: { fontSize: 12, fontWeight: '800', letterSpacing: 1.5, marginBottom: 16 },
+    rotulo: { fontSize: 12, fontFamily: 'Poppins_800ExtraBold', letterSpacing: 1.5, marginBottom: 16 },
     circulo: {
         width: 120,
         height: 120,
@@ -226,11 +226,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 20,
     },
-    emoji: { fontSize: 64 },
-    titulo: { fontSize: 22, fontWeight: '800', textAlign: 'center' },
-    descricao: { fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+    emoji: { fontSize: 64 , fontFamily: 'Poppins_400Regular'},
+    titulo: { fontSize: 22, fontFamily: 'Poppins_800ExtraBold', textAlign: 'center' },
+    descricao: { fontSize: 14, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 8, lineHeight: 20 },
     xpBadge: { marginTop: 16, paddingHorizontal: 16, paddingVertical: 6, borderRadius: RAIO.full },
-    xpTexto: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+    xpTexto: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },
     botao: {
         marginTop: 24,
         paddingVertical: 14,
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
         alignSelf: 'stretch',
         alignItems: 'center',
     },
-    botaoTexto: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+    botaoTexto: { color: '#FFFFFF', fontSize: 16, fontFamily: 'Poppins_800ExtraBold' },
     botaoSecundario: {
         marginTop: 10,
         paddingVertical: 12,
@@ -249,6 +249,6 @@ const styles = StyleSheet.create({
         alignSelf: 'stretch',
         alignItems: 'center',
     },
-    botaoSecundarioTexto: { fontSize: 15, fontWeight: '800' },
+    botaoSecundarioTexto: { fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },
     areaDeCaptura: { position: 'absolute', top: -10000, left: 0, opacity: 1 },
 });

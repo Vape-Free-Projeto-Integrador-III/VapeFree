@@ -71,12 +71,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '800',
+    fontFamily: 'Poppins_800ExtraBold',
     color: '#1E2A3A',
     marginBottom: 8,
   },
   message: {
-    fontSize: 14,
+    fontSize: 14, fontFamily: 'Poppins_400Regular',
     lineHeight: 21,
     color: '#55606D',
     marginBottom: 18,
@@ -103,16 +103,16 @@ const styles = StyleSheet.create({
   cancelText: {
     color: '#22384B',
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: 'Poppins_700Bold',
   },
   discardText: {
     color: '#C62828',
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: 'Poppins_700Bold',
   },
   importText: {
     color: '#fff',
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: 'Poppins_700Bold',
   },
 });

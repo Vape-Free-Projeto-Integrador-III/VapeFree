@@ -442,14 +442,14 @@ const styles = StyleSheet.create({
 
     title: {
         fontSize: 22,
-        fontWeight: '700',
+        fontFamily: 'Poppins_700Bold',
         color: CORES.titleText,
         textAlign: 'center',
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 15,
-        fontWeight: '400',
+        fontFamily: 'Poppins_400Regular',
         color: CORES.subtitleText,
         textAlign: 'center',
         lineHeight: 21,
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     },
     label: {
         fontSize: 14,
-        fontWeight: '600',
+        fontFamily: 'Poppins_600SemiBold',
         color: CORES.labelText,
         marginBottom: 8,
     },
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         height: '100%',
-        fontSize: 15,
+        fontSize: 15, fontFamily: 'Poppins_400Regular',
         color: CORES.inputText,
         padding: 0,
     },
@@ -516,12 +516,12 @@ const styles = StyleSheet.create({
         borderColor: CORES.checkboxCheckedBg,
     },
     rememberText: {
-        fontSize: 14,
+        fontSize: 14, fontFamily: 'Poppins_400Regular',
         color: CORES.rememberText,
     },
     linkText: {
         fontSize: 14,
-        fontWeight: '600',
+        fontFamily: 'Poppins_600SemiBold',
         color: CORES.linkBlue,
     },
 
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
     },
     buttonText: {
         fontSize: 16,
-        fontWeight: '700',
+        fontFamily: 'Poppins_700Bold',
         color: CORES.buttonText,
     },
 
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
     },
     dividerText: {
         marginHorizontal: 12,
-        fontSize: 13,
+        fontSize: 13, fontFamily: 'Poppins_400Regular',
         color: CORES.dividerText,
     },
 
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
     },
     googleText: {
         fontSize: 16,
-        fontWeight: '600',
+        fontFamily: 'Poppins_600SemiBold',
         color: CORES.googleText,
     },
 
@@ -596,7 +596,7 @@ const styles = StyleSheet.create({
     },
     guestButtonText: {
         fontSize: 14,
-        fontWeight: '600',
+        fontFamily: 'Poppins_600SemiBold',
         color: CORES.linkBlue,
         textDecorationLine: 'underline',
     },
@@ -608,12 +608,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     footerText: {
-        fontSize: 14,
+        fontSize: 14, fontFamily: 'Poppins_400Regular',
         color: CORES.footerText,
     },
     footerLink: {
         fontSize: 14,
-        fontWeight: '700',
+        fontFamily: 'Poppins_700Bold',
         color: CORES.linkBlue,
     },
 });

@@ -70,12 +70,12 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 26,
-        fontWeight: '800',
+        fontFamily: 'Poppins_800ExtraBold',
         color: '#fff',
         letterSpacing: -0.5,
     },
     subtitle: {
-        fontSize: 12,
+        fontSize: 12, fontFamily: 'Poppins_400Regular',
         color: 'rgba(255,255,255,0.85)',
         marginTop: 2,
     },

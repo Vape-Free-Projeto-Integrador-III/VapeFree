@@ -64,6 +64,12 @@ const CHAVES = {
   ABERTURAS: '@vapefree_app_opens',
 };
 
+// Flag do tutorial de boas-vindas. Fica FORA de CHAVES de propósito: é
+// preferência do aparelho (como tema e modo convidado), não dado do usuário —
+// limparDadosLocaisDoConvidado() não pode apagá-la, senão o tutorial voltaria
+// a aparecer depois de um login.
+const CHAVE_ONBOARDING = '@vapefree_onboarding';
+
 // Quantos dias de abertura do app ficam guardados. 60 cobre com folga a
 // maior conquista de presença diária (7 dias seguidos).
 const LIMITE_DE_ABERTURAS = 60;
@@ -199,6 +205,28 @@ export async function temDadosLocaisDoConvidado() {
 
 export async function limparDadosLocaisDoConvidado() {
   await Promise.all(Object.values(CHAVES).map((chave) => AsyncStorage.removeItem(chave)));
+}
+
+// ─── Tutorial de boas-vindas ────────────────────────────────────────────────
+// Sempre local (AsyncStorage), nunca vai pro Firestore: é por aparelho, e
+// precisa ser lida antes de existir usuário logado.
+
+export async function onboardingFoiConcluido() {
+  try {
+    return (await AsyncStorage.getItem(CHAVE_ONBOARDING)) === 'true';
+  } catch {
+    // Na dúvida, não mostra o tutorial de novo pra quem já usa o app.
+    return true;
+  }
+}
+
+export async function concluirOnboarding() {
+  try {
+    await AsyncStorage.setItem(CHAVE_ONBOARDING, 'true');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function substituirDocsDaColecao(uid, subcolecao, entradas) {
@@ -713,13 +741,14 @@ export async function atualizarXp(registros, conquistasDesbloqueadas, missoesCon
 }
 
 // ─── Sessões de crise ────────────────────────────────────────────────────────
-// Cada vez que o usuário abre o modo crise ("Estou com vontade") vira uma
-// sessão aqui. Modo conta: subcoleção users/{uid}/crisisSessions. Modo
-// convidado: array no AsyncStorage.
+// Só vira sessão aqui quando o usuário conta o desfecho no fim do modo crise
+// ("Estou com vontade"). Se ele pular o feedback ("Agora não"), nada é salvo.
+// Modo conta: subcoleção users/{uid}/crisisSessions. Modo convidado: array no
+// AsyncStorage.
 //
 // Shape: { id, date, time, method, durationSec, completed, outcome, note }
 //   method  -> 'respiracao' | 'timer' | 'distracao' | null
-//   outcome -> 'passou' | 'diminuiu' | 'usei' | null (usuário pulou o feedback)
+//   outcome -> 'passou' | 'diminuiu' | 'usei'
 
 export async function obterSessoesDeCrise() {
   const uid = obterUid();

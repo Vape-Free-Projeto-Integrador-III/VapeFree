@@ -15,6 +15,8 @@ function getUid() {
 - **Logado** (`uid` existe) → Cloud Firestore, sob `users/{uid}/...`.
 - **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
 
+Exceção às duas regras acima: `@vapefree_onboarding` (flag `'true'` do tutorial de boas-vindas, lida/gravada por `onboardingFoiConcluido()`/`concluirOnboarding()`). É preferência **do aparelho**, como `@vapefree_dark_mode` e `@vapefree_guest_mode`: nunca vai pro Firestore, não tem espelho e fica de fora de `CHAVES` de propósito, pra `limparDadosLocaisDoConvidado()` não apagá-la e o tutorial não reaparecer depois de um login.
+
 O modo convidado fala direto com o `AsyncStorage`. O modo conta **não** fala direto com o Firestore: passa pelo espelho local + fila de `utils/offline.js` (ver abaixo).
 
 ## Offline-first (modo conta)

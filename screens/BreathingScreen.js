@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     },
     cardTitle: {
         fontSize: 12,
-        fontWeight: '700',
+        fontFamily: 'Poppins_700Bold',
         textTransform: 'uppercase',
         letterSpacing: 0.8,
         marginBottom: 12,
@@ -279,10 +279,10 @@ const styles = StyleSheet.create({
         borderWidth: 3,
     },
     circleTextWrap: { alignItems: 'center' },
-    phaseLabel: { fontSize: 18, fontWeight: '800', letterSpacing: 0.5 },
-    phaseCount: { fontSize: 44, fontWeight: '800', marginTop: 2 },
-    hint: { fontSize: 14, textAlign: 'center', marginTop: 18, lineHeight: 20 },
-    remaining: { fontSize: 12, textAlign: 'center', marginTop: 8 },
+    phaseLabel: { fontSize: 18, fontFamily: 'Poppins_800ExtraBold', letterSpacing: 0.5 },
+    phaseCount: { fontSize: 44, fontFamily: 'Poppins_800ExtraBold', marginTop: 2 },
+    hint: { fontSize: 14, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 18, lineHeight: 20 },
+    remaining: { fontSize: 12, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 8 },
     chips: { flexDirection: 'row', gap: 8 },
     chip: {
         borderWidth: 1.5,
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 16,
     },
-    chipText: { fontSize: 13, fontWeight: '600' },
+    chipText: { fontSize: 13, fontFamily: 'Poppins_600SemiBold' },
     doneCard: {
         borderRadius: RAIO.lg,
         padding: 16,
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
         marginTop: 14,
         borderLeftWidth: 4,
     },
-    doneText: { fontSize: 14, lineHeight: 20 },
+    doneText: { fontSize: 14, fontFamily: 'Poppins_400Regular', lineHeight: 20 },
     mainBtn: {
         borderRadius: RAIO.lg,
         paddingVertical: 16,
@@ -307,5 +307,5 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1.5,
     },
-    mainBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    mainBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins_700Bold' },
 });

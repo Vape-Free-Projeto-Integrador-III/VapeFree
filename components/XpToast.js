@@ -102,8 +102,8 @@ const styles = StyleSheet.create({
         borderRadius: RAIO.lg,
         borderLeftWidth: 4,
     },
-    icon: { fontSize: 22 },
-    title: { fontSize: 14, fontWeight: '800' },
-    subtitle: { fontSize: 12, marginTop: 1 },
-    xp: { fontSize: 15, fontWeight: '800' },
+    icon: { fontSize: 22 , fontFamily: 'Poppins_400Regular'},
+    title: { fontSize: 14, fontFamily: 'Poppins_800ExtraBold' },
+    subtitle: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 1 },
+    xp: { fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },
 });

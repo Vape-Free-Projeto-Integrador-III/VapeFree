@@ -4,6 +4,7 @@ import React from 'react';
 import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from '@expo-google-fonts/poppins';
 import AppNavigator from './navigation/AppNavigator';
 import { ThemeProvider, usarTema } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
@@ -33,6 +34,18 @@ function AppContent() {
 }
 
 export default function App() {
+    const [fontesCarregadas] = useFonts({
+        Poppins_400Regular,
+        Poppins_500Medium,
+        Poppins_600SemiBold,
+        Poppins_700Bold,
+        Poppins_800ExtraBold,
+    });
+
+    if (!fontesCarregadas) {
+        return null;
+    }
+
     return (
         <AuthProvider>
             <ThemeProvider>

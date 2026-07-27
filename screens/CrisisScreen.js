@@ -5,8 +5,8 @@
 // que funcionou pra ele (metodoDeCriseRecomendado), esse vem primeiro e
 // marcado — os outros continuam clicáveis.
 //
-// Toda visita vira uma sessão salva (salvarSessaoDeCrise), mesmo se o usuário
-// pular o feedback do fim: ter pedido ajuda já é dado.
+// Só vira sessão salva (salvarSessaoDeCrise) se o usuário contar o desfecho
+// no fim (passou/diminuiu/usei). Se pular o feedback, nada é registrado.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -160,6 +160,13 @@ export default function CrisisScreen({ navigation, route }) {
             durationSec: durationSec ?? segundosDecorridos(),
             completed: completed === true,
         });
+    }
+
+    // "Agora não": usuário pediu ajuda mas não quis contar o desfecho — não
+    // vira sessão registrada, só fecha a tela (sem XP, sem contar pras stats).
+    function pular() {
+        setPendente(null);
+        navigation.goBack();
     }
 
     async function persistir(desfecho, nota) {
@@ -331,7 +338,7 @@ export default function CrisisScreen({ navigation, route }) {
                 visivel={pendente !== null}
                 cores={cores}
                 aoEnviar={(desfecho, nota) => persistir(desfecho, nota)}
-                aoPular={() => persistir(null, null)}
+                aoPular={pular}
             />
         </>
     );
@@ -347,7 +354,7 @@ const styles = StyleSheet.create({
         marginTop: 14,
         borderLeftWidth: 4,
     },
-    msgText: { fontSize: 15, lineHeight: 22 },
+    msgText: { fontSize: 15, fontFamily: 'Poppins_400Regular', lineHeight: 22 },
     methodCard: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -358,21 +365,21 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginTop: 12,
     },
-    methodIcon: { fontSize: 24 },
+    methodIcon: { fontSize: 24 , fontFamily: 'Poppins_400Regular'},
     methodBody: { flex: 1 },
     methodTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    methodTitle: { fontSize: 15, fontWeight: '700' },
+    methodTitle: { fontSize: 15, fontFamily: 'Poppins_700Bold' },
     badge: { borderRadius: RAIO.full, paddingHorizontal: 8, paddingVertical: 2 },
-    badgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-    methodSubtitle: { fontSize: 12, marginTop: 2 },
+    badgeText: { fontSize: 10, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.5 },
+    methodSubtitle: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
     panel: {
         borderRadius: RAIO.lg,
         padding: 16,
         marginHorizontal: 16,
         marginTop: 8,
     },
-    clock: { fontSize: 40, fontWeight: '800', textAlign: 'center' },
-    panelText: { fontSize: 13, lineHeight: 19, marginTop: 8, textAlign: 'center' },
+    clock: { fontSize: 40, fontFamily: 'Poppins_800ExtraBold', textAlign: 'center' },
+    panelText: { fontSize: 13, fontFamily: 'Poppins_400Regular', lineHeight: 19, marginTop: 8, textAlign: 'center' },
     panelBtn: {
         borderWidth: 1.5,
         borderRadius: RAIO.md,
@@ -380,11 +387,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 14,
     },
-    panelBtnText: { fontSize: 14, fontWeight: '700' },
+    panelBtnText: { fontSize: 14, fontFamily: 'Poppins_700Bold' },
     distractionRow: { flexDirection: 'row', gap: 12, paddingVertical: 10 },
-    distractionEmoji: { fontSize: 20 },
-    distractionLabel: { fontSize: 14, fontWeight: '600' },
-    distractionDetail: { fontSize: 12, marginTop: 2 },
+    distractionEmoji: { fontSize: 20 , fontFamily: 'Poppins_400Regular'},
+    distractionLabel: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
+    distractionDetail: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
     endBtn: {
         borderRadius: RAIO.lg,
         paddingVertical: 16,
@@ -392,5 +399,5 @@ const styles = StyleSheet.create({
         marginTop: 20,
         alignItems: 'center',
     },
-    endBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    endBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins_700Bold' },
 });

@@ -337,14 +337,14 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 22,
-        fontWeight: '700',
+        fontFamily: 'Poppins_700Bold',
         color: CORES.titleText,
         textAlign: 'center',
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 15,
-        fontWeight: '400',
+        fontFamily: 'Poppins_400Regular',
         color: CORES.subtitleText,
         textAlign: 'center',
         lineHeight: 21,
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     },
     label: {
         fontSize: 14,
-        fontWeight: '600',
+        fontFamily: 'Poppins_600SemiBold',
         color: CORES.labelText,
         marginBottom: 8,
     },
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         height: '100%',
-        fontSize: 15,
+        fontSize: 15, fontFamily: 'Poppins_400Regular',
         color: CORES.inputText,
         padding: 0,
     },
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     },
     buttonText: {
         fontSize: 16,
-        fontWeight: '700',
+        fontFamily: 'Poppins_700Bold',
         color: CORES.buttonText,
     },
     footerRow: {
@@ -411,12 +411,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     footerText: {
-        fontSize: 14,
+        fontSize: 14, fontFamily: 'Poppins_400Regular',
         color: CORES.footerText,
     },
     footerLink: {
         fontSize: 14,
-        fontWeight: '700',
+        fontFamily: 'Poppins_700Bold',
         color: CORES.linkBlue,
     },
 });

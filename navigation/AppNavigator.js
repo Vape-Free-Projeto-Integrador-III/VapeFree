@@ -1,5 +1,5 @@
 // src/navigation/AppNavigator.js
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -16,7 +16,9 @@ import SettingsScreen from '../screens/SettingsScreen';
 import CrisisScreen from '../screens/CrisisScreen';
 import MissionsScreen from '../screens/MissionsScreen';
 import BreathingScreen from '../screens/BreathingScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 import OfflineBanner from '../components/OfflineBanner';
+import { onboardingFoiConcluido } from '../utils/storage';
 import { SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarAuth } from '../context/AuthContext';
@@ -46,7 +48,7 @@ function HomeTabs() {
         },
         tabBarActiveTintColor: cores.primary,
         tabBarInactiveTintColor: cores.textMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 11, fontFamily: 'Poppins_600SemiBold' },
         tabBarIcon: ({ focused, color, size }) => {
           const icones = {
             Home: focused ? 'home' : 'home-outline',
@@ -109,10 +111,35 @@ export default function AppNavigator() {
   // "inicializando" é true só durante a checagem inicial (abertura do app).
   const { usuario, ehConvidado, telaDeAuth, inicializando } = usarAuth();
 
-  // Enquanto o Firebase ainda não respondeu se há sessão ativa, mostramos
-  // um loading em vez de decidir prematuramente entre Login e Main.
-  if (inicializando) {
+  // "mostrarOnboarding" é null até a flag ser lida do AsyncStorage — assim o
+  // tutorial não pisca na tela de quem já passou por ele.
+  const [mostrarOnboarding, setMostrarOnboarding] = useState(null);
+
+  useEffect(() => {
+    let montado = true;
+    onboardingFoiConcluido()
+      .then((concluido) => {
+        if (montado) setMostrarOnboarding(!concluido);
+      })
+      .catch(() => {
+        if (montado) setMostrarOnboarding(false);
+      });
+    return () => {
+      montado = false;
+    };
+  }, []);
+
+  // Enquanto o Firebase ainda não respondeu se há sessão ativa (ou a flag do
+  // tutorial ainda não foi lida), mostramos um loading em vez de decidir
+  // prematuramente entre Onboarding, Login e Main.
+  if (inicializando || mostrarOnboarding === null) {
     return <LoadingScreen />;
+  }
+
+  // O tutorial vem ANTES da decisão de login: é a primeira coisa que aparece
+  // na primeira abertura do app, mesmo que já exista sessão salva.
+  if (mostrarOnboarding) {
+    return <OnboardingScreen aoConcluir={() => setMostrarOnboarding(false)} />;
   }
 
   return (

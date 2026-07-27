@@ -9,6 +9,7 @@ import {
     Dimensions,
     Modal,
     TouchableWithoutFeedback,
+    TextInput,
 } from 'react-native';
 import ScreenHeader from '../components/ScreenHeader';
 import InsightsCard from '../components/InsightsCard';
@@ -267,6 +268,8 @@ export default function HistoryScreen({ navigation }) {
                             color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
                             labelColor: () => cores.textSecondary,
                             propsForBackgroundLines: { stroke: cores.borderLight },
+                            propsForLabels: { fontFamily: 'Poppins_400Regular' },
+                            propsForTopLabels: { fontFamily: 'Poppins_600SemiBold' },
                             barPercentage: 0.65,
                             fillShadowGradient: cores.primary,
                             fillShadowGradientOpacity: 1,
@@ -362,7 +365,9 @@ export default function HistoryScreen({ navigation }) {
                             </TouchableOpacity>
                         </View>
 
-                        {registroEmEdicao && (
+                        {registroEmEdicao && (() => {
+                            const corDaIntensidade = registroEmEdicao.intensity <= 3 ? cores.primary : registroEmEdicao.intensity <= 6 ? cores.warning : cores.danger;
+                            return (
                             <ScrollView style={styles.modalBody}>
                                 <Text style={[styles.fieldLabel, { color: cores.text }]}>Você usou o vape?</Text>
                                 <View style={styles.toggleRow}>
@@ -381,35 +386,40 @@ export default function HistoryScreen({ navigation }) {
                                     <>
                                         <Text style={[styles.fieldLabel, { color: cores.text }]}>Quantas puxadas?</Text>
                                         <View style={styles.counterRow}>
-                                            <TouchableOpacity
-                                                style={[styles.counterBtn, { borderColor: cores.primary, backgroundColor: cores.card }]}
-                                                onPress={() => setRegistroEmEdicao({ ...registroEmEdicao, puffs: Math.max(1, registroEmEdicao.puffs - 1) })}
-                                            >
-                                                <Text style={[styles.counterBtnText, { color: cores.primary }]}>−</Text>
-                                            </TouchableOpacity>
-                                            <Text style={[styles.counterVal, { color: cores.text }]}>{registroEmEdicao.puffs}</Text>
-                                            <TouchableOpacity
-                                                style={[styles.counterBtn, { borderColor: cores.primary, backgroundColor: cores.card }]}
-                                                onPress={() => setRegistroEmEdicao({ ...registroEmEdicao, puffs: registroEmEdicao.puffs + 1 })}
-                                            >
-                                                <Text style={[styles.counterBtnText, { color: cores.primary }]}>+</Text>
-                                            </TouchableOpacity>
+                                            <TextInput
+                                                style={[styles.counterInput, { borderColor: cores.primary, backgroundColor: cores.inputBg, color: cores.text }]}
+                                                keyboardType="number-pad"
+                                                value={String(registroEmEdicao.puffs)}
+                                                onChangeText={(texto) => {
+                                                    const numero = parseInt(texto.replace(/[^0-9]/g, ''), 10);
+                                                    setRegistroEmEdicao({ ...registroEmEdicao, puffs: Number.isNaN(numero) ? 0 : numero });
+                                                }}
+                                                onBlur={() => setRegistroEmEdicao((r) => ({ ...r, puffs: Math.max(1, r.puffs) }))}
+                                            />
                                         </View>
                                     </>
                                 )}
 
-                                <Text style={[styles.fieldLabel, { color: cores.text }]}>Vontade: {registroEmEdicao.intensity}/10</Text>
-                                <Slider
-                                    style={styles.slider}
-                                    minimumValue={0}
-                                    maximumValue={10}
-                                    step={1}
-                                    value={registroEmEdicao.intensity}
-                                    onValueChange={(val) => setRegistroEmEdicao({ ...registroEmEdicao, intensity: val[0] })}
-                                    minimumTrackTintColor={cores.primary}
-                                    maximumTrackTintColor={cores.border}
-                                    thumbTintColor={cores.primary}
-                                />
+                                <Text style={[styles.fieldLabel, { color: cores.text }]}>Quanta vontade você sentiu?</Text>
+                                <View style={styles.sliderWrap}>
+                                    <Text style={[styles.intensityVal, { color: corDaIntensidade }]}>{Math.round(registroEmEdicao.intensity)}</Text>
+                                    <Slider
+                                        style={styles.slider}
+                                        minimumValue={0}
+                                        maximumValue={10}
+                                        step={1}
+                                        value={registroEmEdicao.intensity}
+                                        onValueChange={(val) => setRegistroEmEdicao({ ...registroEmEdicao, intensity: val[0] })}
+                                        minimumTrackTintColor={corDaIntensidade}
+                                        maximumTrackTintColor={cores.border}
+                                        thumbTintColor={corDaIntensidade}
+                                    />
+                                    <View style={styles.sliderLabels}>
+                                        <Text style={[styles.sliderLabel, { color: cores.textMuted }]}>Nenhuma</Text>
+                                        <Text style={[styles.sliderLabel, { color: cores.textMuted }]}>Moderada</Text>
+                                        <Text style={[styles.sliderLabel, { color: cores.textMuted }]}>Muito forte</Text>
+                                    </View>
+                                </View>
 
                                 {registroEmEdicao.used && (
                                     <>
@@ -459,7 +469,8 @@ export default function HistoryScreen({ navigation }) {
                                     <Text style={styles.saveBtnText}>Salvar</Text>
                                 </TouchableOpacity>
                             </ScrollView>
-                        )}
+                            );
+                        })()}
                     </View>
                 </View>
             </Modal>
@@ -473,59 +484,61 @@ const styles = StyleSheet.create({
     container: { paddingBottom: 24 },
     filtersRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 14 },
     filterBtn: { flex: 1, paddingVertical: 10, borderRadius: RAIO.md, borderWidth: 1.5, alignItems: 'center' },
-    filterBtnText: { fontSize: 12, fontWeight: '600' },
+    filterBtnText: { fontSize: 12, fontFamily: 'Poppins_600SemiBold' },
     card: { borderRadius: RAIO.lg, padding: 16, marginHorizontal: 16, marginTop: 14 },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: 12 },
-    cardTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
-    cardSubtitle: { fontSize: 12, marginTop: 4 },
+    cardTitle: { fontSize: 12, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.8 },
+    cardSubtitle: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 4 },
     chart: { borderRadius: RAIO.md },
     emptyChartWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 28 },
-    emptyChart: { fontSize: 13, textAlign: 'center', paddingTop: 10 },
+    emptyChart: { fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', paddingTop: 10 },
     listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 16, marginTop: 20 },
-    listTitle: { fontSize: 16, fontWeight: '700' },
-    listCount: { fontSize: 12 },
+    listTitle: { fontSize: 16, fontFamily: 'Poppins_700Bold' },
+    listCount: { fontSize: 12 , fontFamily: 'Poppins_400Regular'},
     emptyWrap: { alignItems: 'center', paddingVertical: 60 },
-    emptyTitle: { fontSize: 16, fontWeight: '700', marginTop: 12 },
-    emptySubtitle: { fontSize: 13, marginTop: 4 },
+    emptyTitle: { fontSize: 16, fontFamily: 'Poppins_700Bold', marginTop: 12 },
+    emptySubtitle: { fontSize: 13, fontFamily: 'Poppins_400Regular', marginTop: 4 },
     histItem: { borderRadius: RAIO.md, padding: 14, marginHorizontal: 16, marginTop: 10 },
     histTop: { flexDirection: 'row', alignItems: 'flex-start' },
-    histDate: { fontSize: 13, fontWeight: '700' },
-    histDev: { fontSize: 11, marginTop: 2 },
-    histPuffs: { fontSize: 14, fontWeight: '800' },
-    histNone: { fontSize: 14, fontWeight: '800' },
-    histIntensity: { fontSize: 11, marginTop: 2 },
+    histDate: { fontSize: 13, fontFamily: 'Poppins_700Bold' },
+    histDev: { fontSize: 11, fontFamily: 'Poppins_400Regular', marginTop: 2 },
+    histPuffs: { fontSize: 14, fontFamily: 'Poppins_800ExtraBold' },
+    histNone: { fontSize: 14, fontFamily: 'Poppins_800ExtraBold' },
+    histIntensity: { fontSize: 11, fontFamily: 'Poppins_400Regular', marginTop: 2 },
     actionButtons: { flexDirection: 'row', gap: 8, marginLeft: 8 },
     editBtn: { padding: 4 },
     deleteBtn: { padding: 4 },
     histTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
     histTag: { borderRadius: RAIO.full, paddingVertical: 3, paddingHorizontal: 10 },
-    histTagText: { fontSize: 11, fontWeight: '500' },
+    histTagText: { fontSize: 11, fontFamily: 'Poppins_500Medium' },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalContent: { borderTopLeftRadius: RAIO.xl, borderTopRightRadius: RAIO.xl, maxHeight: '80%' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
-    modalTitle: { fontSize: 18, fontWeight: '700' },
+    modalTitle: { fontSize: 18, fontFamily: 'Poppins_700Bold' },
     modalBody: { padding: 16 },
-    fieldLabel: { fontSize: 14, fontWeight: '700', marginBottom: 10, marginTop: 6 },
+    fieldLabel: { fontSize: 14, fontFamily: 'Poppins_700Bold', marginBottom: 10, marginTop: 6 },
     toggleRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
     toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: RAIO.md, borderWidth: 1.5, alignItems: 'center' },
-    toggleBtnText: { fontSize: 14, fontWeight: '600' },
+    toggleBtnText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
     counterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24, marginBottom: 18 },
-    counterBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-    counterBtnText: { fontSize: 24, fontWeight: '700' },
-    counterVal: { fontSize: 40, fontWeight: '800', minWidth: 60, textAlign: 'center' },
-    slider: { width: '100%', height: 40, marginBottom: 16 },
+    counterInput: { fontSize: 40, fontFamily: 'Poppins_800ExtraBold', minWidth: 100, textAlign: 'center', borderWidth: 2, borderRadius: RAIO.md, paddingVertical: 6, paddingHorizontal: 16 },
+    sliderWrap: { marginBottom: 18 },
+    slider: { width: '100%', height: 40 },
+    intensityVal: { fontSize: 36, fontFamily: 'Poppins_800ExtraBold', textAlign: 'center', marginBottom: 4 },
+    sliderLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+    sliderLabel: { fontSize: 10 , fontFamily: 'Poppins_400Regular'},
     saveBtn: { borderRadius: RAIO.md, paddingVertical: 15, alignItems: 'center', marginTop: 8, marginBottom: 24 },
-    saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    saveBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins_700Bold' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     chip: { paddingVertical: 7, paddingHorizontal: 13, borderRadius: RAIO.full, borderWidth: 1.5 },
-    chipText: { fontSize: 13, fontWeight: '500' },
+    chipText: { fontSize: 13, fontFamily: 'Poppins_500Medium' },
     confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
     confirmModal: { borderRadius: RAIO.lg, padding: 20, width: '80%', maxWidth: 300 },
-    confirmTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
-    confirmText: { fontSize: 14, marginBottom: 20, textAlign: 'center' },
+    confirmTitle: { fontSize: 18, fontFamily: 'Poppins_700Bold', marginBottom: 8, textAlign: 'center' },
+    confirmText: { fontSize: 14, fontFamily: 'Poppins_400Regular', marginBottom: 20, textAlign: 'center' },
     confirmButtons: { flexDirection: 'row', gap: 12 },
     confirmCancelBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: RAIO.md },
-    confirmCancelText: { fontSize: 14, fontWeight: '600' },
+    confirmCancelText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
     confirmDeleteBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: RAIO.md },
-    confirmDeleteText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+    confirmDeleteText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold', color: '#fff' },
 });

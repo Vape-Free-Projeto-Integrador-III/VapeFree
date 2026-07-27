@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     rotulo: {
         color: '#C8E6C9',
         fontSize: 11,
-        fontWeight: '800',
+        fontFamily: 'Poppins_800ExtraBold',
         letterSpacing: 1.5,
         marginBottom: 20,
     },
@@ -68,11 +68,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 20,
     },
-    emoji: { fontSize: 62 },
-    titulo: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', textAlign: 'center' },
+    emoji: { fontSize: 62 , fontFamily: 'Poppins_400Regular'},
+    titulo: { color: '#FFFFFF', fontSize: 24, fontFamily: 'Poppins_800ExtraBold', textAlign: 'center' },
     descricao: {
         color: '#DCEDC8',
-        fontSize: 14,
+        fontSize: 14, fontFamily: 'Poppins_400Regular',
         textAlign: 'center',
         marginTop: 8,
         lineHeight: 20,
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
         borderRadius: RAIO.full,
         backgroundColor: '#1B5E20',
     },
-    streakTexto: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+    streakTexto: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },
     rodape: {
         marginTop: 28,
         paddingTop: 18,
@@ -93,6 +93,6 @@ const styles = StyleSheet.create({
         alignSelf: 'stretch',
         alignItems: 'center',
     },
-    marca: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
-    assinatura: { color: '#A5D6A7', fontSize: 12, marginTop: 4 },
+    marca: { color: '#FFFFFF', fontSize: 17, fontFamily: 'Poppins_800ExtraBold' },
+    assinatura: { color: '#A5D6A7', fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 4 },
 });

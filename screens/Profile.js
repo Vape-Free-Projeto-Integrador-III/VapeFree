@@ -298,12 +298,12 @@ const styles = StyleSheet.create({
     },
     avatarText: {
         fontSize: 28,
-        fontWeight: '800',
+        fontFamily: 'Poppins_800ExtraBold',
         letterSpacing: 0.5,
     },
-    name: { fontSize: 22, fontWeight: '800', textAlign: 'center' },
-    email: { fontSize: 13, marginTop: 6, textAlign: 'center' },
-    guestText: { fontSize: 14, marginTop: 8, textAlign: 'center', lineHeight: 20 },
+    name: { fontSize: 22, fontFamily: 'Poppins_800ExtraBold', textAlign: 'center' },
+    email: { fontSize: 13, fontFamily: 'Poppins_400Regular', marginTop: 6, textAlign: 'center' },
+    guestText: { fontSize: 14, fontFamily: 'Poppins_400Regular', marginTop: 8, textAlign: 'center', lineHeight: 20 },
     infoCard: {
         marginHorizontal: 16,
         marginTop: 14,
@@ -325,8 +325,8 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     infoTextWrap: { flex: 1 },
-    infoLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7 },
-    infoValue: { fontSize: 15, fontWeight: '600', marginTop: 2 },
+    infoLabel: { fontSize: 11, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.7 },
+    infoValue: { fontSize: 15, fontFamily: 'Poppins_600SemiBold', marginTop: 2 },
     divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E0E0E0' },
     guestActions: {
         paddingHorizontal: 16,
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    primaryActionText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    primaryActionText: { color: '#fff', fontSize: 15, fontFamily: 'Poppins_700Bold' },
     secondaryAction: {
         minHeight: 48,
         borderRadius: RAIO.lg,
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    secondaryActionText: { fontSize: 15, fontWeight: '700' },
+    secondaryActionText: { fontSize: 15, fontFamily: 'Poppins_700Bold' },
     logoutBtn: {
         marginHorizontal: 16,
         marginTop: 18,
@@ -359,5 +359,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 10,
     },
-    logoutText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    logoutText: { color: '#fff', fontSize: 15, fontFamily: 'Poppins_700Bold' },
 });
