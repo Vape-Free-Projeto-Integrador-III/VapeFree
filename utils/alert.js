@@ -2,10 +2,10 @@
 // Mantém a assinatura de Alert.alert do React Native de propósito: é um
 // drop-in do componente nativo, só que renderizando o UI do próprio app.
 //
-//   1 botão (ou nenhum) -> toast no topo (components/XpToast.js)
+//   1 botão (ou nenhum) -> toast no topo (components/Toast.js)
 //   2+ botões           -> modal de confirmação (components/ConfirmModal.js)
 //
-// Quem desenha é o XpToastProvider, que se registra aqui via
+// Quem desenha é o ToastProvider, que se registra aqui via
 // registrarManipuladorDeAlerta. Enquanto ninguém tiver registrado (alerta
 // disparado antes do provider montar), cai no alerta do sistema.
 import { Alert, Platform } from 'react-native';

@@ -1,4 +1,4 @@
-// src/components/XpToast.js
+// src/components/Toast.js
 // Popup pequeno no topo da tela. Variantes:
 //   'xp'      -> ganho de XP (borda verde, "+N XP" à direita)
 //   'erro'    -> falha ao salvar (borda vermelha, sem XP, dura mais)
@@ -6,7 +6,7 @@
 //   'sucesso' -> deu certo (borda verde)
 // Só a variante 'xp' mostra o "+N XP"; as outras são texto puro.
 // Não bloqueia toque (pointerEvents="none") e some sozinho.
-// Quem dispara é o XpToastProvider (context/XpToastContext.js).
+// Quem dispara é o ToastProvider (context/ToastContext.js).
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,9 +14,9 @@ import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 
 export const DURACAO_DO_TOAST = 2200;
-export const DURACAO_DO_TOAST_DE_ERRO = 3500;
+export const DURACAO_DO_TOAST_LONGO = 3500;
 
-export default function XpToast({ toast, aoEsconder }) {
+export default function Toast({ toast, aoEsconder }) {
     const { cores } = usarTema();
     const insets = useSafeAreaInsets();
     const animacao = useRef(new Animated.Value(0)).current;

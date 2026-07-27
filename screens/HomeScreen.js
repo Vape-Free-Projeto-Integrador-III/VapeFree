@@ -32,7 +32,7 @@ import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 import { DIAS_PARA_ESCUDO } from '../utils/achievements';
 import { RAIO, SOMBRA, DICAS } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
-import { usarToastDeXp } from '../context/XpToastContext';
+import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 import MissionsCard from '../components/MissionsCard';
 
@@ -41,7 +41,7 @@ const LARGURA_DO_GRAFICO = width - 64;
 
 export default function HomeScreen({ navigation }) {
     const { cores } = usarTema();
-    const { mostrarRecompensas } = usarToastDeXp();
+    const { mostrarRecompensas } = usarToast();
     const [registros, setRegistros] = useState([]);
     const [aparelho, setAparelho] = useState(null);
     const [economia, setEconomia] = useState({});

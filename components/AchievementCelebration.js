@@ -1,7 +1,7 @@
 // src/components/AchievementCelebration.js
 // Modal de celebração que aparece ao desbloquear uma conquista.
 // Emoji grande com pulso, confete animado (Animated puro, sem lib) e vibração.
-// Quem dispara é o XpToastProvider (context/XpToastContext.js), uma conquista
+// Quem dispara é o ToastProvider (context/ToastContext.js), uma conquista
 // por vez — o botão "Arrasou!" chama aoFechar e o provider mostra a próxima.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Dimensions } from 'react-native';
@@ -76,7 +76,7 @@ export default function AchievementCelebration({ conquista, aoFechar }) {
     const [compartilhando, setCompartilhando] = useState(false);
 
     // Streak entra no card compartilhado. Vem do storage e não por prop porque
-    // quem monta esse modal é o XpToastProvider, que só conhece a conquista.
+    // quem monta esse modal é o ToastProvider, que só conhece a conquista.
     useEffect(() => {
         if (!conquista) return undefined;
         let ativo = true;

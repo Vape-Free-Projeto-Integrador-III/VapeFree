@@ -5,7 +5,7 @@
 //   style 'cancel'      -> botão neutro (vai pro topo da pilha)
 //   style 'destructive' -> botão vermelho
 //   sem style           -> botão principal (verde, fica embaixo)
-// Quem monta é o XpToastProvider (context/XpToastContext.js), a partir de
+// Quem monta é o ToastProvider (context/ToastContext.js), a partir de
 // Alert.alert com 2+ botões (ver utils/alert.js).
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';

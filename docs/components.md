@@ -48,13 +48,13 @@ Card da `HomeScreen` com as missões **diárias** do dia. Props: `missoes` (já 
 
 Faixa fina no topo, sem props, montada uma única vez em `navigation/AppNavigator.js` acima do `NavigationContainer` — não replique por tela nem mexa no `ScreenHeader`. Lê `usarConexao()` (`context/ConnectionContext.js`) e só aparece quando está offline **e** tem usuário logado (convidado é sempre local, nunca tem pendência). Texto muda conforme `pendentes`: "Sem internet — N alterações vão sincronizar depois" ou, com a fila zerada, "Sem internet — seus dados estão salvos no aparelho". Ver [database.md](database.md).
 
-## `XpToast` (`components/XpToast.js`) + `XpToastProvider` (`context/XpToastContext.js`)
+## `Toast` (`components/Toast.js`) + `ToastProvider` (`context/ToastContext.js`)
 
-Popup pequeno no topo da tela ("Missão: X · +25 XP"). Não use direto: chame `usarToastDeXp()` e enfileire.
+Popup pequeno no topo da tela. Carrega todo feedback efêmero do app — XP/missão, validação, erro, sucesso —, não só XP (o nome `XpToast`/`usarToastDeXp` era da primeira versão e foi renomeado). Não use o componente direto: chame `usarToast()` e enfileire.
 
 - `mostrarRecompensas({ conquistas, missoes, ganho, icone, titulo })` — um toast por conquista/missão nova, mais um genérico com o XP que sobrou (registro, dia limpo, streak). `icone`/`titulo` personalizam só esse genérico: a `RegisterScreen` usa "🚭 Dia sem cigarro eletrônico!" quando `used === false` e "📝 Registro feito, sem culpa" quando o usuário usou.
 - `mostrarXp({ icone, titulo, xp })` / `mostrarGanhoDeXp(xp)` para casos avulsos.
-- `mostrarAviso(titulo, subtitulo, variante)` — toast de texto puro, sem "+N XP" e com duração maior (`DURACAO_DO_TOAST_DE_ERRO`, 3500ms contra 2200ms). Variantes: `'aviso'` (borda `cores.warning`, ⚠️ — padrão), `'erro'` (`cores.danger`, ❌), `'sucesso'` (`cores.primary`, ✅).
+- `mostrarAviso(titulo, subtitulo, variante)` — toast de texto puro, sem "+N XP" e com duração maior (`DURACAO_DO_TOAST_LONGO`, 3500ms contra 2200ms). Variantes: `'aviso'` (borda `cores.warning`, ⚠️ — padrão), `'erro'` (`cores.danger`, ❌), `'sucesso'` (`cores.primary`, ✅).
 - `mostrarErro(titulo, subtitulo)` — atalho para `mostrarAviso(..., 'erro')`. É o feedback padrão de falha ao salvar — ver o contrato `{ ok, motivo }` em [database.md](database.md).
 - `confirmar({ titulo, mensagem, botoes })` — monta o `ConfirmModal` (abaixo). Uma confirmação por vez, sem fila.
 
@@ -64,7 +64,7 @@ O provider mostra um toast por vez, na ordem da fila, e fica montado em `App.js`
 
 ## `Alert` (`utils/alert.js`) + `ConfirmModal` (`components/ConfirmModal.js`)
 
-**Continua sendo `import Alert from '../utils/alert'`, com a assinatura idêntica à do React Native (`Alert.alert(titulo, mensagem, botoes)`)** — mas não mostra mais o alerta do sistema. O `XpToastProvider` se registra no bridge do módulo (`registrarManipuladorDeAlerta`) e o alerta vira UI do app:
+**Continua sendo `import Alert from '../utils/alert'`, com a assinatura idêntica à do React Native (`Alert.alert(titulo, mensagem, botoes)`)** — mas não mostra mais o alerta do sistema. O `ToastProvider` se registra no bridge do módulo (`registrarManipuladorDeAlerta`) e o alerta vira UI do app:
 
 - **0 ou 1 botão** → toast (`mostrarAviso`). A variante sai de uma heurística pelo título: começa com `'Erro'` → erro, `'Pront'` (Pronto/Prontinho) → sucesso, resto → aviso. O `onPress` do botão único roda junto com o toast (não há "OK" pra tocar).
 - **2+ botões** → `ConfirmModal`, no visual do `GuestDataChoiceModal` mas temado por `usarTema()`. Recebe o array de botões cru do `Alert`: `style: 'cancel'` vira botão neutro no topo, `style: 'destructive'` vira vermelho, o resto vira o botão principal (verde) embaixo. Backdrop e botão físico de voltar disparam o botão `cancel`. Diferente do web antigo, 3+ botões agora aparecem todos.
@@ -75,7 +75,7 @@ Regra prática: informação/validação/erro → deixe como `Alert.alert` de um
 
 ## `AchievementCelebration` (`components/AchievementCelebration.js`) + `AchievementShareCard`
 
-Modal de conquista desbloqueada (emoji com pulso, confete, haptic). Quem monta é o `XpToastProvider`, uma conquista por vez: props `conquista` e `aoFechar`.
+Modal de conquista desbloqueada (emoji com pulso, confete, haptic). Quem monta é o `ToastProvider`, uma conquista por vez: props `conquista` e `aoFechar`.
 
 Botões: "Arrasou!" (fecha, avança a fila) e, abaixo, "Compartilhar 📤" — gera um PNG do `AchievementShareCard` com `captureRef` (`react-native-view-shot`) e abre o menu do sistema com `Sharing.shareAsync` (`expo-sharing`). Detalhes:
 

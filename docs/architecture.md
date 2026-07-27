@@ -26,7 +26,7 @@ Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda 
   <ThemeProvider>
     <AppContent> (SafeAreaProvider + StatusBar)
       <ConnectionProvider>
-        <XpToastProvider>
+        <ToastProvider>
           <AppNavigator>
 ```
 

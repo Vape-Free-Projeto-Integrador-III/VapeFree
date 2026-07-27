@@ -48,7 +48,7 @@ Escritas **iniciadas pelo usuário** devolvem `{ ok: true }` ou `{ ok: false, mo
 
 `salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `definirEconomia`, `salvarSessaoDeCrise`.
 
-Motivos: `'rede'` (falha de AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToastDeXp()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou.
+Motivos: `'rede'` (falha de AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToast()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou.
 
 Com o offline-first, `'rede'` praticamente sumiu do modo conta: a escrita é aceita no espelho e sobe depois. O contrato continua o mesmo pras telas (nada muda nelas), e `'rede'` segue possível no modo convidado.
 

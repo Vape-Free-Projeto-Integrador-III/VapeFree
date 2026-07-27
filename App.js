@@ -8,7 +8,7 @@ import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, P
 import AppNavigator from './navigation/AppNavigator';
 import { ThemeProvider, usarTema } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
-import { XpToastProvider } from './context/XpToastContext';
+import { ToastProvider } from './context/ToastContext';
 import { ConnectionProvider } from './context/ConnectionContext';
 import { configurarHandlerDeNotificacoes } from './utils/notifications';
 import './services/firebase';
@@ -25,9 +25,9 @@ function AppContent() {
         <SafeAreaProvider>
             <StatusBar style={estaEscuro ? 'light' : 'light'} />
             <ConnectionProvider>
-                <XpToastProvider>
+                <ToastProvider>
                     <AppNavigator />
-                </XpToastProvider>
+                </ToastProvider>
             </ConnectionProvider>
         </SafeAreaProvider>
     );

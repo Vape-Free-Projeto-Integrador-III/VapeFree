@@ -1,1 +1,4 @@
 [ ] Arrumar login do google pelo android
+[ ] Fazer com que o tipo de CE usado no registro interfira na quantia economizada.
+[ ] Adicionar uma parte de excesso de uso em registros, e marcar com vermelho, X a mais que sua média.
+[ ] Adicionar campo pra confirmar senha no cadastro

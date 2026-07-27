@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
-import { usarToastDeXp } from '../context/XpToastContext';
+import { usarToast } from '../context/ToastContext';
 import {
     obterRegistros,
     obterEconomia,
@@ -35,7 +35,7 @@ function formatarProgresso(missao) {
 
 export default function MissionsScreen({ navigation }) {
     const { cores } = usarTema();
-    const { mostrarRecompensas } = usarToastDeXp();
+    const { mostrarRecompensas } = usarToast();
     const [missoes, setMissoes] = useState([]);
 
     const carregar = useCallback(async () => {

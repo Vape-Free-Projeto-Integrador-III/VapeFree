@@ -33,7 +33,7 @@ import {
     atualizarXp,
     dataDeHoje,
 } from '../utils/storage';
-import { usarToastDeXp } from '../context/XpToastContext';
+import { usarToast } from '../context/ToastContext';
 import { metodoDeCriseRecomendado, gatilhoMaisFrequente, MIN_REGISTROS_PARA_INSIGHTS } from '../utils/insights';
 
 const SEGUNDOS_DE_ESPERA = 5 * 60;
@@ -78,7 +78,7 @@ function horaAtualString() {
 
 export default function CrisisScreen({ navigation, route }) {
     const { cores } = usarTema();
-    const { mostrarRecompensas, mostrarErro } = usarToastDeXp();
+    const { mostrarRecompensas, mostrarErro } = usarToast();
 
     const [mensagem, setMensagem] = useState(null);
     const [recomendado, setRecomendado] = useState(null);

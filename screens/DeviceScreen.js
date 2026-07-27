@@ -14,12 +14,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { obterAparelho, salvarAparelho, obterRegistros, recalcularEconomia } from '../utils/storage';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
-import { usarToastDeXp } from '../context/XpToastContext';
+import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 
 export default function DeviceScreen({ navigation }) {
     const { cores } = usarTema();
-    const { mostrarErro } = usarToastDeXp();
+    const { mostrarErro } = usarToast();
     const [nome, setNome] = useState('');
     const [tipo, setTipo] = useState('desc');
     const [preco, setPreco] = useState('');

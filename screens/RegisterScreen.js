@@ -37,7 +37,7 @@ import {
     GATILHOS, AJUDAS, MENSAGENS_MOTIVACIONAIS,
 } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
-import { usarToastDeXp } from '../context/XpToastContext';
+import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 
 const NOMES_DOS_DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -61,7 +61,7 @@ function formatarOpcaoDeData(dataStr, hoje) {
 
 export default function RegisterScreen({ navigation }) {
     const { cores } = usarTema();
-    const { mostrarRecompensas, mostrarErro } = usarToastDeXp();
+    const { mostrarRecompensas, mostrarErro } = usarToast();
     const [tipoDeAparelho, setTipoDeAparelho] = useState('desc');
     const [usou, setUsou] = useState(null);
     const [puxadas, setPuxadas] = useState(0);

@@ -1,25 +1,25 @@
-// src/context/XpToastContext.js
-// Fila global de toasts. Qualquer tela chama usarToastDeXp() e enfileira
+// src/context/ToastContext.js
+// Fila global de toasts. Qualquer tela chama usarToast() e enfileira
 // o que ganhou; o provider mostra um de cada vez, na ordem.
 //
 // Uso típico depois de salvar algo:
-//   const { mostrarRecompensas } = usarToastDeXp();
+//   const { mostrarRecompensas } = usarToast();
 //   mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho });
 //
 // A mesma fila também carrega os avisos de falha ao salvar:
-//   const { mostrarErro } = usarToastDeXp();
+//   const { mostrarErro } = usarToast();
 //   mostrarErro('Não deu pra salvar', 'Verifique sua conexão e tente de novo.');
 //
 // Este provider também é o host visual do Alert.alert do app: ele registra
 // { mostrarAviso, confirmar } no bridge de utils/alert.js, então todo
 // Alert.alert vira toast (1 botão) ou ConfirmModal (2+ botões).
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import XpToast, { DURACAO_DO_TOAST_DE_ERRO } from '../components/XpToast';
+import Toast, { DURACAO_DO_TOAST_LONGO } from '../components/Toast';
 import AchievementCelebration from '../components/AchievementCelebration';
 import ConfirmModal from '../components/ConfirmModal';
 import { registrarManipuladorDeAlerta } from '../utils/alert';
 
-const XpToastContext = createContext(null);
+const ToastContext = createContext(null);
 
 const ICONE_POR_VARIANTE = {
     erro: '❌',
@@ -27,7 +27,7 @@ const ICONE_POR_VARIANTE = {
     sucesso: '✅',
 };
 
-export function XpToastProvider({ children }) {
+export function ToastProvider({ children }) {
     const [fila, setFila] = useState([]);
     const [filaDeConquistas, setFilaDeConquistas] = useState([]);
     const [confirmacao, setConfirmacao] = useState(null);
@@ -54,7 +54,7 @@ export function XpToastProvider({ children }) {
                 icone: ICONE_POR_VARIANTE[variante] || ICONE_POR_VARIANTE.aviso,
                 titulo,
                 subtitulo,
-                duracao: DURACAO_DO_TOAST_DE_ERRO,
+                duracao: DURACAO_DO_TOAST_LONGO,
             });
         },
         [enfileirar]
@@ -141,9 +141,9 @@ export function XpToastProvider({ children }) {
     const conquistaAtual = filaDeConquistas[0] || null;
 
     return (
-        <XpToastContext.Provider value={valor}>
+        <ToastContext.Provider value={valor}>
             {children}
-            <XpToast key={atual?.key} toast={atual} aoEsconder={aoEsconder} />
+            <Toast key={atual?.key} toast={atual} aoEsconder={aoEsconder} />
             <AchievementCelebration
                 key={conquistaAtual?.id}
                 conquista={conquistaAtual}
@@ -156,14 +156,14 @@ export function XpToastProvider({ children }) {
                 botoes={confirmacao?.botoes || []}
                 aoPressionar={responderConfirmacao}
             />
-        </XpToastContext.Provider>
+        </ToastContext.Provider>
     );
 }
 
-export function usarToastDeXp() {
-    const contexto = useContext(XpToastContext);
+export function usarToast() {
+    const contexto = useContext(ToastContext);
     if (!contexto) {
-        throw new Error('usarToastDeXp precisa estar dentro de um XpToastProvider');
+        throw new Error('usarToast precisa estar dentro de um ToastProvider');
     }
     return contexto;
 }

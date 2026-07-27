@@ -40,7 +40,7 @@ Concluir a primeira missão desbloqueia a conquista `first_mission` (`utils/achi
 1. A tela carrega `registros`, `economia` e `sessoesDeCrise`.
 2. `verificarEConcluirMissoes(records, economy, crisisSessions)` (`utils/storage.js`) avalia, **salva** as recém-concluídas e devolve só essas novas.
 3. `verificarEDesbloquearConquistas(records, economy, completedMissions)` e `atualizarXp(records, null, completedMissions)`.
-4. `mostrarRecompensas({ achievements, missions, gained })` (`context/XpToastContext.js`) mostra um toast por conquista/missão nova e um genérico com o XP restante.
+4. `mostrarRecompensas({ achievements, missions, gained })` (`context/ToastContext.js`) mostra um toast por conquista/missão nova e um genérico com o XP restante.
 5. Para exibir, a tela usa `verificarMissoes(ctx, completedMissions)` — devolve o estado de todas as missões do período com `current`/`target`/`completed`.
 
 Esse fluxo roda em `HomeScreen`, `MissionsScreen`, `RegisterScreen` (após salvar) e `CrisisScreen` (ao encerrar a sessão).

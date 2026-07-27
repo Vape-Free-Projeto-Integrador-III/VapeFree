@@ -55,7 +55,7 @@ Não existe pasta `src/` — tudo fica na raiz. Vários arquivos começam com co
 - Componente de tela: `export default function NomeScreen({ navigation }) { ... }`, hooks primeiro, depois handlers, depois JSX, `StyleSheet.create` no fim do arquivo.
 - Dado de tela recarrega com `useFocusEffect(useCallback(() => { load(); }, [...]))`, não `useEffect` puro — evita dado desatualizado ao voltar de outra tela.
 - Confirmações/formulários simples usam `Alert.alert` (nativo) — só use `Modal` customizado quando o design realmente precisa (edição, date picker, escolha de dados de convidado).
-- Erros de operação assíncrona nunca propagam exceção da camada `utils/`. Duas formas: **escrita iniciada pelo usuário** (`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `definirEconomia`, `salvarSessaoDeCrise`) devolve `{ ok, motivo }` e a tela é obrigada a checar `ok` e chamar `mostrarErro` do `usarToastDeXp()` antes de dar sucesso/XP; o resto (leituras e escritas de gamificação) continua com `catch { return false/[]/null }` silencioso. Ver `docs/database.md`.
+- Erros de operação assíncrona nunca propagam exceção da camada `utils/`. Duas formas: **escrita iniciada pelo usuário** (`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `definirEconomia`, `salvarSessaoDeCrise`) devolve `{ ok, motivo }` e a tela é obrigada a checar `ok` e chamar `mostrarErro` do `usarToast()` antes de dar sucesso/XP; o resto (leituras e escritas de gamificação) continua com `catch { return false/[]/null }` silencioso. Ver `docs/database.md`.
 
 ## Fluxo de desenvolvimento
 

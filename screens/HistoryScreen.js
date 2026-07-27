@@ -30,7 +30,7 @@ import {
 import { puxadasDoRegistro } from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
-import { usarToastDeXp } from '../context/XpToastContext';
+import { usarToast } from '../context/ToastContext';
 
 const { width } = Dimensions.get('window');
 const LARGURA_DO_GRAFICO = width - 64;
@@ -113,7 +113,7 @@ function agruparRegistrosPor(registros, obterChave, metrica) {
 
 export default function HistoryScreen({ navigation }) {
     const { cores } = usarTema();
-    const { mostrarErro } = usarToastDeXp();
+    const { mostrarErro } = usarToast();
     const [registros, setRegistros] = useState([]);
     const [sessoesDeCrise, setSessoesDeCrise] = useState([]);
     const [filtro, setFiltro] = useState('day');

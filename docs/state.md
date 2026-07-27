@@ -6,7 +6,7 @@ Sem Redux/Zustand/Recoil/Jotai. Dois níveis:
 
 - **`AuthContext`** (`context/AuthContext.js`): sessão do usuário (`usuario`, `ehConvidado`, `inicializando`, `telaDeAuth`) + `continuarSemConta`/`sair`. Detalhe em [auth.md](auth.md).
 - **`ThemeContext`** (`context/ThemeContext.js`): `estaEscuro`, `alternarTema`, `cores`. Detalhe em [styling.md](styling.md).
-- **`XpToastContext`** (`context/XpToastContext.js`): fila global dos toasts de XP e dos avisos de falha ao salvar (`mostrarRecompensas`, `mostrarXp`, `mostrarGanhoDeXp`, `mostrarErro`). Não guarda dado de domínio — só a fila de exibição. Fica dentro do `SafeAreaProvider`, envolvendo o `AppNavigator`. Detalhe em [components.md](components.md).
+- **`ToastContext`** (`context/ToastContext.js`): fila global de todo feedback efêmero: XP/missão, aviso, erro, sucesso (`mostrarRecompensas`, `mostrarXp`, `mostrarGanhoDeXp`, `mostrarAviso`, `mostrarErro`) mais as confirmações (`confirmar`). É também o host do `Alert.alert` do app (ver [components.md](components.md)). Não guarda dado de domínio — só a fila de exibição. Fica dentro do `SafeAreaProvider`, envolvendo o `AppNavigator`. Detalhe em [components.md](components.md).
 
 - **`ConnectionContext`** (`context/ConnectionContext.js`): `online`, `pendentes` (quantas escritas ainda não subiram), `sincronizarAgora`. Existe só pra UI — quem sincroniza de verdade é `utils/offline.js`, por baixo de `utils/storage.js`. Escuta o NetInfo, dispara a fila quando a rede volta e quando o app volta pro foreground, e aquece o espelho local depois do login (`precarregarEspelho`). Sem usuário logado, `pendentes` é sempre 0. Detalhe em [database.md](database.md).
 
