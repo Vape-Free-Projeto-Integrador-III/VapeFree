@@ -5,7 +5,6 @@ import {
     StyleSheet,
     TouchableOpacity,
     ScrollView,
-    Platform,
 } from 'react-native';
 import Alert from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,14 +68,6 @@ export default function Profile({ navigation }) {
     }
 
     function handleSair() {
-        if (Platform.OS === 'web') {
-            const confirmado = window.confirm('Quer mesmo sair da sua conta?');
-            if (confirmado) {
-                executarSaida('Login');
-            }
-            return;
-        }
-
         Alert.alert('Sair', 'Quer mesmo sair da sua conta?', [
             { text: 'Cancelar', style: 'cancel' },
             {

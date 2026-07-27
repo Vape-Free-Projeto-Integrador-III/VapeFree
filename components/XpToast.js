@@ -1,7 +1,10 @@
 // src/components/XpToast.js
-// Popup pequeno no topo da tela. Duas variantes:
-//   'xp'   -> ganho de XP (borda verde, "+N XP" à direita)
-//   'erro' -> falha ao salvar (borda vermelha, sem XP, dura mais)
+// Popup pequeno no topo da tela. Variantes:
+//   'xp'      -> ganho de XP (borda verde, "+N XP" à direita)
+//   'erro'    -> falha ao salvar (borda vermelha, sem XP, dura mais)
+//   'aviso'   -> validação / recado (borda laranja)
+//   'sucesso' -> deu certo (borda verde)
+// Só a variante 'xp' mostra o "+N XP"; as outras são texto puro.
 // Não bloqueia toque (pointerEvents="none") e some sozinho.
 // Quem dispara é o XpToastProvider (context/XpToastContext.js).
 import React, { useEffect, useRef } from 'react';
@@ -44,7 +47,12 @@ export default function XpToast({ toast, aoEsconder }) {
 
     if (!toast) return null;
 
-    const ehErro = toast.variante === 'erro';
+    const ehXp = toast.variante === 'xp';
+    const corDaBorda = {
+        erro: cores.danger,
+        aviso: cores.warning,
+        sucesso: cores.primary,
+    }[toast.variante] || cores.primary;
 
     return (
         <Animated.View
@@ -65,12 +73,12 @@ export default function XpToast({ toast, aoEsconder }) {
                     styles.toast,
                     {
                         backgroundColor: cores.card,
-                        borderLeftColor: ehErro ? cores.danger : cores.primary,
+                        borderLeftColor: corDaBorda,
                     },
                     SOMBRA.media,
                 ]}
             >
-                <Text style={styles.icon}>{toast.icone || (ehErro ? '⚠️' : '⭐')}</Text>
+                <Text style={styles.icon}>{toast.icone || (ehXp ? '⭐' : '⚠️')}</Text>
                 <View style={{ flex: 1 }}>
                     <Text style={[styles.title, { color: cores.text }]} numberOfLines={1}>
                         {toast.titulo}
@@ -78,13 +86,13 @@ export default function XpToast({ toast, aoEsconder }) {
                     {!!toast.subtitulo && (
                         <Text
                             style={[styles.subtitle, { color: cores.textSecondary }]}
-                            numberOfLines={ehErro ? 2 : 1}
+                            numberOfLines={ehXp ? 1 : 2}
                         >
                             {toast.subtitulo}
                         </Text>
                     )}
                 </View>
-                {!ehErro && (
+                {ehXp && (
                     <Text style={[styles.xp, { color: cores.primaryDark }]}>+{toast.xp} XP</Text>
                 )}
             </View>

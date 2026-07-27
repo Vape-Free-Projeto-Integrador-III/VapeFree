@@ -54,11 +54,24 @@ Popup pequeno no topo da tela ("Missão: X · +25 XP"). Não use direto: chame `
 
 - `mostrarRecompensas({ conquistas, missoes, ganho, icone, titulo })` — um toast por conquista/missão nova, mais um genérico com o XP que sobrou (registro, dia limpo, streak). `icone`/`titulo` personalizam só esse genérico: a `RegisterScreen` usa "🚭 Dia sem cigarro eletrônico!" quando `used === false` e "📝 Registro feito, sem culpa" quando o usuário usou.
 - `mostrarXp({ icone, titulo, xp })` / `mostrarGanhoDeXp(xp)` para casos avulsos.
-- `mostrarErro(titulo, subtitulo)` — mesma fila, variante `'erro'`: borda `cores.danger`, ícone ⚠️, sem o "+N XP" e com duração maior (`DURACAO_DO_TOAST_DE_ERRO`, 3500ms contra 2200ms). É o feedback padrão de falha ao salvar — ver o contrato `{ ok, motivo }` em [database.md](database.md).
+- `mostrarAviso(titulo, subtitulo, variante)` — toast de texto puro, sem "+N XP" e com duração maior (`DURACAO_DO_TOAST_DE_ERRO`, 3500ms contra 2200ms). Variantes: `'aviso'` (borda `cores.warning`, ⚠️ — padrão), `'erro'` (`cores.danger`, ❌), `'sucesso'` (`cores.primary`, ✅).
+- `mostrarErro(titulo, subtitulo)` — atalho para `mostrarAviso(..., 'erro')`. É o feedback padrão de falha ao salvar — ver o contrato `{ ok, motivo }` em [database.md](database.md).
+- `confirmar({ titulo, mensagem, botoes })` — monta o `ConfirmModal` (abaixo). Uma confirmação por vez, sem fila.
 
 O provider mostra um toast por vez, na ordem da fila, e fica montado em `App.js` dentro do `SafeAreaProvider`. O `Animated.View` é `pointerEvents="none"`, então nunca bloqueia toque. **Quem calcula o quanto foi ganho é `atualizarXp` (campo `ganho`)** — não incremente XP na mão para alimentar o toast.
 
-`mostrarXp` ignora toast com `xp <= 0` (contrato antigo de quem já usava); `mostrarErro` entra direto na fila, sem esse guard.
+`mostrarXp` ignora toast com `xp <= 0` (contrato antigo de quem já usava); `mostrarAviso`/`mostrarErro` entram direto na fila, sem esse guard.
+
+## `Alert` (`utils/alert.js`) + `ConfirmModal` (`components/ConfirmModal.js`)
+
+**Continua sendo `import Alert from '../utils/alert'`, com a assinatura idêntica à do React Native (`Alert.alert(titulo, mensagem, botoes)`)** — mas não mostra mais o alerta do sistema. O `XpToastProvider` se registra no bridge do módulo (`registrarManipuladorDeAlerta`) e o alerta vira UI do app:
+
+- **0 ou 1 botão** → toast (`mostrarAviso`). A variante sai de uma heurística pelo título: começa com `'Erro'` → erro, `'Pront'` (Pronto/Prontinho) → sucesso, resto → aviso. O `onPress` do botão único roda junto com o toast (não há "OK" pra tocar).
+- **2+ botões** → `ConfirmModal`, no visual do `GuestDataChoiceModal` mas temado por `usarTema()`. Recebe o array de botões cru do `Alert`: `style: 'cancel'` vira botão neutro no topo, `style: 'destructive'` vira vermelho, o resto vira o botão principal (verde) embaixo. Backdrop e botão físico de voltar disparam o botão `cancel`. Diferente do web antigo, 3+ botões agora aparecem todos.
+
+O caminho antigo (`Alert.alert` nativo / `window.alert`+`window.confirm`) fica no arquivo só como fallback pra alerta disparado antes do provider montar.
+
+Regra prática: informação/validação/erro → deixe como `Alert.alert` de um botão (ou chame `mostrarAviso` direto em tela nova); escolha do usuário → `Alert.alert` com botões. `Modal` próprio só quando precisa de input/escolha de dados (ver `CrisisOutcomeModal`, `GuestDataChoiceModal`).
 
 ## `AchievementCelebration` (`components/AchievementCelebration.js`) + `AchievementShareCard`
 

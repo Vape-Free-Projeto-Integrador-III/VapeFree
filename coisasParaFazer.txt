@@ -1,1 +1,1 @@
-[ ] Trocar alerts padrao do web/android pra toasts legaizinhos tipo aqueles de importar dados do convidado
+[ ] Arrumar login do google pelo android

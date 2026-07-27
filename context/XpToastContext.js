@@ -9,15 +9,28 @@
 // A mesma fila também carrega os avisos de falha ao salvar:
 //   const { mostrarErro } = usarToastDeXp();
 //   mostrarErro('Não deu pra salvar', 'Verifique sua conexão e tente de novo.');
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+//
+// Este provider também é o host visual do Alert.alert do app: ele registra
+// { mostrarAviso, confirmar } no bridge de utils/alert.js, então todo
+// Alert.alert vira toast (1 botão) ou ConfirmModal (2+ botões).
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import XpToast, { DURACAO_DO_TOAST_DE_ERRO } from '../components/XpToast';
 import AchievementCelebration from '../components/AchievementCelebration';
+import ConfirmModal from '../components/ConfirmModal';
+import { registrarManipuladorDeAlerta } from '../utils/alert';
 
 const XpToastContext = createContext(null);
+
+const ICONE_POR_VARIANTE = {
+    erro: '❌',
+    aviso: '⚠️',
+    sucesso: '✅',
+};
 
 export function XpToastProvider({ children }) {
     const [fila, setFila] = useState([]);
     const [filaDeConquistas, setFilaDeConquistas] = useState([]);
+    const [confirmacao, setConfirmacao] = useState(null);
 
     const enfileirar = useCallback((toast) => {
         setFila((anterior) => [...anterior, { key: `${Date.now()}_${anterior.length}`, ...toast }]);
@@ -31,19 +44,27 @@ export function XpToastProvider({ children }) {
         [enfileirar]
     );
 
-    // Falha de escrita: não passa pelo guard de XP acima (não tem Xp nenhum) e
-    // fica mais tempo na tela, porque a mensagem é mais longa de ler.
-    const mostrarErro = useCallback(
-        (titulo, subtitulo) => {
+    // Recado sem XP (validação, erro, sucesso): não passa pelo guard de XP
+    // acima (não tem XP nenhum) e fica mais tempo na tela, porque a mensagem é
+    // mais longa de ler.
+    const mostrarAviso = useCallback(
+        (titulo, subtitulo, variante = 'aviso') => {
             enfileirar({
-                variante: 'erro',
-                icone: '⚠️',
+                variante,
+                icone: ICONE_POR_VARIANTE[variante] || ICONE_POR_VARIANTE.aviso,
                 titulo,
                 subtitulo,
                 duracao: DURACAO_DO_TOAST_DE_ERRO,
             });
         },
         [enfileirar]
+    );
+
+    const mostrarErro = useCallback(
+        (titulo, subtitulo) => {
+            mostrarAviso(titulo, subtitulo, 'erro');
+        },
+        [mostrarAviso]
     );
 
     const mostrarGanhoDeXp = useCallback(
@@ -92,10 +113,29 @@ export function XpToastProvider({ children }) {
         setFilaDeConquistas((anterior) => anterior.slice(1));
     }, []);
 
+    // Só uma confirmação por vez: a última pedida vence (não tem fila, porque
+    // confirmação nasce sempre de um toque do usuário).
+    const confirmar = useCallback((config) => {
+        setConfirmacao(config);
+    }, []);
+
+    // Fecha primeiro, depois executa — o onPress pode navegar/deslogar.
+    const responderConfirmacao = useCallback((botao) => {
+        setConfirmacao(null);
+        botao?.onPress?.();
+    }, []);
+
     const valor = useMemo(
-        () => ({ mostrarXp, mostrarGanhoDeXp, mostrarRecompensas, mostrarErro }),
-        [mostrarXp, mostrarGanhoDeXp, mostrarRecompensas, mostrarErro]
+        () => ({ mostrarXp, mostrarGanhoDeXp, mostrarRecompensas, mostrarErro, mostrarAviso, confirmar }),
+        [mostrarXp, mostrarGanhoDeXp, mostrarRecompensas, mostrarErro, mostrarAviso, confirmar]
     );
+
+    // Bridge do utils/alert.js: enquanto o provider estiver montado, Alert.alert
+    // renderiza este toast/modal em vez do alerta do sistema.
+    useEffect(() => {
+        registrarManipuladorDeAlerta({ mostrarAviso, confirmar });
+        return () => registrarManipuladorDeAlerta(null);
+    }, [mostrarAviso, confirmar]);
 
     const atual = fila[0] || null;
     const conquistaAtual = filaDeConquistas[0] || null;
@@ -108,6 +148,13 @@ export function XpToastProvider({ children }) {
                 key={conquistaAtual?.id}
                 conquista={conquistaAtual}
                 aoFechar={avancarConquista}
+            />
+            <ConfirmModal
+                visivel={!!confirmacao}
+                titulo={confirmacao?.titulo}
+                mensagem={confirmacao?.mensagem}
+                botoes={confirmacao?.botoes || []}
+                aoPressionar={responderConfirmacao}
             />
         </XpToastContext.Provider>
     );
