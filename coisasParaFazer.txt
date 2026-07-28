@@ -15,28 +15,6 @@ BUGS / COISAS QUEBRADAS
     - app.json:4 `slug: "Projeto Integrador III"` tem espaços — slug de EAS não
       aceita, vai atrapalhar o build.
 
-[x] App.js:26 — `style={estaEscuro ? 'light' : 'light'}` na StatusBar: os dois
-    lados do ternário são iguais. Decidir se é 'light' sempre (header é verde)
-    e apagar o ternário, ou corrigir pro modo claro.
-    FEITO: ternário apagado, 'light' fixo (header é cores.primary verde nos dois
-    temas). Login/SignUp têm fundo branco fixo e ganharam <StatusBar style="dark" />
-    local, que sobrescreve o do App.js.
-
-[ ] app.json:9 `userInterfaceStyle: "light"` conflita com o dark mode do app.
-    No iOS isso força os componentes nativos (teclado, alerts, picker) em claro
-    mesmo com o tema escuro ligado. Trocar por "automatic".
-
-[ ] screens/LoginScreen.js:137 — `console.log(redirectUri)` solto em produção.
-    Tirar (tem ~15 console.log espalhados pelo projeto; os de catch podem ficar,
-    esse não).
-
-[ ] screens/LoginScreen.js — checkbox "Lembrar-me" (linha 337) não faz nada.
-    A persistência já é sempre ligada (getReactNativePersistence). Ou implementar
-    (browserSessionPersistence quando desmarcado) ou remover o checkbox.
-
-[ ] screens/LoginScreen.js:223 — "Esqueceu a senha?" só mostra "Ainda não rolou".
-    Dá pra fechar com `sendPasswordResetEmail` do firebase/auth, é 10 linhas.
-
 [ ] utils/notifications.js — as DUAS notificações diárias estão agendadas no
     mesmo horário (HORA_PADRAO = 9). Quem tem streak e não registrou recebe dois
     banners às 9h. Separar os horários (ex: lembrete 9h, aviso de streak 20h).

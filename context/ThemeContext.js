@@ -1,5 +1,6 @@
 // src/context/ThemeContext.js
 import React, { createContext, useContext, useState } from 'react';
+import { Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CHAVE_MODO_ESCURO = '@vapefree_dark_mode';
@@ -37,6 +38,17 @@ export function ThemeProvider({ children }) {
   // salva continua intacta no state, então sair da tela de auth volta ao escuro.
   const escuroEfetivo = estaEscuro && !claroForcado;
   const cores = escuroEfetivo ? CORES_ESCURAS : CORES_CLARAS;
+
+  // Componentes nativos (teclado, alerts, date picker) não leem o tema do app:
+  // eles seguem o userInterfaceStyle do sistema. Como o app.json está em
+  // "automatic", dá pra sobrescrever esse valor em runtime e manter o nativo
+  // alinhado com o tema escolhido aqui (que é manual, não o do sistema).
+  // Só existe no nativo: o Appearance do react-native-web não tem
+  // setColorScheme, e chamar direto derrubava o provider inteiro (tela branca).
+  React.useEffect(() => {
+    if (typeof Appearance.setColorScheme !== 'function') return;
+    Appearance.setColorScheme(escuroEfetivo ? 'dark' : 'light');
+  }, [escuroEfetivo]);
 
   return (
     <ThemeContext.Provider

@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import {
     signInWithEmailAndPassword,
+    sendPasswordResetEmail,
     GoogleAuthProvider,
     signInWithCredential,
 } from 'firebase/auth';
@@ -51,9 +52,6 @@ const CORES = {
     placeholderText: '#989FA6',
     inputIconColor: '#646B73',
     inputText: '#22384B',
-    checkboxBorder: '#757575',
-    checkboxCheckedBg: '#4990E2',
-    rememberText: '#22384B',
     linkBlue: '#6684A7',
     buttonBg: '#4990E2',
     buttonText: '#FFFFFF',
@@ -75,8 +73,8 @@ export default function LoginScreen({ navigation }) {
     const [email, setEmail] = useState('');
     const [senha, setSenha] = useState('');
     const [mostrarSenha, setMostrarSenha] = useState(false);
-    const [lembrarMe, setLembrarMe] = useState(false);
     const [carregando, setCarregando] = useState(false);
+    const [enviandoReset, setEnviandoReset] = useState(false);
     const [escolhaConvidadoVisivel, setEscolhaConvidadoVisivel] = useState(false);
     const [configEscolhaConvidado, setConfigEscolhaConvidado] = useState(null);
     const resolverEscolhaConvidadoRef = React.useRef(null);
@@ -134,8 +132,6 @@ export default function LoginScreen({ navigation }) {
     const redirectUri = AuthSession.makeRedirectUri({
         scheme: 'vapefree',
     });
-
-    console.log(redirectUri);
 
     const [request, response, promptAsync] =
         Google.useAuthRequest({
@@ -220,8 +216,42 @@ export default function LoginScreen({ navigation }) {
         }
     }
 
-    function handleEsqueceuSenha() {
-        Alert.alert('Ainda não rolou', 'Em breve você vai poder trocar sua senha por aqui.');
+    async function handleEsqueceuSenha() {
+        if (enviandoReset) {
+            return;
+        }
+
+        const emailFormatado = email.trim();
+
+        if (!emailFormatado) {
+            Alert.alert('Opa', 'Preenche seu e-mail primeiro pra gente mandar o link de recuperação.');
+            return;
+        }
+
+        setEnviandoReset(true);
+        try {
+            await sendPasswordResetEmail(auth, emailFormatado);
+            Alert.alert(
+                'Link enviado',
+                `Se existir uma conta com ${emailFormatado}, o link pra criar uma senha nova chegou no e-mail. Dá uma olhada no spam também.`
+            );
+        } catch (erro) {
+            if (erro?.code === 'auth/invalid-email') {
+                Alert.alert('Erro', 'Esse e-mail não parece válido.');
+            } else if (erro?.code === 'auth/user-not-found') {
+                // Mesma mensagem do sucesso: não entrega quais e-mails têm conta.
+                Alert.alert(
+                    'Link enviado',
+                    `Se existir uma conta com ${emailFormatado}, o link pra criar uma senha nova chegou no e-mail. Dá uma olhada no spam também.`
+                );
+            } else if (erro?.code === 'auth/too-many-requests') {
+                Alert.alert('Calma lá', 'Você pediu muitos links seguidos. Espera um pouco e tenta de novo.');
+            } else {
+                Alert.alert('Erro', 'Não deu pra enviar o link agora. Confira sua conexão e tenta de novo.');
+            }
+        } finally {
+            setEnviandoReset(false);
+        }
     }
 
     function handleGoogleLogin() {
@@ -335,19 +365,10 @@ export default function LoginScreen({ navigation }) {
                     </View>
 
                     <View style={styles.optionsRow}>
-                        <TouchableOpacity
-                            style={styles.rememberWrap}
-                            onPress={() => setLembrarMe((v) => !v)}
-                            activeOpacity={0.7}
-                        >
-                            <View style={[styles.checkbox, lembrarMe && styles.checkboxChecked]}>
-                                {lembrarMe && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
-                            </View>
-                            <Text style={styles.rememberText}>Lembrar-me</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity onPress={handleEsqueceuSenha}>
-                            <Text style={styles.linkText}>Esqueceu a senha?</Text>
+                        <TouchableOpacity onPress={handleEsqueceuSenha} disabled={enviandoReset}>
+                            <Text style={[styles.linkText, enviandoReset && styles.linkTextDisabled]}>
+                                {enviandoReset ? 'Enviando...' : 'Esqueceu a senha?'}
+                            </Text>
                         </TouchableOpacity>
                     </View>
 
@@ -496,36 +517,16 @@ const styles = StyleSheet.create({
     optionsRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         marginBottom: 26,
-    },
-    rememberWrap: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    checkbox: {
-        width: 18,
-        height: 18,
-        borderRadius: 3,
-        borderWidth: 1.5,
-        borderColor: CORES.checkboxBorder,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 8,
-        backgroundColor: 'transparent',
-    },
-    checkboxChecked: {
-        backgroundColor: CORES.checkboxCheckedBg,
-        borderColor: CORES.checkboxCheckedBg,
-    },
-    rememberText: {
-        fontSize: 14, fontFamily: 'Poppins_400Regular',
-        color: CORES.rememberText,
     },
     linkText: {
         fontSize: 14,
         fontFamily: 'Poppins_600SemiBold',
         color: CORES.linkBlue,
+    },
+    linkTextDisabled: {
+        opacity: 0.6,
     },
 
     button: {

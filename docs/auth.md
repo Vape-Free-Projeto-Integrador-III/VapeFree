@@ -22,6 +22,12 @@ Ativado por `continuarSemConta()` (botão "Continuar sem conta" no `LoginScreen`
 
 `LoginScreen.js` → `signInWithEmailAndPassword`. Trata `auth/user-not-found`, `auth/wrong-password`, `auth/invalid-credential`, `auth/invalid-email` como "e-mail ou senha incorretos"; qualquer outro erro cai em mensagem genérica.
 
+## Recuperação de senha
+
+"Esqueceu a senha?" no `LoginScreen.js` → `sendPasswordResetEmail(auth, email)`, usando o e-mail já digitado no campo (se vazio, pede pra preencher). O fluxo de troca acontece fora do app, na página hospedada pelo Firebase.
+
+`auth/user-not-found` mostra **a mesma** mensagem do sucesso ("se existir uma conta com X...") de propósito — evita usar a tela como oráculo de quais e-mails têm conta. `auth/invalid-email` e `auth/too-many-requests` têm mensagem própria; o resto cai em genérica. Estado `enviandoReset` desabilita o link durante o envio.
+
 ## Cadastro
 
 `SignUpScreen.js` → `createUserWithEmailAndPassword` + `updateProfile(displayName)` + grava doc `users/{uid}` no Firestore com `{ nome, displayName, email }`. Validações client-side: e-mail via regex simples, senha mínimo 8 caracteres (`validarSenhaForte`). Trata `auth/email-already-in-use`, `auth/invalid-email`, `auth/weak-password`.

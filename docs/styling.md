@@ -19,6 +19,10 @@ Cor de marca: verde (`#4CAF50` claro / `#66BB6A` escuro). Telas de auth (`LoginS
 
 O "exceto" é implementado por `forcarTemaClaro(bool)`, exposto pelo `ThemeContext`: o `AuthStack` (`navigation/AppNavigator.js`) chama `forcarTemaClaro(true)` no mount e `false` no unmount. Enquanto ligado, `cores` e o `estaEscuro` devolvido por `usarTema()` são os claros — a preferência salva não é tocada, então sair da stack de auth volta ao escuro. Precisa ser global (e não um provider só em volta da tela) porque o `Toast` e o `ConfirmModal` são renderizados pelo `ToastProvider`, que fica **acima** do `NavigationContainer`; sem isso eles apareceriam escuros por cima da tela de login branca.
 
+### Componentes nativos (teclado, alerts, date picker)
+
+Esses não leem `cores` — seguem o `userInterfaceStyle` do sistema. `app.json` está em `"automatic"` (era `"light"`, que travava tudo em claro no iOS mesmo com dark mode ligado); como o tema do app é uma escolha manual e não a do sistema, o `ThemeProvider` sobrescreve o valor em runtime com `Appearance.setColorScheme(escuroEfetivo ? 'dark' : 'light')`. Ou seja: nativo segue o toggle do app, não o sistema. `setColorScheme` só tem efeito com `userInterfaceStyle: "automatic"` — não volte esse campo para `"light"`. A chamada é guardada por `typeof Appearance.setColorScheme !== 'function'`: o `Appearance` do `react-native-web` só tem `getColorScheme`/`addChangeListener`, e chamar direto quebrava o provider no web (tela branca).
+
 ### StatusBar
 
 `App.js` fixa `<StatusBar style="light" />` (o `ScreenHeader` é `cores.primary`, verde nos dois temas). `LoginScreen` e `SignUpScreen` têm fundo branco fixo e renderizam o próprio `<StatusBar style="dark" />` — no `expo-status-bar` o componente montado por último vence.
