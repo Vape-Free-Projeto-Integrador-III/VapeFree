@@ -2,7 +2,17 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { obterRegistros, obterEconomia, obterConquistas, obterMissoes } from '../utils/storage';
+import {
+    obterRegistros,
+    obterEconomia,
+    obterConquistas,
+    obterMissoes,
+    obterSessoesDeCrise,
+    obterDiasDeAbertura,
+    obterMeta,
+    obterAparelho,
+    dataDeHoje,
+} from '../utils/storage';
 import { verificarConquistas } from '../utils/achievements';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
@@ -13,13 +23,35 @@ export default function AchievementsScreen({ navigation }) {
     const [conquistas, setConquistas] = useState([]);
 
     const carregar = useCallback(async () => {
-        const [registros, economia, conquistasSalvas, missoesConcluidas] = await Promise.all([
+        // O contexto vai completo de propósito: sem ele, as conquistas que
+        // dependem de crise/aberturas/meta apareceriam bloqueadas aqui até
+        // outra tela persistir o desbloqueio.
+        const [
+            registros,
+            economia,
+            conquistasSalvas,
+            missoesConcluidas,
+            sessoesDeCrise,
+            diasDeAbertura,
+            meta,
+            aparelho,
+        ] = await Promise.all([
             obterRegistros(),
             obterEconomia(),
             obterConquistas(),
             obterMissoes(),
+            obterSessoesDeCrise(),
+            obterDiasDeAbertura(),
+            obterMeta(),
+            obterAparelho(),
         ]);
-        const resultados = await verificarConquistas(registros, economia, conquistasSalvas, missoesConcluidas);
+        const resultados = await verificarConquistas(
+            registros,
+            economia,
+            conquistasSalvas,
+            missoesConcluidas,
+            { sessoesDeCrise, diasDeAbertura, meta, aparelho, hoje: dataDeHoje() }
+        );
         setConquistas(resultados);
     }, []);
 

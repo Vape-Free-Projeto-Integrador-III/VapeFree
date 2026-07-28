@@ -29,7 +29,7 @@ screens/             # uma tela por arquivo, PascalCase
 components/          # componentes reutilizáveis entre telas
 context/             # AuthContext, ThemeContext, ConnectionContext (React Context API)
 services/            # firebase.native.js / firebase.web.js
-utils/               # storage.js (dados), offline.js (espelho+fila), achievements.js, notifications.js, theme.js
+utils/               # storage.js (dados), offline.js (espelho+fila), achievements.js, missions.js, records.js, meta.js, notifications.js, theme.js
 assets/              # ícones/splash do app.json
 docs/                # documentação detalhada por assunto (este índice)
 coisasParaFazer.txt  # backlog/roadmap do projeto — ver antes de propor features novas
@@ -67,8 +67,9 @@ Não existe pasta `src/` — tudo fica na raiz.
 
 1. Nova tela: criar em `screens/`, registrar em `navigation/AppNavigator.js`, usar `ScreenHeader`, ler cores via `usarTema()`.
 2. Novo dado persistido: adicionar par de funções em `utils/storage.js` seguindo o padrão `if (uid) { lerDaConta/escreverNaConta } else { AsyncStorage }` — nunca ramificar essa lógica dentro da tela, e nunca chamar Firestore direto no branch logado (quebraria o offline). Registre também o nome do espelho em `ESPELHOS` (`utils/offline.js`). Ver `docs/database.md`.
-3. Nova conquista: adicionar entrada em `CONQUISTAS` (`utils/achievements.js`) com `condicao(registros, economia, missoesConcluidas, contexto)` pura — `contexto` é `{ sessoesDeCrise, diasDeAbertura }`, montado por `verificarEDesbloquearConquistas`.
-3.1. Nova missão: adicionar entrada em `MISSOES` (`utils/missions.js`) com `progresso(ctx)` pura devolvendo `{ atual, alvo }` — ver `docs/missions.md`. Não renomeie o `id` de uma missão existente (faz parte da chave do que já foi salvo).
+3. Nova conquista: adicionar entrada em `CONQUISTAS` (`utils/achievements.js`) com `condicao(registros, economia, missoesConcluidas, contexto)` pura — `contexto` é `{ sessoesDeCrise, diasDeAbertura, meta, aparelho, hoje }`, montado por `verificarEDesbloquearConquistas`.
+3.1. Nova missão: adicionar entrada em `MISSOES` (`utils/missions.js`) com `progresso(ctx)` pura devolvendo `{ atual, alvo }`, e `disponivel(ctx)` opcional pra missão que não faz sentido sem certo dado — ver `docs/missions.md`. Não renomeie o `id` de uma missão existente (faz parte da chave do que já foi salvo).
+3.2. Qualquer coisa que precise da "meta de puxadas do dia" usa `metaEfetiva(meta, aparelho, data)` (`utils/meta.js`), nunca `metaDiaria(aparelho)` direto — é o que faz a meta declarada pelo usuário ganhar da derivada do aparelho em todo lugar.
 4. Novo texto motivacional/trigger/ajuda: adicionar ao array correspondente em `utils/theme.js` (`DICAS`, `GATILHOS`, `AJUDAS`, `MENSAGENS_MOTIVACIONAIS`).
 5. Ao mexer em auth, ler `docs/auth.md` primeiro — fluxo de migração de dados de convidado é sensível a ordem de chamadas.
 6. Atualize o arquivo de `docs/` correspondente quando mudar algo daquele domínio. Não reescreva este `CLAUDE.md` nem os demais docs inteiros — edite só o que mudou.

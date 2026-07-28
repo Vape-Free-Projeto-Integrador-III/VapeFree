@@ -21,10 +21,12 @@ import { usarToast } from '../context/ToastContext';
 import { RAIO, SOMBRA } from '../utils/theme';
 import {
     apagarTodosOsDados,
+    obterMeta,
     obterPreferenciasDeNotificacao,
     reiniciarOnboarding,
     salvarPreferenciasDeNotificacao,
 } from '../utils/storage';
+import { metaValida } from '../utils/meta';
 import { aplicarPreferenciasDeNotificacao } from '../utils/notifications';
 import { exportarDados } from '../utils/exportacao';
 import ScreenHeader from '../components/ScreenHeader';
@@ -53,6 +55,7 @@ export default function SettingsScreen({ navigation }) {
     const { mostrarAviso, mostrarErro } = usarToast();
 
     const [preferencias, setPreferencias] = useState(null);
+    const [meta, setMeta] = useState(null);
     const [seletorDeHorarioVisivel, setSeletorDeHorarioVisivel] = useState(false);
     const [apagando, setApagando] = useState(false);
     const [exportando, setExportando] = useState(false);
@@ -64,6 +67,9 @@ export default function SettingsScreen({ navigation }) {
             let montado = true;
             obterPreferenciasDeNotificacao().then((salvas) => {
                 if (montado) setPreferencias(salvas);
+            });
+            obterMeta().then((salva) => {
+                if (montado) setMeta(salva);
             });
             return () => {
                 montado = false;
@@ -223,6 +229,17 @@ export default function SettingsScreen({ navigation }) {
                             })}
                         </>
                     )}
+
+                    {divisor}
+
+                    {renderizarLinha({
+                        icone: 'flag-outline',
+                        rotulo: 'Minha meta',
+                        descricao: metaValida(meta)
+                            ? `Chegar a ${meta.target} puxadas/dia`
+                            : 'Nenhuma meta definida',
+                        aoPressionar: () => navigation.navigate('Goal'),
+                    })}
 
                     {divisor}
 

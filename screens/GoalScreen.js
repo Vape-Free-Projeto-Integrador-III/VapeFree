@@ -1,0 +1,299 @@
+//
+// Meta de redução: "quero cair pra X puxadas/dia até tal data". A meta é uma
+// rampa linear entre o ponto de partida e o alvo (ver utils/meta.js) — quem
+// usa 100 por dia não recebe "sua meta é 10" já no primeiro dia.
+//
+// Mesmo formato da DeviceScreen: ScreenHeader + card, escrita por
+// salvarMeta() (utils/storage.js) com checagem de `ok` antes de dar sucesso.
+
+import React, { useState, useEffect } from 'react';
+import {
+    View,
+    Text,
+    ScrollView,
+    StyleSheet,
+    TouchableOpacity,
+    TextInput,
+    Animated,
+} from 'react-native';
+import Alert from '../utils/alert';
+import { Ionicons } from '@expo/vector-icons';
+import {
+    obterMeta,
+    salvarMeta,
+    obterAparelho,
+    obterRegistros,
+    sincronizarGamificacao,
+    dataDeHoje,
+} from '../utils/storage';
+import { metaDiaria } from '../utils/records';
+import {
+    metaDoDia,
+    metaValida,
+    mediaDiariaNasDatas,
+    janelaDeDias,
+    deslocarData,
+} from '../utils/meta';
+import { RAIO, SOMBRA } from '../utils/theme';
+import { usarTema } from '../context/ThemeContext';
+import { usarToast } from '../context/ToastContext';
+import ScreenHeader from '../components/ScreenHeader';
+
+export const PRAZOS = [30, 60, 90];
+
+// Sugestão de ponto de partida: média real dos últimos 7 dias; sem registros,
+// o consumo que o aparelho declara.
+export function baselineSugerido(registros, aparelho, hoje) {
+    const media = mediaDiariaNasDatas(registros, janelaDeDias(hoje, 7));
+    if (media !== null && media > 0) return Math.round(media);
+    const doAparelho = metaDiaria(aparelho);
+    return doAparelho === null ? null : Math.round(doAparelho);
+}
+
+export function formatarData(dataStr) {
+    const [ano, mes, dia] = dataStr.split('-');
+    return `${dia}/${mes}/${ano}`;
+}
+
+export default function GoalScreen({ navigation }) {
+    const { cores } = usarTema();
+    const { mostrarErro, mostrarRecompensas } = usarToast();
+    const [baseline, setBaseline] = useState('');
+    const [alvo, setAlvo] = useState('');
+    const [prazo, setPrazo] = useState(60);
+    const [temMetaSalva, setTemMetaSalva] = useState(false);
+    const [salvando, setSalvando] = useState(false);
+    const [sucessoVisivel, setSucessoVisivel] = useState(false);
+    const animacaoDeFade = useState(new Animated.Value(0))[0];
+
+    useEffect(() => {
+        let montado = true;
+        Promise.all([obterMeta(), obterRegistros(), obterAparelho()]).then(
+            ([meta, registros, aparelho]) => {
+                if (!montado) return;
+                if (metaValida(meta)) {
+                    setTemMetaSalva(true);
+                    setBaseline(String(meta.baseline));
+                    setAlvo(String(meta.target));
+                    return;
+                }
+                const sugerido = baselineSugerido(registros, aparelho, dataDeHoje());
+                if (sugerido !== null) setBaseline(String(sugerido));
+            }
+        );
+        return () => {
+            montado = false;
+        };
+    }, []);
+
+    const aoDigitarInteiro = (setter) => (texto) => {
+        setter(texto.replace(/[^0-9]/g, ''));
+    };
+
+    const mostrarSucesso = () => {
+        setSucessoVisivel(true);
+        Animated.sequence([
+            Animated.timing(animacaoDeFade, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.delay(2000),
+            Animated.timing(animacaoDeFade, { toValue: 0, duration: 300, useNativeDriver: true }),
+        ]).start(() => setSucessoVisivel(false));
+    };
+
+    // Meta "em rascunho", só pra prévia.
+    const metaDoFormulario = () => {
+        const hoje = dataDeHoje();
+        return {
+            baseline: parseInt(baseline),
+            target: parseInt(alvo),
+            startDate: hoje,
+            endDate: deslocarData(hoje, prazo),
+        };
+    };
+
+    const salvar = async () => {
+        const b = parseInt(baseline);
+        const a = parseInt(alvo);
+        if (isNaN(b) || b <= 0) { Alert.alert('Opa', 'Quantas puxadas por dia você dá hoje?'); return; }
+        if (isNaN(a) || a < 0) { Alert.alert('Opa', 'Coloca um alvo válido (pode ser 0).'); return; }
+        if (a >= b) { Alert.alert('Opa', 'O alvo precisa ser menor do que o seu consumo de hoje.'); return; }
+
+        setSalvando(true);
+        const meta = metaDoFormulario();
+        const resultado = await salvarMeta(meta);
+        if (!resultado.ok) {
+            setSalvando(false);
+            mostrarErro('Não deu pra salvar a meta', 'Verifique sua conexão e tente de novo.');
+            return;
+        }
+        // Definir meta pode concluir missão de meta na hora, se o dia de hoje
+        // já estiver registrado abaixo dela.
+        const { recompensas } = await sincronizarGamificacao({ meta });
+        setSalvando(false);
+        setTemMetaSalva(true);
+        mostrarSucesso();
+        mostrarRecompensas(recompensas);
+    };
+
+    const remover = () => {
+        Alert.alert('Remover minha meta', 'Seu limite diário volta a ser o consumo do aparelho.', [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+                text: 'Remover',
+                style: 'destructive',
+                onPress: async () => {
+                    setSalvando(true);
+                    const resultado = await salvarMeta(null);
+                    setSalvando(false);
+                    if (!resultado.ok) {
+                        mostrarErro('Não deu pra remover a meta', 'Verifique sua conexão e tente de novo.');
+                        return;
+                    }
+                    setTemMetaSalva(false);
+                    setAlvo('');
+                    navigation.goBack();
+                },
+            },
+        ]);
+    };
+
+    const rascunho = metaDoFormulario();
+    const metaDeHoje = metaDoDia(rascunho, dataDeHoje());
+    const estiloDoInput = [styles.input, { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text }];
+
+    return (
+        <View style={{ flex: 1, backgroundColor: cores.background }}>
+        <ScrollView style={[styles.scroll, { backgroundColor: cores.background }]} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+            <ScreenHeader
+                titulo="Sua Meta"
+                subtitulo="Até onde você quer chegar"
+                cores={cores}
+                mostrarConfiguracoes
+                aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
+                aoPressionarVoltar={() => navigation.goBack()}
+            />
+
+            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                <Text style={[styles.fieldLabel, { color: cores.text }]}>Quantas puxadas por dia hoje</Text>
+                <TextInput
+                    style={estiloDoInput}
+                    placeholder="Ex: 100"
+                    placeholderTextColor={cores.textMuted}
+                    value={baseline}
+                    onChangeText={aoDigitarInteiro(setBaseline)}
+                    keyboardType="number-pad"
+                />
+
+                <Text style={[styles.fieldLabel, { color: cores.text }]}>Quer chegar a quantas por dia</Text>
+                <TextInput
+                    style={estiloDoInput}
+                    placeholder="Ex: 10"
+                    placeholderTextColor={cores.textMuted}
+                    value={alvo}
+                    onChangeText={aoDigitarInteiro(setAlvo)}
+                    keyboardType="number-pad"
+                />
+
+                <Text style={[styles.fieldLabel, { color: cores.text }]}>Em quanto tempo</Text>
+                <View style={styles.chipRow}>
+                    {PRAZOS.map((dias) => {
+                        const ativo = dias === prazo;
+                        return (
+                            <TouchableOpacity
+                                key={dias}
+                                style={[
+                                    styles.chip,
+                                    {
+                                        backgroundColor: ativo ? cores.primary : cores.inputBg,
+                                        borderColor: ativo ? cores.primary : cores.border,
+                                    },
+                                ]}
+                                onPress={() => setPrazo(dias)}
+                            >
+                                <Text style={[styles.chipText, { color: ativo ? '#fff' : cores.textSecondary }]}>
+                                    {dias} dias
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+
+                {metaDeHoje !== null && (
+                    <View style={[styles.previewBox, { backgroundColor: cores.primaryLight }]}>
+                        <Text style={[styles.previewTitle, { color: cores.primaryDark }]}>Prévia</Text>
+                        <View style={styles.previewRow}>
+                            <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Seu limite de hoje</Text>
+                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
+                                {Math.round(metaDeHoje)} puxadas
+                            </Text>
+                        </View>
+                        <View style={styles.previewRow}>
+                            <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Chega no alvo em</Text>
+                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
+                                {formatarData(rascunho.endDate)}
+                            </Text>
+                        </View>
+                    </View>
+                )}
+
+                <TouchableOpacity
+                    style={[styles.saveBtn, { backgroundColor: cores.primary }, salvando && styles.saveBtnDisabled]}
+                    onPress={salvar}
+                    disabled={salvando}
+                >
+                    <Ionicons name={salvando ? 'hourglass-outline' : 'flag-outline'} size={20} color="#fff" />
+                    <Text style={styles.saveBtnText}>{salvando ? 'Salvando...' : 'Salvar minha meta'}</Text>
+                </TouchableOpacity>
+
+                {temMetaSalva && (
+                    <TouchableOpacity style={styles.removeBtn} onPress={remover} disabled={salvando}>
+                        <Text style={[styles.removeBtnText, { color: cores.danger }]}>Remover minha meta</Text>
+                    </TouchableOpacity>
+                )}
+
+                {sucessoVisivel && (
+                    <Animated.View style={[styles.successBox, { backgroundColor: cores.primaryLight, borderColor: cores.primary, opacity: animacaoDeFade }]}>
+                        <Ionicons name="checkmark-circle" size={22} color={cores.primary} />
+                        <Text style={[styles.successText, { color: cores.primaryDark }]}>Meta salva! Ela já vale a partir de hoje. ✅</Text>
+                    </Animated.View>
+                )}
+            </View>
+
+            <View style={[styles.infoBox, { backgroundColor: cores.primaryLight }]}>
+                <Ionicons name="information-circle-outline" size={18} color={cores.primary} />
+                <Text style={[styles.infoText, { color: cores.primaryDark }]}>
+                    Seu limite de puxadas desce um pouco a cada dia até o alvo, em vez de cair de uma
+                    vez — é o que torna a redução possível. Enquanto essa meta existir, é ela que
+                    vale no lugar do consumo do aparelho.
+                </Text>
+            </View>
+
+            <View style={{ height: 40 }} />
+        </ScrollView>
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    scroll: { flex: 1 },
+    container: { paddingBottom: 24 },
+    card: { borderRadius: RAIO.lg, padding: 18, marginHorizontal: 16, marginTop: 16 },
+    fieldLabel: { fontSize: 14, fontFamily: 'Poppins_700Bold', marginBottom: 8, marginTop: 4 },
+    input: { borderWidth: 1.5, borderRadius: RAIO.md, padding: 12, fontSize: 15, fontFamily: 'Poppins_400Regular', marginBottom: 14 },
+    chipRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    chip: { flex: 1, borderWidth: 1.5, borderRadius: RAIO.md, paddingVertical: 12, alignItems: 'center' },
+    chipText: { fontSize: 14, fontFamily: 'Poppins_700Bold' },
+    previewBox: { borderRadius: RAIO.md, padding: 14, marginBottom: 16 },
+    previewTitle: { fontSize: 12, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+    previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+    previewLabel: { fontSize: 13, fontFamily: 'Poppins_400Regular' },
+    previewVal: { fontSize: 13, fontFamily: 'Poppins_700Bold' },
+    saveBtn: { borderRadius: RAIO.md, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    saveBtnDisabled: { opacity: 0.7 },
+    saveBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins_700Bold' },
+    removeBtn: { alignItems: 'center', paddingVertical: 14 },
+    removeBtnText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
+    successBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: RAIO.md, padding: 14, marginTop: 12 },
+    successText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold', flex: 1 },
+    infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginHorizontal: 16, marginTop: 14, borderRadius: RAIO.md, padding: 14 },
+    infoText: { flex: 1, fontSize: 13, fontFamily: 'Poppins_400Regular', lineHeight: 18 },
+});

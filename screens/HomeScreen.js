@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
     obterRegistros,
     obterAparelho,
+    obterMeta,
     obterEconomia,
     ultimosNDias,
     obterSessoesDeCrise,
@@ -23,6 +24,7 @@ import {
     registrarAberturaDoApp,
 } from '../utils/storage';
 import { somarPuxadas, excessoDoDia } from '../utils/records';
+import { metaEfetiva, progressoDaMeta, metaValida } from '../utils/meta';
 import { obterNivel } from '../utils/xp';
 import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 import { DIAS_PARA_ESCUDO } from '../utils/achievements';
@@ -40,6 +42,7 @@ export default function HomeScreen({ navigation }) {
     const { mostrarRecompensas } = usarToast();
     const [registros, setRegistros] = useState([]);
     const [aparelho, setAparelho] = useState(null);
+    const [meta, setMeta] = useState(null);
     const [economia, setEconomia] = useState({});
     const [missoes, setMissoes] = useState([]);
     const [xp, setXp] = useState(0);
@@ -49,23 +52,35 @@ export default function HomeScreen({ navigation }) {
         // Home é a porta de entrada do app — marcar aqui o dia de abertura
         // alimenta a conquista de presença diária (app_open_7).
         const diasDeAbertura = await registrarAberturaDoApp();
-        const [r, d, e, c] = await Promise.all([
+        const [r, d, e, c, m] = await Promise.all([
             obterRegistros(),
             obterAparelho(),
             obterEconomia(),
             obterSessoesDeCrise(),
+            obterMeta(),
         ]);
         setRegistros(r);
         setAparelho(d);
         setEconomia(e);
+        setMeta(m);
 
         const { missoesConcluidas, resumo, recompensas } = await sincronizarGamificacao({
             registros: r,
             economia: e,
             sessoesDeCrise: c,
             diasDeAbertura,
+            meta: m,
+            aparelho: d,
         });
-        setMissoes(verificarMissoes(montarContextoDeMissoes(r, e, c, dataDeHoje()), missoesConcluidas));
+        const contextoDeMissoes = montarContextoDeMissoes({
+            registros: r,
+            economia: e,
+            sessoesDeCrise: c,
+            meta: m,
+            aparelho: d,
+            hoje: dataDeHoje(),
+        });
+        setMissoes(verificarMissoes(contextoDeMissoes, missoesConcluidas));
         setXp(resumo.xp);
         mostrarRecompensas(recompensas);
     }, [mostrarRecompensas]);
@@ -119,13 +134,21 @@ export default function HomeScreen({ navigation }) {
         return `Faltam ${faltam} ${faltam === 1 ? 'dia' : 'dias'} sem uso pra ganhar um escudo`;
     })();
 
-    // Excesso: quanto o dia passou da meta do aparelho, e o custo disso. A
-    // economia trunca esse valor em zero, então o alerta é o único lugar que
-    // mostra o que foi gasto a mais.
-    const excesso = excessoDoDia(registrosDeHoje, aparelho);
+    // Meta do dia: a declarada pelo usuário ganha da derivada do aparelho.
+    const metaDeHoje = metaEfetiva(meta, aparelho, hoje);
+    const progressoDoObjetivo = progressoDaMeta(meta, registros, hoje);
+    const temMeta = metaValida(meta);
+    const [anoFinal, mesFinal, diaFinal] = temMeta ? meta.endDate.split('-') : [];
+
+    // Excesso: quanto o dia passou da meta, e o custo disso. A economia trunca
+    // esse valor em zero, então o alerta é o único lugar que mostra o que foi
+    // gasto a mais. Sem aparelho não dá pra precificar (custoAMais = null).
+    const excesso = excessoDoDia(registrosDeHoje, aparelho, metaDeHoje);
     const mostrarExcesso = !!excesso && excesso.puxadasAMais > 0;
     const mensagemDoExcesso = mostrarExcesso
-        ? `${excesso.puxadasAMais} ${excesso.puxadasAMais === 1 ? 'puxada' : 'puxadas'} acima da sua meta hoje — R$ ${excesso.custoAMais.toFixed(2)} a mais`
+        ? `${excesso.puxadasAMais} ${excesso.puxadasAMais === 1 ? 'puxada' : 'puxadas'} acima do seu limite de hoje${
+              excesso.custoAMais === null ? '' : ` — R$ ${excesso.custoAMais.toFixed(2)} a mais`
+          }`
         : '';
 
     const nivel = obterNivel(xp);
@@ -199,6 +222,73 @@ export default function HomeScreen({ navigation }) {
                         <Text style={[styles.excessText, { color: cores.danger }]}>{mensagemDoExcesso}</Text>
                     </View>
                 ) : null}
+            </View>
+
+            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>🎯 Seu limite de hoje</Text>
+                {progressoDoObjetivo ? (
+                    <>
+                        <View style={styles.goalTopRow}>
+                            <View>
+                                <Text style={[styles.goalBig, { color: cores.text }]}>
+                                    {Math.round(progressoDoObjetivo.metaDeHoje)} puxadas
+                                </Text>
+                                <Text style={[styles.goalSub, { color: cores.textSecondary }]}>
+                                    é o seu limite de hoje — você está em {progressoDoObjetivo.usadasHoje}
+                                </Text>
+                            </View>
+                            <View
+                                style={[
+                                    styles.goalBadge,
+                                    {
+                                        backgroundColor: progressoDoObjetivo.dentroDaMeta
+                                            ? cores.primaryLight
+                                            : cores.danger + '22',
+                                    },
+                                ]}
+                            >
+                                <Ionicons
+                                    name={progressoDoObjetivo.dentroDaMeta ? 'checkmark-circle' : 'alert-circle'}
+                                    size={16}
+                                    color={progressoDoObjetivo.dentroDaMeta ? cores.primary : cores.danger}
+                                />
+                                <Text
+                                    style={[
+                                        styles.goalBadgeText,
+                                        { color: progressoDoObjetivo.dentroDaMeta ? cores.primaryDark : cores.danger },
+                                    ]}
+                                >
+                                    {progressoDoObjetivo.dentroDaMeta ? 'dentro' : 'acima'}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={[styles.xpTrack, { backgroundColor: cores.borderLight, marginTop: 12 }]}>
+                            <View
+                                style={[
+                                    styles.xpFill,
+                                    { backgroundColor: cores.primary, width: `${progressoDoObjetivo.percentualDoTempo}%` },
+                                ]}
+                            />
+                        </View>
+                        <TouchableOpacity onPress={() => navigation.navigate('Goal')} activeOpacity={0.7}>
+                            <Text style={[styles.goalFoot, { color: cores.textSecondary }]}>
+                                Objetivo: {meta.target}/dia até {diaFinal}/{mesFinal}/{anoFinal} ·{' '}
+                                {progressoDoObjetivo.diasRestantes} dias restantes
+                            </Text>
+                        </TouchableOpacity>
+                    </>
+                ) : (
+                    <TouchableOpacity
+                        style={[styles.devicePrompt, { backgroundColor: cores.primaryLight, borderColor: cores.primary }]}
+                        onPress={() => navigation.navigate('Goal')}
+                    >
+                        <Ionicons name="add-circle-outline" size={20} color={cores.primary} />
+                        <Text style={[styles.devicePromptText, { color: cores.primaryDark }]}>
+                            Define seu limite diário pra acompanhar a queda dia a dia 🎯
+                        </Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
@@ -369,6 +459,19 @@ const styles = StyleSheet.create({
     excessText: { flex: 1, fontSize: 12, fontFamily: 'Poppins_600SemiBold', lineHeight: 16 },
     statNum: { fontSize: 26, fontFamily: 'Poppins_800ExtraBold' },
     statLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 2, lineHeight: 14 },
+    goalTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    goalBig: { fontSize: 22, fontFamily: 'Poppins_800ExtraBold' },
+    goalSub: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
+    goalBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: RAIO.full,
+    },
+    goalBadgeText: { fontSize: 12, fontFamily: 'Poppins_700Bold' },
+    goalFoot: { fontSize: 12, fontFamily: 'Poppins_600SemiBold', marginTop: 8 },
     xpHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
     xpIcon: { fontSize: 26 , fontFamily: 'Poppins_400Regular'},
     xpLevel: { fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },

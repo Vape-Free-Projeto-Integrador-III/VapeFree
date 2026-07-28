@@ -29,10 +29,18 @@ export default function MissionsScreen({ navigation }) {
     const [missoes, setMissoes] = useState([]);
 
     const carregar = useCallback(async () => {
-        const { registros, economia, sessoesDeCrise, missoesConcluidas, recompensas } =
+        const { registros, economia, sessoesDeCrise, meta, aparelho, missoesConcluidas, recompensas } =
             await sincronizarGamificacao();
 
-        setMissoes(verificarMissoes(montarContextoDeMissoes(registros, economia, sessoesDeCrise, dataDeHoje()), missoesConcluidas));
+        const contexto = montarContextoDeMissoes({
+            registros,
+            economia,
+            sessoesDeCrise,
+            meta,
+            aparelho,
+            hoje: dataDeHoje(),
+        });
+        setMissoes(verificarMissoes(contexto, missoesConcluidas));
         mostrarRecompensas(recompensas);
     }, [mostrarRecompensas]);
 

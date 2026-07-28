@@ -10,10 +10,13 @@ Cada entrada em `MISSOES`:
 
 ```js
 { id, period: 'daily' | 'weekly', xp, icone, titulo, descricao,
-  progress: (ctx) => ({ atual, alvo }) }   // concluída quando current >= target
+  progresso: (ctx) => ({ atual, alvo }),   // concluída quando atual >= alvo
+  disponivel: (ctx) => boolean }           // OPCIONAL — ver abaixo
 ```
 
-`ctx` vem de `montarContextoDeMissoes(records, economy, crisisSessions, today)` e traz `{ records, economy, crisisSessions, today, weekDays }`.
+`ctx` vem de `montarContextoDeMissoes({ registros, economia, sessoesDeCrise, meta, aparelho, hoje })` — **objeto, não argumentos posicionais** — e traz `{ registros, economia, sessoesDeCrise, meta, aparelho, hoje, diasDaSemana }`.
+
+`disponivel(ctx)` filtra a missão da lista inteira quando ela não faz sentido pro usuário: as missões de meta somem pra quem não tem meta nem aparelho cadastrado, em vez de aparecer travadas em 0/1. Missão já concluída num período continua aparecendo mesmo que fique indisponível depois — o XP dela já é do usuário.
 
 ## Período e idempotência
 
@@ -32,6 +35,12 @@ O id da entrada salva é `` `${missionId}_${periodKey}` `` — é isso que faz a
 | `weekly_clean_5` | semanal | 80 | 5 dias limpos na semana (não precisa ser seguido) |
 | `weekly_records_7` | semanal | 60 | registro nos 7 dias da semana |
 | `weekly_economy_10` | semanal | 50 | soma de `economy[date]` da semana ≥ R$ 10 |
+| `daily_under_goal` | diária | 20 | dia registrado e dentro da meta do dia (`metaEfetiva`) — só aparece com meta efetiva |
+| `weekly_under_goal_5` | semanal | 70 | 5 dias da semana dentro da meta do respectivo dia — só aparece com meta efetiva |
+| `weekly_crisis_over_vape` | semanal | 60 | 3 sessões de crise na semana com `outcome` ≠ `'usei'` |
+| `weekly_streak_3` | semanal | 40 | 3 dias consecutivos com registro dentro da semana |
+
+A "meta do dia" das duas primeiras vem de `metaEfetiva(meta, aparelho, data)` (`utils/meta.js`): a meta de redução declarada pelo usuário ganha da derivada do aparelho. Ver [database.md](database.md).
 
 Concluir a primeira missão desbloqueia a conquista `first_mission` (`utils/achievements.js`).
 

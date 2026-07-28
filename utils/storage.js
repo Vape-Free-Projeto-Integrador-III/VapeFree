@@ -55,6 +55,7 @@ export { calcularStreak, calcularEstadoDeStreak };
 const CHAVES = {
   REGISTROS: '@vapefree_records',
   APARELHO: '@vapefree_device',
+  META: '@vapefree_goal',
   ECONOMIA: '@vapefree_economy',
   CONQUISTAS: '@vapefree_achievements',
   CRISE: '@vapefree_crisis',
@@ -150,6 +151,7 @@ export async function precarregarEspelho() {
     obterSessoesDeCrise(),
     obterMissoes(),
     obterAparelho(),
+    obterMeta(),
     obterEconomia(),
     obterEstadoDeXp(),
     obterDiasDeAbertura(),
@@ -166,6 +168,7 @@ export async function obterDadosLocaisDoConvidado() {
   const [
     registros,
     aparelho,
+    meta,
     economia,
     conquistas,
     sessoesDeCrise,
@@ -175,6 +178,7 @@ export async function obterDadosLocaisDoConvidado() {
   ] = await Promise.all([
     lerJson(CHAVES.REGISTROS, []),
     lerJson(CHAVES.APARELHO, null),
+    lerJson(CHAVES.META, null),
     lerJson(CHAVES.ECONOMIA, {}),
     lerJson(CHAVES.CONQUISTAS, []),
     lerJson(CHAVES.CRISE, []),
@@ -186,6 +190,7 @@ export async function obterDadosLocaisDoConvidado() {
   return {
     registros: Array.isArray(registros) ? registros : [],
     aparelho: aparelho ?? null,
+    meta: meta && typeof meta === 'object' ? meta : null,
     economia: economia && typeof economia === 'object' ? economia : {},
     conquistas: Array.isArray(conquistas) ? conquistas : [],
     sessoesDeCrise: Array.isArray(sessoesDeCrise) ? sessoesDeCrise : [],
@@ -200,6 +205,7 @@ export async function temDadosLocaisDoConvidado() {
   return (
     dados.registros.length > 0 ||
     dados.aparelho !== null ||
+    dados.meta !== null ||
     Object.keys(dados.economia).length > 0 ||
     dados.conquistas.length > 0 ||
     dados.sessoesDeCrise.length > 0 ||
@@ -306,6 +312,7 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
       doc(db, 'users', uid),
       {
         device: dados.aparelho ?? null,
+        goal: dados.meta ?? null,
         economy: dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
         xp: dados.xp ?? null,
         appOpenDays: dados.diasDeAbertura,
@@ -332,6 +339,7 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
     escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, dados.sessoesDeCrise),
     escreverCache(uid, ESPELHOS.MISSOES, dados.missoes),
     escreverCache(uid, ESPELHOS.APARELHO, dados.aparelho ?? null),
+    escreverCache(uid, ESPELHOS.META, dados.meta ?? null),
     escreverCache(uid, ESPELHOS.ECONOMIA, dados.economia),
     escreverCache(uid, ESPELHOS.XP, dados.xp ?? null),
     escreverCache(uid, ESPELHOS.ABERTURAS, dados.diasDeAbertura),
@@ -369,7 +377,7 @@ async function apagarDadosDaConta(uid) {
   await comTempoLimite(
     setDoc(
       doc(db, 'users', uid),
-      { device: null, economy: {}, xp: null, appOpenDays: [] },
+      { device: null, goal: null, economy: {}, xp: null, appOpenDays: [] },
       { merge: true }
     )
   );
@@ -382,6 +390,7 @@ async function apagarDadosDaConta(uid) {
     escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, []),
     escreverCache(uid, ESPELHOS.MISSOES, []),
     escreverCache(uid, ESPELHOS.APARELHO, null),
+    escreverCache(uid, ESPELHOS.META, null),
     escreverCache(uid, ESPELHOS.ECONOMIA, {}),
     escreverCache(uid, ESPELHOS.XP, null),
     escreverCache(uid, ESPELHOS.ABERTURAS, []),
@@ -577,6 +586,52 @@ export async function salvarAparelho(aparelho) {
       return OK;
     }
     await AsyncStorage.setItem(CHAVES.APARELHO, JSON.stringify(aparelho));
+    return OK;
+  } catch {
+    return falha('rede');
+  }
+}
+
+// ─── Meta de redução ────────────────────────────────────────────────────────
+// Modo conta: campo "goal" dentro do documento users/{uid}.
+// Modo convidado: AsyncStorage.
+//
+// É dado de ENTRADA (o usuário declara o objetivo), não derivado dos
+// registros — por isso segue salvarAparelho e NÃO passa por
+// podeEscreverDerivado como a economia. salvarMeta(null) é o "remover meta".
+
+export async function obterMeta() {
+  const uid = obterUid();
+  if (uid) {
+    return lerDaConta(
+      uid,
+      ESPELHOS.META,
+      async () => {
+        const snap = await getDoc(doc(db, 'users', uid));
+        return snap.exists() ? snap.data().goal ?? null : null;
+      },
+      null
+    );
+  }
+  return lerJson(CHAVES.META, null);
+}
+
+export async function salvarMeta(meta) {
+  const uid = obterUid();
+  const valor = meta ?? null;
+  try {
+    if (uid) {
+      await escreverNaConta(uid, ESPELHOS.META, valor, {
+        tipo: 'merge_usuario',
+        dados: { goal: valor },
+      });
+      return OK;
+    }
+    if (valor === null) {
+      await AsyncStorage.removeItem(CHAVES.META);
+      return OK;
+    }
+    await AsyncStorage.setItem(CHAVES.META, JSON.stringify(valor));
     return OK;
   } catch {
     return falha('rede');
@@ -993,15 +1048,23 @@ export async function salvarMissao(entrada) {
 
 // Avalia as missões do período atual, salva as que acabaram de ser concluídas
 // e devolve só essas novas (pra tela mostrar o toast de XP).
-export async function verificarEConcluirMissoes(registros, economia, sessoesDeCrise) {
+export async function verificarEConcluirMissoes(registros, economia, sessoesDeCrise, meta, aparelho) {
   try {
     const regs = registros ?? (await obterRegistros());
     const eco = economia ?? (await obterEconomia());
     const sessoes = sessoesDeCrise ?? (await obterSessoesDeCrise());
+    const metaAtual = meta !== undefined ? meta : await obterMeta();
+    const aparelhoAtual = aparelho !== undefined ? aparelho : await obterAparelho();
     const concluidas = await obterMissoes();
     const idsConcluidas = new Set(concluidas.map((m) => m.id));
 
-    const contexto = montarContextoDeMissoes(regs, eco, sessoes);
+    const contexto = montarContextoDeMissoes({
+      registros: regs,
+      economia: eco,
+      sessoesDeCrise: sessoes,
+      meta: metaAtual,
+      aparelho: aparelhoAtual,
+    });
     const resultados = verificarMissoes(contexto, concluidas);
     const novasConclusoes = [];
 
@@ -1039,6 +1102,9 @@ export async function verificarEDesbloquearConquistas(
     const ctx = contexto ?? {
       sessoesDeCrise: await obterSessoesDeCrise(),
       diasDeAbertura: await obterDiasDeAbertura(),
+      meta: await obterMeta(),
+      aparelho: await obterAparelho(),
+      hoje: dataDeHoje(),
     };
     const novasDesbloqueadas = [];
 
@@ -1077,14 +1143,22 @@ export async function sincronizarGamificacao(entrada = {}) {
   const economia = entrada.economia ?? (await obterEconomia());
   const sessoesDeCrise = entrada.sessoesDeCrise ?? (await obterSessoesDeCrise());
   const diasDeAbertura = entrada.diasDeAbertura ?? (await obterDiasDeAbertura());
+  const meta = entrada.meta !== undefined ? entrada.meta : await obterMeta();
+  const aparelho = entrada.aparelho !== undefined ? entrada.aparelho : await obterAparelho();
 
-  const novasMissoes = await verificarEConcluirMissoes(registros, economia, sessoesDeCrise);
+  const novasMissoes = await verificarEConcluirMissoes(
+    registros,
+    economia,
+    sessoesDeCrise,
+    meta,
+    aparelho
+  );
   const missoesConcluidas = await obterMissoes();
   const novasConquistas = await verificarEDesbloquearConquistas(
     registros,
     economia,
     missoesConcluidas,
-    { sessoesDeCrise, diasDeAbertura }
+    { sessoesDeCrise, diasDeAbertura, meta, aparelho, hoje: dataDeHoje() }
   );
   const resumo = await atualizarXp(registros, null, missoesConcluidas);
 
@@ -1092,6 +1166,8 @@ export async function sincronizarGamificacao(entrada = {}) {
     registros,
     economia,
     sessoesDeCrise,
+    meta,
+    aparelho,
     missoesConcluidas,
     resumo,
     recompensas: {

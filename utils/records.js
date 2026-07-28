@@ -51,16 +51,19 @@ export function custoPorPuxada(aparelho) {
 }
 
 // Excesso de um dia: quanto passou da meta e quanto isso custou a mais.
-// Devolve null sem aparelho/meta; senão { puxadasAMais, custoAMais }, com
-// puxadasAMais em 0 quando o dia ficou dentro da meta.
-export function excessoDoDia(registrosDoDia, aparelho) {
-  const meta = metaDiaria(aparelho);
+// `metaDoDia` vem de metaEfetiva() (utils/meta.js) — a meta declarada pelo
+// usuário ganha da meta do aparelho; sem ela, cai em metaDiaria(aparelho).
+// Devolve null sem meta nenhuma; senão { puxadasAMais, custoAMais }, com
+// puxadasAMais em 0 quando o dia ficou dentro da meta e custoAMais null
+// quando existe meta mas não existe aparelho (não dá pra precificar).
+export function excessoDoDia(registrosDoDia, aparelho, metaDoDia = null) {
+  const meta = metaDoDia !== null && metaDoDia !== undefined ? metaDoDia : metaDiaria(aparelho);
   if (meta === null) return null;
   const usadas = somarPuxadas(registrosDoDia);
   const aMais = Math.max(0, Math.round(usadas - meta));
   const custo = custoPorPuxada(aparelho);
   return {
     puxadasAMais: aMais,
-    custoAMais: custo === null ? 0 : parseFloat((aMais * custo).toFixed(2)),
+    custoAMais: custo === null ? null : parseFloat((aMais * custo).toFixed(2)),
   };
 }

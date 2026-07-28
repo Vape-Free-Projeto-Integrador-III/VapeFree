@@ -14,6 +14,10 @@
 // Os campos que vão pro banco (id, missionId, period, periodKey, xp,
 // completedAt) continuam em inglês de propósito: já existe dado salvo assim.
 
+import { somarPuxadas } from './records';
+import { metaEfetiva } from './meta';
+import { calcularStreakDeDias } from './achievements';
+
 // Segunda-feira da semana de uma data 'YYYY-MM-DD' (mesma lógica de
 // rotuloSemana em storage.js, mas devolvendo a data inteira).
 export function inicioDaSemana(dataStr) {
@@ -50,11 +54,29 @@ function ehDiaLimpo(registros, data) {
     return doDia.length > 0 && doDia.every((registro) => !registro.used);
 }
 
+// Dia registrado e dentro da meta daquele dia (meta do usuário se existir,
+// senão a do aparelho — quem decide é metaEfetiva).
+function ehDiaDentroDaMeta(ctx, data) {
+    const doDia = registrosDoDia(ctx.registros, data);
+    if (doDia.length === 0) return false;
+    const meta = metaEfetiva(ctx.meta, ctx.aparelho, data);
+    if (meta === null) return false;
+    return somarPuxadas(doDia) <= meta;
+}
+
+function temMetaEfetiva(ctx) {
+    return metaEfetiva(ctx.meta, ctx.aparelho, ctx.hoje) !== null;
+}
+
 // MISSOES ────────────────────────────────────────────────────────────────────
 // progresso(ctx) -> { atual, alvo }. A missão é concluída quando
 // atual >= alvo — não existe "condicao" separada.
 //
-// ctx = { registros, economia, sessoesDeCrise, hoje, diasDaSemana }
+// disponivel(ctx) -> boolean é OPCIONAL. Quando devolve false a missão nem
+// aparece na lista, em vez de aparecer travada em 0/1: é o caso das missões de
+// meta pra quem ainda não cadastrou meta nem aparelho.
+//
+// ctx = { registros, economia, sessoesDeCrise, meta, aparelho, hoje, diasDaSemana }
 
 export const MISSOES = [
     {
@@ -131,15 +153,76 @@ export const MISSOES = [
             return { atual: parseFloat(total.toFixed(2)), alvo: 10 };
         },
     },
+    {
+        id: 'daily_under_goal',
+        period: 'daily',
+        xp: 20,
+        icone: '🎯',
+        titulo: 'Fique abaixo do seu limite',
+        descricao: 'Registre o dia sem passar do limite de hoje',
+        disponivel: temMetaEfetiva,
+        progresso: (ctx) => ({
+            atual: ehDiaDentroDaMeta(ctx, ctx.hoje) ? 1 : 0,
+            alvo: 1,
+        }),
+    },
+    {
+        id: 'weekly_under_goal_5',
+        period: 'weekly',
+        xp: 70,
+        icone: '📉',
+        titulo: '5 dias dentro do limite',
+        descricao: 'Cinco dias desta semana sem passar do limite do dia',
+        disponivel: temMetaEfetiva,
+        progresso: (ctx) => ({
+            atual: ctx.diasDaSemana.filter((data) => ehDiaDentroDaMeta(ctx, data)).length,
+            alvo: 5,
+        }),
+    },
+    {
+        id: 'weekly_crisis_over_vape',
+        period: 'weekly',
+        xp: 60,
+        icone: '🛡️',
+        titulo: 'Modo crise no lugar do vape',
+        descricao: 'Três vezes nesta semana você usou o modo crise e não usou o vape',
+        progresso: (ctx) => {
+            const vitorias = ctx.sessoesDeCrise.filter(
+                (sessao) =>
+                    ctx.diasDaSemana.includes(sessao.date) &&
+                    sessao.outcome &&
+                    sessao.outcome !== 'usei'
+            ).length;
+            return { atual: vitorias, alvo: 3 };
+        },
+    },
+    {
+        id: 'weekly_streak_3',
+        period: 'weekly',
+        xp: 40,
+        icone: '⛓️',
+        titulo: 'Registre 3 dias seguidos',
+        descricao: 'Três dias consecutivos com registro dentro desta semana',
+        progresso: (ctx) => {
+            const datas = ctx.diasDaSemana.filter(
+                (data) => registrosDoDia(ctx.registros, data).length > 0
+            );
+            return { atual: calcularStreakDeDias(datas), alvo: 3 };
+        },
+    },
 ];
 
-// Monta o contexto que as missões recebem.
-export function montarContextoDeMissoes(registros = [], economia = {}, sessoesDeCrise = [], hoje) {
+// Monta o contexto que as missões recebem. Recebe um OBJETO (e não argumentos
+// posicionais) porque o contexto cresceu com meta/aparelho.
+export function montarContextoDeMissoes(entrada = {}) {
+    const { registros = [], economia = {}, sessoesDeCrise = [], meta = null, aparelho = null, hoje } = entrada;
     const data = hoje || new Date().toISOString().slice(0, 10);
     return {
         registros: Array.isArray(registros) ? registros : [],
         economia: economia && typeof economia === 'object' ? economia : {},
         sessoesDeCrise: Array.isArray(sessoesDeCrise) ? sessoesDeCrise : [],
+        meta: meta ?? null,
+        aparelho: aparelho ?? null,
         hoje: data,
         diasDaSemana: diasDaSemana(data),
     };
@@ -152,7 +235,14 @@ export function verificarMissoes(ctx, entradasConcluidas = []) {
     const mapaConcluidas = new Map((entradasConcluidas || []).map((entrada) => [entrada.id, entrada]));
     const agora = new Date().toISOString();
 
-    return MISSOES.map((missao) => {
+    // Missão indisponível some da lista, mas se já foi concluída antes ela
+    // continua aparecendo — o XP dela já é do usuário.
+    const disponiveis = MISSOES.filter((missao) => {
+        if (!missao.disponivel || missao.disponivel(ctx)) return true;
+        return mapaConcluidas.has(`${missao.id}_${chaveDePeriodo(missao, ctx.hoje)}`);
+    });
+
+    return disponiveis.map((missao) => {
         const periodKey = chaveDePeriodo(missao, ctx.hoje);
         const id = `${missao.id}_${periodKey}`;
         const salva = mapaConcluidas.get(id);

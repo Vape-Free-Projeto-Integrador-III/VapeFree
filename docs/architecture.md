@@ -11,7 +11,9 @@ utils/offline.js    → espelho local + fila de sincronização do modo conta (s
 services/firebase.*  → inicialização do SDK Firebase
 ```
 
-Ao lado de `utils/storage.js` existem os **módulos puros de derivação** — `utils/achievements.js` (quais conquistas o histórico desbloqueia) e `utils/insights.js` (quais padrões o histórico revela). Eles não leem nem escrevem nada: recebem `registros` já carregados e devolvem o resultado calculado. Lógica nova que só transforma registros em informação deve entrar nesse formato, não dentro da tela.
+Ao lado de `utils/storage.js` existem os **módulos puros de derivação** — `utils/achievements.js` (quais conquistas o histórico desbloqueia), `utils/insights.js` (quais padrões o histórico revela), `utils/records.js` (contas derivadas do aparelho) e `utils/meta.js` (a rampa da meta de redução). Eles não leem nem escrevem nada: recebem `registros`/`meta`/`aparelho` já carregados e devolvem o resultado calculado. Lógica nova que só transforma registros em informação deve entrar nesse formato, não dentro da tela.
+
+Uma regra vale pra toda a árvore: **a meta que aparece pro usuário sai de `metaEfetiva(meta, aparelho, data)`** (`utils/meta.js`), que devolve a meta declarada pelo usuário e só cai em `metaDiaria(aparelho)` quando ela não existe. Chamar `metaDiaria` direto numa tela ou numa missão quebraria o "meta do usuário ganha da do aparelho" em um lugar só, que é exatamente o tipo de divergência que essa camada existe pra evitar.
 
 Da mesma forma, **nenhuma tela sabe se está online.** `utils/offline.js` guarda um espelho local do Firestore e uma fila de escritas pendentes; `storage.js` usa isso por baixo, então uma tela offline lê e escreve exatamente como online. A única exceção é a migração convidado→conta, que exige rede. Ver [database.md](database.md). O `ConnectionContext` existe só pra UI (banner de "sem internet") — não é por onde os dados passam.
 

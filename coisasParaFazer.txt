@@ -16,34 +16,8 @@ BUGS / COISAS QUEBRADAS
       aceita, vai atrapalhar o build.
 
 =========================================================
-CONSISTÊNCIA / DÍVIDA TÉCNICA
-=========================================================
-
-[ ] Sem lint/format/test nenhum (o CLAUDE.md confirma). Pelo menos ESLint +
-    Prettier com o config do Expo evitaria variável morta e import não usado.
-
-=========================================================
 FEATURES QUE FALTAM (ordenado por custo/benefício)
 =========================================================
-
-[x] Tela de Configurações: liga/desliga notificações + horário do lembrete,
-    "apagar todos os meus dados", "ver o tutorial de novo" e versão do app.
-    Preferência de notificação em @vapefree_notifications (do aparelho);
-    quem agenda é aplicarPreferenciasDeNotificacao() (utils/notifications.js).
-
-[x] Excluir conta (screens/AccountScreen.js): apagarContaNoBanco(uid) limpa
-    users/{uid} + subcoleções ANTES do deleteUser, com reautenticação por
-    senha. Quem entrou com Google precisa sair e entrar de novo.
-
-[x] Editar nome/e-mail e trocar senha logado — mesma AccountScreen. E-mail usa
-    verifyBeforeUpdateEmail (só troca depois do link de confirmação).
-
-[x] Exportar dados (CSV/JSON) — utils/exportacao.js, expo-file-system +
-    expo-sharing no nativo, download por link na web.
-
-[ ] Meta de redução em vez de só "usei / não usei": deixar o usuário definir
-    "quero cair pra X puxadas/dia até tal data" e acompanhar. Hoje a única meta
-    é a derivada do aparelho (totalPuffs/days), que é consumo, não objetivo.
 
 [ ] Histórico não tem filtro por período com data inicial/final nem busca por
     gatilho — só Dia/Semana/Mês fixos nos últimos 10/6/6 pontos.
@@ -51,32 +25,9 @@ FEATURES QUE FALTAM (ordenado por custo/benefício)
 [ ] Falta gráfico/visão de dias limpos vs dias com uso (calendário mensal tipo
     heatmap). É o dado que mais motiva e hoje não existe em nenhuma tela.
 
-[x] Lembrete "registre seu dia" agora tem horário configurável nas
-    Configurações (9h virou só o padrão). O aviso de streak continua às 20h de
-    propósito, mas obedece o liga/desliga.
-
 [ ] Modo crise não tem histórico visível: as sessões só alimentam insights e
     conquistas. Uma lista "suas últimas crises e como terminaram" já tem todo o
     dado salvo.
-
-[ ] DIAS_PARA_TRAS_NO_REGISTRO = 7 é fixo no código; nada avisa o usuário que
-    depois de 7 dias o dia é perdido pra sempre. Ou avisar melhor, ou permitir
-    preencher retroativo sem XP.
-
-[ ] Missões: só 6, todas fixas. Dá pra adicionar sem custo nenhum (só uma
-    entrada em MISSOES) — ex: "use o modo crise em vez de usar o vape 3x na
-    semana", "registre 3 dias seguidos", "fique abaixo da sua meta diária".
-
-[ ] Conquistas: nenhuma envolve o escudo, nem a redução (ex: "sua média semanal
-    caiu pela metade"), que é justamente o que o app calcula melhor.
-
-[ ] Onboarding não pergunta nada — nem o aparelho, nem quanto usa hoje. Pedir o
-    aparelho no fim do tutorial faria a economia funcionar desde o dia 1
-    (hoje a Home aparece com card vazio "cadastra seu dispositivo").
-
-[ ] Nenhum tratamento de acessibilidade: sem accessibilityLabel nos ícones
-    (todos os botões são só Ionicons), sem suporte a fonte aumentada
-    (fontSize fixo em tudo).
 
 =========================================================
 BUILD / DEPLOY

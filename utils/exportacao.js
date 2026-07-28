@@ -17,6 +17,7 @@ import { File, Paths } from 'expo-file-system';
 import {
   obterRegistros,
   obterAparelho,
+  obterMeta,
   obterEconomia,
   obterConquistas,
   obterSessoesDeCrise,
@@ -76,10 +77,11 @@ export function registrosParaCsv(registros, economia = {}) {
 // abre no Excel); o JSON leva o resto junto, pra exportação ser de verdade um
 // backup do progresso.
 async function carregarDados() {
-  const [registros, aparelho, economia, conquistas, sessoesDeCrise, missoes, xp] =
+  const [registros, aparelho, meta, economia, conquistas, sessoesDeCrise, missoes, xp] =
     await Promise.all([
       obterRegistros(),
       obterAparelho(),
+      obterMeta(),
       obterEconomia(),
       obterConquistas(),
       obterSessoesDeCrise(),
@@ -87,7 +89,7 @@ async function carregarDados() {
       obterEstadoDeXp(),
     ]);
 
-  return { registros, aparelho, economia, conquistas, sessoesDeCrise, missoes, xp };
+  return { registros, aparelho, meta, economia, conquistas, sessoesDeCrise, missoes, xp };
 }
 
 function nomeDoArquivo(formato) {

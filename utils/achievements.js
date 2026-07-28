@@ -1,4 +1,12 @@
 
+import { metaValida, metaDoDia, mediaDiariaNasDatas, janelaDeDias, deslocarData } from './meta';
+import { somarPuxadas } from './records';
+
+// Mínimo de dias registrados numa janela de 7 pra ela poder ser comparada com
+// outra. A média ignora dia sem registro, então sem esse piso um único dia
+// isolado já viraria "semana inteira".
+const MIN_DIAS_PARA_COMPARAR = 3;
+
 export const CONQUISTAS = [
   {
     id: 'first_record',
@@ -192,6 +200,81 @@ export const CONQUISTAS = [
     icone: '📆',
     condicao: (registros, economia, missoesConcluidas, contexto) =>
       calcularStreakDeDias(contexto?.diasDeAbertura) >= 7,
+  },
+  {
+    id: 'shield_earned',
+    xp: 40,
+    titulo: 'Escudo na Mão',
+    // 7 = DIAS_PARA_ESCUDO, escrito à mão: a constante só é declarada mais
+    // abaixo no arquivo e este array é avaliado na carga do módulo.
+    descricao: '7 dias limpos te deram um escudo',
+    icone: '🛡️',
+    // Ter gastado um escudo também conta: senão quem ganhou e usou antes de o
+    // app sincronizar nunca desbloquearia esta.
+    condicao: (registros) => {
+      const estado = calcularEstadoDeStreak(registros);
+      return estado.escudos >= 1 || estado.diasProtegidos.length >= 1;
+    },
+  },
+  {
+    id: 'shield_used',
+    xp: 60,
+    titulo: 'O Escudo Segurou',
+    descricao: 'Um dia com uso não derrubou seu streak',
+    icone: '⚔️',
+    // diasProtegidos é histórico, diferente de gastouEscudoNoUltimoDia (que é
+    // transitório): a conquista não some se o usuário demorar a abrir o app.
+    condicao: (registros) => calcularEstadoDeStreak(registros).diasProtegidos.length >= 1,
+  },
+  {
+    id: 'halved_weekly',
+    xp: 100,
+    titulo: 'Cortou pela Metade',
+    descricao: 'Sua média diária caiu pela metade em relação à semana anterior',
+    icone: '📉',
+    condicao: (registros, economia, missoesConcluidas, contexto) => {
+      const hoje = contexto?.hoje || new Date().toISOString().slice(0, 10);
+      const datasAgora = janelaDeDias(hoje, 7);
+      const datasAnteriores = janelaDeDias(deslocarData(hoje, -7), 7);
+      const mediaAgora = mediaDiariaNasDatas(registros, datasAgora);
+      const mediaAntes = mediaDiariaNasDatas(registros, datasAnteriores);
+      if (mediaAgora === null || mediaAntes === null || mediaAntes <= 0) return false;
+      // As DUAS semanas precisam estar minimamente registradas: a média ignora
+      // dia sem registro, então 1 dia isolado (de um lado ou do outro) viraria
+      // "queda pela metade".
+      const diasRegistrados = (datas) =>
+        new Set(
+          (registros || [])
+            .filter((registro) => datas.includes(registro.date))
+            .map((registro) => registro.date)
+        ).size;
+      if (diasRegistrados(datasAnteriores) < MIN_DIAS_PARA_COMPARAR) return false;
+      if (diasRegistrados(datasAgora) < MIN_DIAS_PARA_COMPARAR) return false;
+      return mediaAgora <= mediaAntes / 2;
+    },
+  },
+  {
+    id: 'goal_reached',
+    xp: 150,
+    titulo: 'Meta Batida',
+    descricao: '7 dias seguidos registrados, todos dentro do seu limite do dia',
+    icone: '🎯',
+    // Os 7 dias precisam estar TODOS registrados e cada um deles abaixo da
+    // meta DAQUELE dia (a rampa desce, então o limite de 6 dias atrás era
+    // maior). Antes só a média valia — e como a média ignora dia sem registro,
+    // um único dia registrado abaixo do alvo já desbloqueava a conquista.
+    condicao: (registros, economia, missoesConcluidas, contexto) => {
+      const meta = contexto?.meta;
+      if (!metaValida(meta)) return false;
+      const hoje = contexto?.hoje || new Date().toISOString().slice(0, 10);
+      const datas = janelaDeDias(hoje, 7);
+      return datas.every((data) => {
+        const doDia = (registros || []).filter((registro) => registro.date === data);
+        if (doDia.length === 0) return false;
+        const limite = metaDoDia(meta, data);
+        return limite !== null && somarPuxadas(doDia) <= limite;
+      });
+    },
   },
 ];
 

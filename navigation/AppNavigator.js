@@ -10,6 +10,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import AchievementsScreen from '../screens/AchievementsScreen';
 import DeviceScreen from '../screens/DeviceScreen';
+import GoalScreen from '../screens/GoalScreen';
 import Profile from '../screens/Profile';
 import SettingsScreen from '../screens/SettingsScreen';
 import AccountScreen from '../screens/AccountScreen';
@@ -77,6 +78,7 @@ function MainStack() {
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
       <Stack.Screen name="Main" component={HomeTabs} />
       <Stack.Screen name="Device" component={DeviceScreen} />
+      <Stack.Screen name="Goal" component={GoalScreen} />
       <Stack.Screen name="Profile" component={Profile} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Account" component={AccountScreen} />
@@ -150,10 +152,18 @@ export default function AppNavigator() {
     return <LoadingScreen />;
   }
 
-  // O tutorial vem ANTES da decisão de login: é a primeira coisa que aparece
-  // na primeira abertura do app, mesmo que já exista sessão salva.
-  if (mostrarOnboarding) {
-    return <OnboardingScreen aoConcluir={() => setMostrarOnboarding(false)} />;
+  const estaDentro = usuario || ehConvidado;
+
+  // O tutorial vem DEPOIS da decisão de login: só aparece pra quem já entrou
+  // (conta ou convidado). É o que permite ele terminar pedindo o aparelho —
+  // aí o dado já vai pro lugar certo (conta ou AsyncStorage do convidado).
+  if (estaDentro && mostrarOnboarding) {
+    return (
+      <View style={{ flex: 1 }}>
+        <OfflineBanner />
+        <OnboardingScreen aoConcluir={() => setMostrarOnboarding(false)} />
+      </View>
+    );
   }
 
   return (
@@ -171,7 +181,7 @@ export default function AppNavigator() {
         Firebase (via onAuthStateChanged) e o AuthContext (modo convidado)
         é quem controla isso.
       */}
-        {usuario || ehConvidado ? <MainStack /> : <AuthStack rotaInicial={telaDeAuth} />}
+        {estaDentro ? <MainStack /> : <AuthStack rotaInicial={telaDeAuth} />}
       </NavigationContainer>
     </View>
   );

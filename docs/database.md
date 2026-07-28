@@ -13,7 +13,7 @@ function getUid() {
 ```
 
 - **Logado** (`uid` existe) → Cloud Firestore, sob `users/{uid}/...`.
-- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
+- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_goal`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
 
 Exceção às duas regras acima, as preferências **do aparelho** — como `@vapefree_dark_mode` e `@vapefree_guest_mode`, elas nunca vão pro Firestore, não têm espelho e ficam de fora de `CHAVES` de propósito, pra `limparDadosLocaisDoConvidado()` não apagá-las:
 
@@ -26,8 +26,8 @@ O modo convidado fala direto com o `AsyncStorage`. O modo conta **não** fala di
 
 `utils/offline.js` é o motor; só `utils/storage.js` importa dele (a UI usa `context/ConnectionContext.js`). Duas peças:
 
-- **Espelho** — cópia local do que está no Firestore, no `AsyncStorage`, sob `@vapefree_cache_{uid}_{nome}`, com `nome` ∈ `records`, `achievements`, `crisisSessions`, `missions`, `device`, `economy`, `xp`, `appOpenDays`, `profile`.
-- **Fila** — `@vapefree_queue_{uid}`, array ordenado de mutações `{ id, tipo, colecao, docId, dados, tentativas }`, com `tipo` ∈ `'set' | 'delete' | 'merge_usuario'` (esse último = `setDoc(users/{uid}, dados, { merge: true })`, usado por device/economy/xp/appOpenDays/profile).
+- **Espelho** — cópia local do que está no Firestore, no `AsyncStorage`, sob `@vapefree_cache_{uid}_{nome}`, com `nome` ∈ `records`, `achievements`, `crisisSessions`, `missions`, `device`, `goal`, `economy`, `xp`, `appOpenDays`, `profile`.
+- **Fila** — `@vapefree_queue_{uid}`, array ordenado de mutações `{ id, tipo, colecao, docId, dados, tentativas }`, com `tipo` ∈ `'set' | 'delete' | 'merge_usuario'` (esse último = `setDoc(users/{uid}, dados, { merge: true })`, usado por device/goal/economy/xp/appOpenDays/profile).
 
 Como cada operação se comporta:
 
@@ -49,7 +49,7 @@ Por que fila própria e não `enablePersistence()`: o `persistentLocalCache` do 
 
 Escritas **iniciadas pelo usuário** devolvem `{ ok: true }` ou `{ ok: false, motivo }`:
 
-`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `definirEconomia`, `salvarSessaoDeCrise`.
+`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `salvarMeta`, `definirEconomia`, `salvarSessaoDeCrise`.
 
 Motivos: `'rede'` (falha de AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToast()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou.
 
@@ -79,11 +79,17 @@ Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Con
 ```
 Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
+**Goal** (meta de redução, uma por usuário):
+```js
+{ baseline, target, startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }
+```
+Firestore: campo `goal` no doc `users/{uid}`. Convidado: `@vapefree_goal`. Espelho `goal`. `null` = sem meta, e `salvarMeta(null)` é o "remover meta". É dado **de entrada** (o usuário declara o objetivo), então segue `salvarAparelho` e **não** passa por `podeEscreverDerivado` como a economia. Escrito pela `GoalScreen`, pelo passo 7 do tutorial (ver [navigation.md](navigation.md)) e por nada mais.
+
 **Profile** (só modo conta): `{ nome, displayName, email }`, campos do doc `users/{uid}`, gravados uma vez no cadastro por `salvarPerfilDaConta(uid, { nome, email })`. Espelho `profile`. Convidado não tem perfil. Nenhuma tela lê esses campos hoje — quem exibe o nome usa `auth.currentUser.displayName`.
 
 **Economy**: mapa `{ [date]: valorEconomizadoNoDia }`, recalculado por `recalcularEconomia(records, device)` — nunca editado manualmente pela UI. Firestore: campo `economy` no doc `users/{uid}`. Convidado: `@vapefree_economy`.
 
-**Achievement (desbloqueada)**: `{ id, unlockedAt }`. Firestore: subcoleção `users/{uid}/achievements`, doc id = `String(achievementId)`. Convidado: array em `@vapefree_achievements`. Lista completa de conquistas possíveis (não persistida, é código) está em `utils/achievements.js` — ver `CONQUISTAS`. Cada `condicao(records, economy, completedMissions, context)` recebe em `contexto` o que não está nos registros: `{ crisisSessions, appOpenDays }` (montado por `verificarEDesbloquearConquistas`, ou passado pronto pela tela que já carregou esses dados).
+**Achievement (desbloqueada)**: `{ id, unlockedAt }`. Firestore: subcoleção `users/{uid}/achievements`, doc id = `String(achievementId)`. Convidado: array em `@vapefree_achievements`. Lista completa de conquistas possíveis (não persistida, é código) está em `utils/achievements.js` — ver `CONQUISTAS`. Cada `condicao(records, economy, completedMissions, context)` recebe em `contexto` o que não está nos registros: `{ crisisSessions, appOpenDays, meta, aparelho, hoje }` (montado por `verificarEDesbloquearConquistas`, ou passado pronto pela tela que já carregou esses dados).
 
 **AppOpenDays**: array de datas `'YYYY-MM-DD'` em que o app foi aberto (uma entrada por dia, máximo 60 dias). Firestore: campo `appOpenDays` no doc `users/{uid}`. Convidado: `@vapefree_app_opens`. Gravado por `registrarAberturaDoApp()` no `carregar()` da HomeScreen (idempotente no dia); só serve à conquista `app_open_7`.
 
@@ -93,17 +99,33 @@ Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
 **CrisisSession** (modo crise): `{ id, date, time, method, durationSec, completed, outcome, note }`. `id` = `Date.now()`, `method` ∈ `'respiracao' | 'timer' | 'distracao' | null`, `outcome` ∈ `'passou' | 'diminuiu' | 'usei' | null` (null = usuário pulou o feedback). Firestore: subcoleção `users/{uid}/crisisSessions`. Convidado: array em `@vapefree_crisis`. Salva sempre que o usuário encerra a `CrisisScreen`, mesmo sem responder o feedback — ter pedido ajuda já é dado. Lido por `metodoDeCriseRecomendado` (`utils/insights.js`) para sugerir na próxima crise o método que já funcionou.
 
+## Meta do dia
+
+`utils/meta.js` guarda os helpers puros da meta de redução. A meta de um dia é uma **rampa linear** entre `baseline` e `target`:
+
+```js
+metaDoDia(meta, data) = baseline - (baseline - target) * (diasPassados / diasTotais)
+```
+
+Vocabulário da UI: o número do dia aparece pro usuário como **"limite"** ("seu limite de hoje: 70 puxadas"), nunca como "meta" — meta/objetivo é só o alvo final (`target` + `endDate`). Sem isso o card lia como se o app estivesse mandando puxar 70 vezes. No código os identificadores continuam `meta`/`metaDoDia`/`metaEfetiva`.
+
+Fora do intervalo ela gruda nas pontas (antes do `startDate` vale o `baseline`, depois do `endDate`, o `target`), e `metaValida(meta)` exige `target < baseline` e `endDate > startDate`.
+
+**`metaEfetiva(meta, aparelho, data)` é a única fonte da meta em todo o app**: devolve a meta do usuário quando ela existe e cai em `metaDiaria(aparelho)` quando não existe. Nenhuma tela deve chamar `metaDiaria` direto — é o que garante que "a meta declarada ganha da derivada do aparelho" valha igual no alerta de excesso da Home, nas missões e nas conquistas.
+
+Também moram lá: `mediaDiariaNasDatas(registros, datas)` (média por dia contando só dias com registro), `janelaDeDias(ateData, n)` / `deslocarData` / `diferencaEmDias` (janela móvel usada pelas conquistas de redução) e `progressoDaMeta(meta, registros, hoje)`, que devolve de uma vez o que o card de meta da Home mostra.
+
 ## Cálculo de economia
 
-As duas contas derivadas do aparelho ficam em `utils/records.js`, puras: `custoPorPuxada(device)` (`price / totalPuffs`) e `metaDiaria(device)` (`totalPuffs / days`). Ambas devolvem `null` quando algum campo não é número positivo. Use elas em vez de repetir a fórmula — são as mesmas usadas pela prévia do `DeviceScreen` e pelo alerta de excesso da Home.
+As duas contas derivadas do aparelho ficam em `utils/records.js`, puras: `custoPorPuxada(device)` (`price / totalPuffs`) e `metaDiaria(device)` (`totalPuffs / days`). Ambas devolvem `null` quando algum campo não é número positivo. Use elas em vez de repetir a fórmula — são as mesmas usadas pela prévia do `DeviceScreen` e pelo fallback de `metaEfetiva`.
 
 `recalcularEconomia(records, device)`: para cada dia com registro, `economia = max(0, metaDiaria - puffsUsados) * custoPorPuxada`. Grava o mapa inteiro via `definirEconomia`. Devolve `{}` sem gravar nada se o aparelho não permitir o cálculo. Chamado depois de qualquer `salvarRegistro`/`atualizarRegistro`/`excluirRegistro` e depois de salvar um `aparelho` novo.
 
-O `max(0, ...)` trunca o excesso: dia acima da meta vira economia `0` e o quanto passou não é persistido em lugar nenhum. Quem precisa desse número usa `excessoDoDia(registrosDoDia, device)` (`utils/records.js`), que devolve `{ puxadasAMais, custoAMais }` derivado na hora do render.
+O `max(0, ...)` trunca o excesso: dia acima da meta vira economia `0` e o quanto passou não é persistido em lugar nenhum. Quem precisa desse número usa `excessoDoDia(registrosDoDia, device, metaDoDia)` (`utils/records.js`), que devolve `{ puxadasAMais, custoAMais }` derivado na hora do render — o terceiro argumento vem de `metaEfetiva`, e `custoAMais` é `null` quando existe meta mas não existe aparelho pra precificar.
 
 ## Migração convidado → conta
 
-`migrarDadosDoConvidadoParaConta(uid)`: lê tudo do `AsyncStorage`, grava `device`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements`, `crisisSessions` e `missions` (apaga os docs existentes na conta antes de escrever — é uma sobreposição, não um merge de listas), preenche o espelho local com o que subiu e só então limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
+`migrarDadosDoConvidadoParaConta(uid)`: lê tudo do `AsyncStorage`, grava `device`/`goal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements`, `crisisSessions` e `missions` (apaga os docs existentes na conta antes de escrever — é uma sobreposição, não um merge de listas), preenche o espelho local com o que subiu e só então limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
 
 É a **única operação que exige internet**: sai devolvendo `false` se `estaOnline()` for falso, e qualquer erro no meio é capturado — nesse caso os dados locais do convidado ficam intactos, pra dar pra tentar de novo. Não entra na fila offline porque apaga documentos remotos antes de escrever; parar no meio disso deixaria a conta pela metade.
 
@@ -112,7 +134,7 @@ O `max(0, ...)` trunca o excesso: dia acima da meta vira economia `0` e o quanto
 `apagarTodosOsDados()` (Configurações → "Apagar todos os meus dados") zera o progresso mantendo a conta:
 
 - **Convidado**: `limparDadosLocaisDoConvidado()` — o tutorial, o tema e a preferência de notificação sobrevivem (ficam fora de `CHAVES`).
-- **Conta**: apaga todos os docs das quatro subcoleções, zera `device`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` e deixa o espelho **quente e vazio** (`[]`/`{}`/`null`), pra leitura offline não confundir "apagado" com "ainda não carregado".
+- **Conta**: apaga todos os docs das quatro subcoleções, zera `device`/`goal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` e deixa o espelho **quente e vazio** (`[]`/`{}`/`null`), pra leitura offline não confundir "apagado" com "ainda não carregado".
 
 Como a migração, **exige internet** (devolve `{ ok: false, motivo: 'rede' }` offline): apagar subcoleção depende de listar o que está no servidor. A fila é descartada antes da limpeza — escrita pendente que subisse depois ressuscitaria dado que o usuário mandou apagar.
 
@@ -120,7 +142,7 @@ Como a migração, **exige internet** (devolve `{ ok: false, motivo: 'rede' }` o
 
 ## Exportar dados
 
-`utils/exportacao.js` → `exportarDados('csv' | 'json')`. Lê tudo por `storage.js`, então funciona igual pra convidado e conta (e offline, servido pelo espelho); não escreve nada. CSV traz só os registros, uma linha por registro, com a economia do dia junto; JSON traz o pacote completo (registros, aparelho, economia, conquistas, sessões de crise, missões, XP), que serve de backup. No nativo grava em `Paths.cache` (`expo-file-system`) e abre o `Sharing.shareAsync`; na web baixa por link temporário, porque `expo-sharing` não existe lá. Devolve `{ ok }` ou `{ ok: false, motivo }` com `motivo` ∈ `'sem_dados' | 'sem_compartilhamento' | 'falhou'`.
+`utils/exportacao.js` → `exportarDados('csv' | 'json')`. Lê tudo por `storage.js`, então funciona igual pra convidado e conta (e offline, servido pelo espelho); não escreve nada. CSV traz só os registros, uma linha por registro, com a economia do dia junto; JSON traz o pacote completo (registros, aparelho, meta, economia, conquistas, sessões de crise, missões, XP), que serve de backup. No nativo grava em `Paths.cache` (`expo-file-system`) e abre o `Sharing.shareAsync`; na web baixa por link temporário, porque `expo-sharing` não existe lá. Devolve `{ ok }` ou `{ ok: false, motivo }` com `motivo` ∈ `'sem_dados' | 'sem_compartilhamento' | 'falhou'`.
 
 ## Helpers puros (sem I/O)
 
