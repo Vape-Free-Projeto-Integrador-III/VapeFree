@@ -15,11 +15,14 @@ import {
 } from '../utils/storage';
 import { verificarConquistas } from '../utils/achievements';
 import { RAIO, SOMBRA } from '../utils/theme';
+import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
 import ScreenHeader from '../components/ScreenHeader';
+import GradeDeCards from '../components/GradeDeCards';
 
 export default function AchievementsScreen({ navigation }) {
     const { cores } = usarTema();
+    const { colunas } = usarLayoutResponsivo();
     const [conquistas, setConquistas] = useState([]);
 
     const carregar = useCallback(async () => {
@@ -71,63 +74,69 @@ export default function AchievementsScreen({ navigation }) {
                 aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
             />
 
-            <View style={[styles.statsCard, { backgroundColor: cores.card }, SOMBRA.media]}>
-                <View style={styles.statsRow}>
-                    <View style={styles.statItem}>
-                        <Text style={[styles.statNum, { color: cores.primaryDark }]}>{quantidadeDesbloqueadas}</Text>
-                        <Text style={[styles.statLabel, { color: cores.textMuted }]}>Conquistadas</Text>
-                    </View>
-                    <View style={[styles.statDivider, { backgroundColor: cores.border }]} />
-                    <View style={styles.statItem}>
-                        <Text style={[styles.statNum, { color: cores.primaryDark }]}>{quantidadeTotal - quantidadeDesbloqueadas}</Text>
-                        <Text style={[styles.statLabel, { color: cores.textMuted }]}>Por vir</Text>
-                    </View>
-                    <View style={[styles.statDivider, { backgroundColor: cores.border }]} />
-                    <View style={styles.statItem}>
-                        <Text style={[styles.statNum, { color: cores.primaryDark }]}>{quantidadeTotal}</Text>
-                        <Text style={[styles.statLabel, { color: cores.textMuted }]}>Total</Text>
+            <View style={estiloDoConteudo}>
+                <View style={[styles.statsCard, { backgroundColor: cores.card }, SOMBRA.media]}>
+                    <View style={styles.statsRow}>
+                        <View style={styles.statItem}>
+                            <Text style={[styles.statNum, { color: cores.primaryDark }]}>{quantidadeDesbloqueadas}</Text>
+                            <Text style={[styles.statLabel, { color: cores.textMuted }]}>Conquistadas</Text>
+                        </View>
+                        <View style={[styles.statDivider, { backgroundColor: cores.border }]} />
+                        <View style={styles.statItem}>
+                            <Text style={[styles.statNum, { color: cores.primaryDark }]}>{quantidadeTotal - quantidadeDesbloqueadas}</Text>
+                            <Text style={[styles.statLabel, { color: cores.textMuted }]}>Por vir</Text>
+                        </View>
+                        <View style={[styles.statDivider, { backgroundColor: cores.border }]} />
+                        <View style={styles.statItem}>
+                            <Text style={[styles.statNum, { color: cores.primaryDark }]}>{quantidadeTotal}</Text>
+                            <Text style={[styles.statLabel, { color: cores.textMuted }]}>Total</Text>
+                        </View>
                     </View>
                 </View>
+
+                {quantidadeDesbloqueadas > 0 && (
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: cores.text }]}>✅ Você já conquistou</Text>
+                        <GradeDeCards colunas={colunas} espacamento={12}>
+                            {conquistas.filter((c) => c.desbloqueada).map((conquista) => (
+                                <View key={conquista.id} style={[styles.achievementCardUnlocked, { backgroundColor: cores.card, borderColor: cores.primary }, SOMBRA.pequena]}>
+                                    <View style={[styles.achievementIcon, { backgroundColor: cores.primaryLight }]}>
+                                        <Text style={styles.achievementEmoji}>{conquista.icone}</Text>
+                                    </View>
+                                    <View style={styles.achievementInfo}>
+                                        <Text style={[styles.achievementTitle, { color: cores.text }]}>{conquista.titulo}</Text>
+                                        <Text style={[styles.achievementDesc, { color: cores.textSecondary }]}>{conquista.descricao}</Text>
+                                        <Text style={[styles.achievementXp, { color: cores.primaryDark }]}>+{conquista.xp} XP</Text>
+                                    </View>
+                                    <Ionicons name="checkmark-circle" size={24} color={cores.primary} />
+                                </View>
+                            ))}
+                        </GradeDeCards>
+                    </View>
+                )}
+
+                {quantidadeTotal - quantidadeDesbloqueadas > 0 && (
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: cores.text }]}>🔒 O que ainda vem por aí</Text>
+                        <GradeDeCards colunas={colunas} espacamento={12}>
+                            {conquistas.filter((c) => !c.desbloqueada).map((conquista) => (
+                                <View key={conquista.id} style={[styles.achievementCardLocked, { backgroundColor: cores.card, borderColor: cores.border }]}>
+                                    <View style={[styles.achievementIconLocked, { backgroundColor: cores.borderLight }]}>
+                                        <Ionicons name="lock-closed" size={22} color={cores.textMuted} />
+                                    </View>
+                                    <View style={styles.achievementInfo}>
+                                        <Text style={[styles.achievementTitleLocked, { color: cores.textMuted }]}>{conquista.titulo}</Text>
+                                        <Text style={[styles.achievementDescLocked, { color: cores.textMuted }]}>{conquista.descricao}</Text>
+                                        <Text style={[styles.achievementXp, { color: cores.textMuted }]}>+{conquista.xp} XP</Text>
+                                    </View>
+                                </View>
+                            ))}
+                        </GradeDeCards>
+                    </View>
+                )}
+
+                <View style={{ height: 24 }} />
             </View>
-
-            {quantidadeDesbloqueadas > 0 && (
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: cores.text }]}>✅ Você já conquistou</Text>
-                    {conquistas.filter((c) => c.desbloqueada).map((conquista) => (
-                        <View key={conquista.id} style={[styles.achievementCardUnlocked, { backgroundColor: cores.card, borderColor: cores.primary }, SOMBRA.pequena]}>
-                            <View style={[styles.achievementIcon, { backgroundColor: cores.primaryLight }]}>
-                                <Text style={styles.achievementEmoji}>{conquista.icone}</Text>
-                            </View>
-                            <View style={styles.achievementInfo}>
-                                <Text style={[styles.achievementTitle, { color: cores.text }]}>{conquista.titulo}</Text>
-                                <Text style={[styles.achievementDesc, { color: cores.textSecondary }]}>{conquista.descricao}</Text>
-                                <Text style={[styles.achievementXp, { color: cores.primaryDark }]}>+{conquista.xp} XP</Text>
-                            </View>
-                            <Ionicons name="checkmark-circle" size={24} color={cores.primary} />
-                        </View>
-                    ))}
-                </View>
-            )}
-
-            {quantidadeTotal - quantidadeDesbloqueadas > 0 && (
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: cores.text }]}>🔒 O que ainda vem por aí</Text>
-                    {conquistas.filter((c) => !c.desbloqueada).map((conquista) => (
-                        <View key={conquista.id} style={[styles.achievementCardLocked, { backgroundColor: cores.card, borderColor: cores.border }]}>
-                            <View style={[styles.achievementIconLocked, { backgroundColor: cores.borderLight }]}>
-                                <Ionicons name="lock-closed" size={22} color={cores.textMuted} />
-                            </View>
-                            <View style={styles.achievementInfo}>
-                                <Text style={[styles.achievementTitleLocked, { color: cores.textMuted }]}>{conquista.titulo}</Text>
-                                <Text style={[styles.achievementDescLocked, { color: cores.textMuted }]}>{conquista.descricao}</Text>
-                                <Text style={[styles.achievementXp, { color: cores.textMuted }]}>+{conquista.xp} XP</Text>
-                            </View>
-                        </View>
-                    ))}
-                </View>
-            )}
-
-            <View style={{ height: 24 }} />
         </ScrollView>
         </View>
     );

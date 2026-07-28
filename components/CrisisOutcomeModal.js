@@ -17,13 +17,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { RAIO, SOMBRA } from '../utils/theme';
-
-// Sem julgamento no "usei" — o app não pune, só registra.
-const DESFECHOS = [
-  { id: 'passou', rotulo: 'Passou', emoji: '💚' },
-  { id: 'diminuiu', rotulo: 'Diminuiu', emoji: '🙂' },
-  { id: 'usei', rotulo: 'Acabei usando', emoji: '😔' },
-];
+import { DESFECHOS_DE_CRISE as DESFECHOS } from '../utils/insights';
 
 export default function CrisisOutcomeModal({ visivel, cores, aoEnviar, aoPular }) {
   const [desfecho, setDesfecho] = useState(null);

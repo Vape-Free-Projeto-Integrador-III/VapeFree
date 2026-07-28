@@ -16,20 +16,6 @@ BUGS / COISAS QUEBRADAS
       aceita, vai atrapalhar o build.
 
 =========================================================
-FEATURES QUE FALTAM (ordenado por custo/benefício)
-=========================================================
-
-[ ] Histórico não tem filtro por período com data inicial/final nem busca por
-    gatilho — só Dia/Semana/Mês fixos nos últimos 10/6/6 pontos.
-
-[ ] Falta gráfico/visão de dias limpos vs dias com uso (calendário mensal tipo
-    heatmap). É o dado que mais motiva e hoje não existe em nenhuma tela.
-
-[ ] Modo crise não tem histórico visível: as sessões só alimentam insights e
-    conquistas. Uma lista "suas últimas crises e como terminaram" já tem todo o
-    dado salvo.
-
-=========================================================
 BUILD / DEPLOY
 =========================================================
 

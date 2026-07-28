@@ -27,6 +27,17 @@ Esses não leem `cores` — seguem o `userInterfaceStyle` do sistema. `app.json`
 
 `App.js` fixa `<StatusBar style="light" />` (o `ScreenHeader` é `cores.primary`, verde nos dois temas). `LoginScreen` e `SignUpScreen` têm fundo branco fixo e renderizam o próprio `<StatusBar style="dark" />` — no `expo-status-bar` o componente montado por último vence.
 
+## Layout responsivo (web)
+
+`utils/responsivo.js` — `usarLayoutResponsivo()` devolve `{ largura, colunas, ehLargo }` a partir de `useWindowDimensions()` (e **não** `Dimensions.get('window')` lido no topo do módulo, que congela a largura na primeira carga e ignora resize da janela do navegador). Acima de `QUEBRA_DUAS_COLUNAS` (900) `colunas` vira 2; abaixo disso, 1 — celular não muda em nada.
+
+Duas peças, aplicadas hoje em `HomeScreen`, `HistoryScreen`, `MissionsScreen`, `AchievementsScreen` e `CrisisHistoryScreen`:
+
+1. `estiloDoConteudo` (`width: '100%'`, `maxWidth: LARGURA_MAXIMA` = 1000, `alignSelf: 'center'`) numa `View` que envolve tudo **depois** do `ScreenHeader`. O header fica de fora de propósito: tem fundo `cores.primary` e precisa ir de ponta a ponta; limitado a 1000px viraria uma faixa verde flutuando.
+2. `<GradeDeCards colunas={colunas}>` em volta dos cards — ver [components.md](components.md).
+
+Gráfico (`react-native-chart-kit`) exige `width` numérico: com 2 colunas não dá pra derivar da janela, então as duas telas com gráfico medem o card com `onLayout` e guardam em state (`larguraDoCardDoGrafico`), renderizando o chart só depois da primeira medição (`> 0` — largura 0 quebra a lib). Tela nova com gráfico deve seguir o mesmo caminho, nunca `Dimensions.get('window').width - 64`.
+
 ## Espaçamento e forma
 
 `RAIO` (`sm:8, md:12, lg:16, xl:20, full:999`) e `SOMBRA` (`small`, `medium` — `shadowColor/Offset/Opacity/Radius` + `elevation`) de `utils/theme.js`, usados em quase todo `View` com fundo (cards, botões, chips, modais). Não crie novo raio/sombra ad-hoc sem checar se um desses já serve.

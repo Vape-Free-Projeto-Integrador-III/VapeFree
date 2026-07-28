@@ -15,6 +15,7 @@ import Profile from '../screens/Profile';
 import SettingsScreen from '../screens/SettingsScreen';
 import AccountScreen from '../screens/AccountScreen';
 import CrisisScreen from '../screens/CrisisScreen';
+import CrisisHistoryScreen from '../screens/CrisisHistoryScreen';
 import MissionsScreen from '../screens/MissionsScreen';
 import BreathingScreen from '../screens/BreathingScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
@@ -83,6 +84,7 @@ function MainStack() {
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Crisis" component={CrisisScreen} />
+      <Stack.Screen name="CrisisHistory" component={CrisisHistoryScreen} />
       <Stack.Screen name="Missions" component={MissionsScreen} />
       <Stack.Screen name="Breathing" component={BreathingScreen} />
       {/* Mesma tela do tutorial de boas-vindas, aqui como rota normal: é o

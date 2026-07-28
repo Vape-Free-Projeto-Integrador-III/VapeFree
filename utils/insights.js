@@ -37,7 +37,7 @@ export function converterDataLocal(dataStr) {
   return new Date(`${dataStr}T12:00:00`);
 }
 
-function emojiDoRotulo(rotulo) {
+export function emojiDoRotulo(rotulo) {
   const encontrado =
     GATILHOS.find((g) => g.rotulo === rotulo) || AJUDAS.find((a) => a.rotulo === rotulo);
   return encontrado ? encontrado.emoji : EMOJI_PADRAO;
@@ -158,6 +158,33 @@ export const METODOS_DE_CRISE = {
   timer: { rotulo: 'Aguentar alguns minutos', emoji: '⏱️' },
   distracao: { rotulo: 'Distrações rápidas', emoji: '💧' },
 };
+
+// Sem julgamento no "usei" — o app não pune, só registra. Fonte única do
+// rótulo do desfecho: o CrisisOutcomeModal oferece e a tela de histórico de
+// crises exibe a partir daqui.
+export const DESFECHOS_DE_CRISE = [
+  { id: 'passou', rotulo: 'Passou', emoji: '💚' },
+  { id: 'diminuiu', rotulo: 'Diminuiu', emoji: '🙂' },
+  { id: 'usei', rotulo: 'Acabei usando', emoji: '😔' },
+];
+
+export function desfechoDeCrise(id) {
+  return DESFECHOS_DE_CRISE.find((d) => d.id === id) || null;
+}
+
+// Resumo de topo da tela de histórico de crises. Mesma regra de
+// taxaDeSucessoNasCrises: superada = respondida e diferente de "usei".
+export function resumoDeCrises(sessoes) {
+  const lista = Array.isArray(sessoes) ? sessoes : [];
+  const respondidas = lista.filter((s) => s.outcome);
+  const superadas = respondidas.filter((s) => s.outcome !== 'usei');
+  return {
+    total: lista.length,
+    respondidas: respondidas.length,
+    superadas: superadas.length,
+    taxa: respondidas.length > 0 ? Math.round((superadas.length / respondidas.length) * 100) : null,
+  };
+}
 
 // "Passou" vale 1, "diminuiu" vale meio ponto — diminuir também é vitória,
 // só não do mesmo tamanho. "usei" vale 0.

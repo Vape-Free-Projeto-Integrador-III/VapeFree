@@ -5,7 +5,6 @@ import {
     ScrollView,
     StyleSheet,
     TouchableOpacity,
-    Dimensions,
     RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -28,17 +27,21 @@ import { metaEfetiva, progressoDaMeta, metaValida } from '../utils/meta';
 import { obterNivel } from '../utils/xp';
 import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 import { DIAS_PARA_ESCUDO } from '../utils/achievements';
+import { estadoDoDia, resumoDoMes, mesDeData } from '../utils/calendario';
 import { RAIO, SOMBRA, DICAS } from '../utils/theme';
+import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 import MissionsCard from '../components/MissionsCard';
-
-const { width } = Dimensions.get('window');
-const LARGURA_DO_GRAFICO = width - 64;
+import CalendarioMensal from '../components/CalendarioMensal';
+import GradeDeCards from '../components/GradeDeCards';
 
 export default function HomeScreen({ navigation }) {
     const { cores } = usarTema();
+    const { colunas } = usarLayoutResponsivo();
+    // Largura do gráfico medida do card: com 2 colunas não dá pra derivar da janela.
+    const [larguraDoCardDoGrafico, setLarguraDoCardDoGrafico] = useState(0);
     const { mostrarRecompensas } = usarToast();
     const [registros, setRegistros] = useState([]);
     const [aparelho, setAparelho] = useState(null);
@@ -47,6 +50,7 @@ export default function HomeScreen({ navigation }) {
     const [missoes, setMissoes] = useState([]);
     const [xp, setXp] = useState(0);
     const [atualizando, setAtualizando] = useState(false);
+    const [mesDoCalendario, setMesDoCalendario] = useState(() => mesDeData(dataDeHoje()));
 
     const carregar = useCallback(async () => {
         // Home é a porta de entrada do app — marcar aqui o dia de abertura
@@ -151,6 +155,25 @@ export default function HomeScreen({ navigation }) {
           }`
         : '';
 
+    // Heatmap do mês: um dia é "limpo" quando tem registro e nenhum uso — a
+    // mesma regra do streak (calcularEstadoDeStreak), só que visível dia a dia.
+    const registrosPorData = registros.reduce((mapa, registro) => {
+        (mapa[registro.date] = mapa[registro.date] || []).push(registro);
+        return mapa;
+    }, {});
+    const mesAtual = mesDeData(hoje);
+    const estaNoMesAtual = mesDoCalendario.ano === mesAtual.ano && mesDoCalendario.mes === mesAtual.mes;
+    const resumoDoCalendario = resumoDoMes(registros, mesDoCalendario.ano, mesDoCalendario.mes);
+
+    const estiloDoDiaNoCalendario = (dataStr) => {
+        const estado = estadoDoDia(registrosPorData[dataStr] || [], metaEfetiva(meta, aparelho, dataStr));
+        if (estado === 'limpo') return { fundo: cores.primary, corDoTexto: '#fff' };
+        if (estado === 'usou_dentro') return { fundo: cores.primaryLight, corDoTexto: cores.primaryDark };
+        if (estado === 'usou_acima') return { fundo: cores.danger + '33', corDoTexto: cores.danger, borda: cores.danger };
+        if (estado === 'usou') return { fundo: cores.warning + '33', corDoTexto: cores.text };
+        return { fundo: cores.borderLight, corDoTexto: cores.textMuted };
+    };
+
     const nivel = obterNivel(xp);
     const dica = DICAS[new Date().getDate() % DICAS.length];
 
@@ -169,234 +192,284 @@ export default function HomeScreen({ navigation }) {
                 aoPressionarConfiguracoes={abrirConfiguracoes}
             />
 
-            <TouchableOpacity
-                style={[styles.crisisCard, { backgroundColor: cores.card, borderLeftColor: cores.warning }, SOMBRA.media]}
-                onPress={() => navigation.navigate('Crisis')}
-            >
-                <Ionicons name="hand-left" size={26} color={cores.warning} />
-                <View style={{ flex: 1 }}>
-                    <Text style={[styles.crisisTitle, { color: cores.text }]}>Estou com vontade</Text>
-                    <Text style={[styles.crisisSubtitle, { color: cores.textSecondary }]}>
-                        Toca aqui — a gente passa por isso junto
-                    </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={cores.textMuted} />
-            </TouchableOpacity>
-
-            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Como você foi hoje?</Text>
-                <View style={styles.statRow}>
-                    <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
-                        <Text style={[styles.statNum, { color: cores.primaryDark }]}>{puxadasDeHoje}</Text>
-                        <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Puxadas{'\n'}hoje</Text>
-                    </View>
-                    <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
-                        <Text style={[styles.statNum, { color: cores.primaryDark }]}>{streak}</Text>
-                         <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Dias{'\n'}registrados{'\n'}sem uso</Text>
-                    </View>
-                    <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
-                        <Text style={[styles.statNum, { color: cores.primaryDark }]}>{puxadasDaSemana}</Text>
-                        <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Esta{'\n'}semana</Text>
-                    </View>
-                </View>
-
-                <View
-                    style={[
-                        styles.shieldRow,
-                        { backgroundColor: cores.primaryLight, borderColor: temEscudo ? cores.primary : cores.borderLight },
-                    ]}
+            <View style={estiloDoConteudo}>
+                <TouchableOpacity
+                    style={[styles.crisisCard, { backgroundColor: cores.card, borderLeftColor: cores.warning }, SOMBRA.media]}
+                    onPress={() => navigation.navigate('Crisis')}
                 >
-                    <Ionicons
-                        name={temEscudo ? 'shield-checkmark' : 'shield-outline'}
-                        size={20}
-                        color={temEscudo ? cores.primary : cores.textMuted}
-                    />
-                    <Text style={[styles.shieldText, { color: temEscudo ? cores.primaryDark : cores.textSecondary }]}>
-                        {mensagemDoEscudo}
-                    </Text>
-                </View>
-
-                {mostrarExcesso ? (
-                    <View style={[styles.excessRow, { backgroundColor: cores.danger + '22', borderColor: cores.danger }]}>
-                        <Ionicons name="alert-circle" size={20} color={cores.danger} />
-                        <Text style={[styles.excessText, { color: cores.danger }]}>{mensagemDoExcesso}</Text>
+                    <Ionicons name="hand-left" size={26} color={cores.warning} />
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.crisisTitle, { color: cores.text }]}>Estou com vontade</Text>
+                        <Text style={[styles.crisisSubtitle, { color: cores.textSecondary }]}>
+                            Toca aqui — a gente passa por isso junto
+                        </Text>
                     </View>
-                ) : null}
-            </View>
+                    <Ionicons name="chevron-forward" size={18} color={cores.textMuted} />
+                </TouchableOpacity>
 
-            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>🎯 Seu limite de hoje</Text>
-                {progressoDoObjetivo ? (
-                    <>
-                        <View style={styles.goalTopRow}>
-                            <View>
-                                <Text style={[styles.goalBig, { color: cores.text }]}>
-                                    {Math.round(progressoDoObjetivo.metaDeHoje)} puxadas
-                                </Text>
-                                <Text style={[styles.goalSub, { color: cores.textSecondary }]}>
-                                    é o seu limite de hoje — você está em {progressoDoObjetivo.usadasHoje}
-                                </Text>
+                <GradeDeCards colunas={colunas}>
+                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Como você foi hoje?</Text>
+                        <View style={styles.statRow}>
+                            <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
+                                <Text style={[styles.statNum, { color: cores.primaryDark }]}>{puxadasDeHoje}</Text>
+                                <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Puxadas{'\n'}hoje</Text>
                             </View>
-                            <View
-                                style={[
-                                    styles.goalBadge,
-                                    {
-                                        backgroundColor: progressoDoObjetivo.dentroDaMeta
-                                            ? cores.primaryLight
-                                            : cores.danger + '22',
-                                    },
-                                ]}
-                            >
-                                <Ionicons
-                                    name={progressoDoObjetivo.dentroDaMeta ? 'checkmark-circle' : 'alert-circle'}
-                                    size={16}
-                                    color={progressoDoObjetivo.dentroDaMeta ? cores.primary : cores.danger}
-                                />
-                                <Text
-                                    style={[
-                                        styles.goalBadgeText,
-                                        { color: progressoDoObjetivo.dentroDaMeta ? cores.primaryDark : cores.danger },
-                                    ]}
-                                >
-                                    {progressoDoObjetivo.dentroDaMeta ? 'dentro' : 'acima'}
-                                </Text>
+                            <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
+                                <Text style={[styles.statNum, { color: cores.primaryDark }]}>{streak}</Text>
+                                 <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Dias{'\n'}registrados{'\n'}sem uso</Text>
+                            </View>
+                            <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
+                                <Text style={[styles.statNum, { color: cores.primaryDark }]}>{puxadasDaSemana}</Text>
+                                <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Esta{'\n'}semana</Text>
                             </View>
                         </View>
 
-                        <View style={[styles.xpTrack, { backgroundColor: cores.borderLight, marginTop: 12 }]}>
+                        <View
+                            style={[
+                                styles.shieldRow,
+                                { backgroundColor: cores.primaryLight, borderColor: temEscudo ? cores.primary : cores.borderLight },
+                            ]}
+                        >
+                            <Ionicons
+                                name={temEscudo ? 'shield-checkmark' : 'shield-outline'}
+                                size={20}
+                                color={temEscudo ? cores.primary : cores.textMuted}
+                            />
+                            <Text style={[styles.shieldText, { color: temEscudo ? cores.primaryDark : cores.textSecondary }]}>
+                                {mensagemDoEscudo}
+                            </Text>
+                        </View>
+
+                        {mostrarExcesso ? (
+                            <View style={[styles.excessRow, { backgroundColor: cores.danger + '22', borderColor: cores.danger }]}>
+                                <Ionicons name="alert-circle" size={20} color={cores.danger} />
+                                <Text style={[styles.excessText, { color: cores.danger }]}>{mensagemDoExcesso}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+
+                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>📅 Seu mês</Text>
+
+                        <CalendarioMensal
+                            ano={mesDoCalendario.ano}
+                            mes={mesDoCalendario.mes}
+                            cores={cores}
+                            aoMudarMes={setMesDoCalendario}
+                            bloquearAvanco={estaNoMesAtual}
+                            maximo={hoje}
+                            estiloDoDia={estiloDoDiaNoCalendario}
+                        />
+
+                        <Text style={[styles.calendarSummary, { color: cores.text }]}>
+                            {resumoDoCalendario.diasLimpos}{' '}
+                            {resumoDoCalendario.diasLimpos === 1 ? 'dia limpo' : 'dias limpos'} ·{' '}
+                            {resumoDoCalendario.diasComUso} com uso · {resumoDoCalendario.diasSemRegistro} sem registro
+                        </Text>
+
+                        <View style={styles.calendarLegend}>
+                            <View style={styles.legendItem}>
+                                <View style={[styles.legendDot, { backgroundColor: cores.primary }]} />
+                                <Text style={[styles.legendText, { color: cores.textSecondary }]}>Limpo</Text>
+                            </View>
+                            <View style={styles.legendItem}>
+                                <View style={[styles.legendDot, { backgroundColor: metaDeHoje === null ? cores.warning + '33' : cores.primaryLight }]} />
+                                <Text style={[styles.legendText, { color: cores.textSecondary }]}>
+                                    {metaDeHoje === null ? 'Com uso' : 'Dentro do limite'}
+                                </Text>
+                            </View>
+                            {metaDeHoje === null ? null : (
+                                <View style={styles.legendItem}>
+                                    <View style={[styles.legendDot, { backgroundColor: cores.danger + '33', borderColor: cores.danger, borderWidth: 1.5 }]} />
+                                    <Text style={[styles.legendText, { color: cores.textSecondary }]}>Acima</Text>
+                                </View>
+                            )}
+                            <View style={styles.legendItem}>
+                                <View style={[styles.legendDot, { backgroundColor: cores.borderLight }]} />
+                                <Text style={[styles.legendText, { color: cores.textSecondary }]}>Sem registro</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>🎯 Seu limite de hoje</Text>
+                        {progressoDoObjetivo ? (
+                            <>
+                                <View style={styles.goalTopRow}>
+                                    <View>
+                                        <Text style={[styles.goalBig, { color: cores.text }]}>
+                                            {Math.round(progressoDoObjetivo.metaDeHoje)} puxadas
+                                        </Text>
+                                        <Text style={[styles.goalSub, { color: cores.textSecondary }]}>
+                                            é o seu limite de hoje — você está em {progressoDoObjetivo.usadasHoje}
+                                        </Text>
+                                    </View>
+                                    <View
+                                        style={[
+                                            styles.goalBadge,
+                                            {
+                                                backgroundColor: progressoDoObjetivo.dentroDaMeta
+                                                    ? cores.primaryLight
+                                                    : cores.danger + '22',
+                                            },
+                                        ]}
+                                    >
+                                        <Ionicons
+                                            name={progressoDoObjetivo.dentroDaMeta ? 'checkmark-circle' : 'alert-circle'}
+                                            size={16}
+                                            color={progressoDoObjetivo.dentroDaMeta ? cores.primary : cores.danger}
+                                        />
+                                        <Text
+                                            style={[
+                                                styles.goalBadgeText,
+                                                { color: progressoDoObjetivo.dentroDaMeta ? cores.primaryDark : cores.danger },
+                                            ]}
+                                        >
+                                            {progressoDoObjetivo.dentroDaMeta ? 'dentro' : 'acima'}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View style={[styles.xpTrack, { backgroundColor: cores.borderLight, marginTop: 12 }]}>
+                                    <View
+                                        style={[
+                                            styles.xpFill,
+                                            { backgroundColor: cores.primary, width: `${progressoDoObjetivo.percentualDoTempo}%` },
+                                        ]}
+                                    />
+                                </View>
+                                <TouchableOpacity onPress={() => navigation.navigate('Goal')} activeOpacity={0.7}>
+                                    <Text style={[styles.goalFoot, { color: cores.textSecondary }]}>
+                                        Objetivo: {meta.target}/dia até {diaFinal}/{mesFinal}/{anoFinal} ·{' '}
+                                        {progressoDoObjetivo.diasRestantes} dias restantes
+                                    </Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <TouchableOpacity
+                                style={[styles.devicePrompt, { backgroundColor: cores.primaryLight, borderColor: cores.primary }]}
+                                onPress={() => navigation.navigate('Goal')}
+                            >
+                                <Ionicons name="add-circle-outline" size={20} color={cores.primary} />
+                                <Text style={[styles.devicePromptText, { color: cores.primaryDark }]}>
+                                    Define seu limite diário pra acompanhar a queda dia a dia 🎯
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <View style={styles.xpHeader}>
+                            <Text style={styles.xpIcon}>{nivel.icone}</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.xpLevel, { color: cores.text }]}>
+                                    Nível {nivel.numero} · {nivel.nome}
+                                </Text>
+                                <Text style={[styles.xpSub, { color: cores.textSecondary }]}>
+                                    {nivel.nomeDoProximo
+                                        ? `${nivel.xpParaProximo} XP pra virar ${nivel.nomeDoProximo}`
+                                        : 'Nível máximo — você é lenda 👑'}
+                                </Text>
+                            </View>
+                            <Text style={[styles.xpTotal, { color: cores.primaryDark }]}>{xp} XP</Text>
+                        </View>
+                        <View style={[styles.xpTrack, { backgroundColor: cores.primaryLight }]}>
                             <View
                                 style={[
                                     styles.xpFill,
-                                    { backgroundColor: cores.primary, width: `${progressoDoObjetivo.percentualDoTempo}%` },
+                                    { backgroundColor: cores.primary, width: `${Math.round(nivel.progresso * 100)}%` },
                                 ]}
                             />
                         </View>
-                        <TouchableOpacity onPress={() => navigation.navigate('Goal')} activeOpacity={0.7}>
-                            <Text style={[styles.goalFoot, { color: cores.textSecondary }]}>
-                                Objetivo: {meta.target}/dia até {diaFinal}/{mesFinal}/{anoFinal} ·{' '}
-                                {progressoDoObjetivo.diasRestantes} dias restantes
-                            </Text>
-                        </TouchableOpacity>
-                    </>
-                ) : (
-                    <TouchableOpacity
-                        style={[styles.devicePrompt, { backgroundColor: cores.primaryLight, borderColor: cores.primary }]}
-                        onPress={() => navigation.navigate('Goal')}
-                    >
-                        <Ionicons name="add-circle-outline" size={20} color={cores.primary} />
-                        <Text style={[styles.devicePromptText, { color: cores.primaryDark }]}>
-                            Define seu limite diário pra acompanhar a queda dia a dia 🎯
-                        </Text>
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                <View style={styles.xpHeader}>
-                    <Text style={styles.xpIcon}>{nivel.icone}</Text>
-                    <View style={{ flex: 1 }}>
-                        <Text style={[styles.xpLevel, { color: cores.text }]}>
-                            Nível {nivel.numero} · {nivel.nome}
-                        </Text>
-                        <Text style={[styles.xpSub, { color: cores.textSecondary }]}>
-                            {nivel.nomeDoProximo
-                                ? `${nivel.xpParaProximo} XP pra virar ${nivel.nomeDoProximo}`
-                                : 'Nível máximo — você é lenda 👑'}
-                        </Text>
                     </View>
-                    <Text style={[styles.xpTotal, { color: cores.primaryDark }]}>{xp} XP</Text>
-                </View>
-                <View style={[styles.xpTrack, { backgroundColor: cores.primaryLight }]}>
-                    <View
-                        style={[
-                            styles.xpFill,
-                            { backgroundColor: cores.primary, width: `${Math.round(nivel.progresso * 100)}%` },
-                        ]}
+
+                    <MissionsCard
+                        missoes={missoes.filter((missao) => missao.period === 'daily')}
+                        cores={cores}
+                        aoPressionar={() => navigation.navigate('Missions')}
                     />
-                </View>
-            </View>
 
-            <MissionsCard
-                missoes={missoes.filter((missao) => missao.period === 'daily')}
-                cores={cores}
-                aoPressionar={() => navigation.navigate('Missions')}
-            />
-
-            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>💰 Economia</Text>
-                {aparelho ? (
-                    <View style={styles.moneyRow}>
-                        <View style={[styles.moneyBox, { backgroundColor: cores.primaryLight }]}>
-                            <Text style={styles.moneyIcon}>💰</Text>
-                            <Text style={[styles.moneyVal, { color: cores.primaryDark }]}>R$ {economiaDeHoje.toFixed(2)}</Text>
-                            <Text style={[styles.moneyLabel, { color: cores.textSecondary }]}>Ficou no seu bolso hoje</Text>
-                        </View>
-                        <View style={[styles.moneyBox, { backgroundColor: cores.primaryLight }]}>
-                            <Text style={styles.moneyIcon}>💵</Text>
-                            <Text style={[styles.moneyVal, { color: cores.primaryDark }]}>R$ {economiaTotal.toFixed(2)}</Text>
-                            <Text style={[styles.moneyLabel, { color: cores.textSecondary }]}>Total no bolso</Text>
-                        </View>
+                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>💰 Economia</Text>
+                        {aparelho ? (
+                            <View style={styles.moneyRow}>
+                                <View style={[styles.moneyBox, { backgroundColor: cores.primaryLight }]}>
+                                    <Text style={styles.moneyIcon}>💰</Text>
+                                    <Text style={[styles.moneyVal, { color: cores.primaryDark }]}>R$ {economiaDeHoje.toFixed(2)}</Text>
+                                    <Text style={[styles.moneyLabel, { color: cores.textSecondary }]}>Ficou no seu bolso hoje</Text>
+                                </View>
+                                <View style={[styles.moneyBox, { backgroundColor: cores.primaryLight }]}>
+                                    <Text style={styles.moneyIcon}>💵</Text>
+                                    <Text style={[styles.moneyVal, { color: cores.primaryDark }]}>R$ {economiaTotal.toFixed(2)}</Text>
+                                    <Text style={[styles.moneyLabel, { color: cores.textSecondary }]}>Total no bolso</Text>
+                                </View>
+                            </View>
+                        ) : (
+                            <TouchableOpacity
+                                style={[styles.devicePrompt, { backgroundColor: cores.primaryLight, borderColor: cores.primary }]}
+                                onPress={() => navigation.navigate('Device')}
+                            >
+                                <Ionicons name="add-circle-outline" size={20} color={cores.primary} />
+                                <Text style={[styles.devicePromptText, { color: cores.primaryDark }]}>
+                                    Cadastra seu dispositivo pra ver quanto você tá economizando 💡
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
-                ) : (
+
+                    <View
+                        style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}
+                        onLayout={(e) => setLarguraDoCardDoGrafico(e.nativeEvent.layout.width)}
+                    >
+                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Últimos 7 dias</Text>
+                        {registros.length === 0 ? (
+                            <Text style={[styles.emptyChart, { color: cores.textMuted }]}>Ainda não tem nada por aqui. Bora começar? 📝</Text>
+                        ) : larguraDoCardDoGrafico > 0 ? (
+                            <LineChart
+                                data={{
+                                    labels: rotulosDoGrafico,
+                                    datasets: [{ data: dadosDoGrafico }],
+                                }}
+                                width={Math.max(240, larguraDoCardDoGrafico - 32)}
+                                height={180}
+                                fromZero
+                                segments={Math.max(1, Math.min(4, Math.max(...dadosDoGrafico)))}
+                                chartConfig={{
+                                    backgroundColor: cores.card,
+                                    backgroundGradientFrom: cores.card,
+                                    backgroundGradientTo: cores.card,
+                                    decimalPlaces: 0,
+                                    color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
+                                    labelColor: () => cores.textSecondary,
+                                    propsForDots: { r: '4', strokeWidth: '2', stroke: cores.primaryDark },
+                                    propsForBackgroundLines: { stroke: cores.borderLight },
+                                    propsForLabels: { fontFamily: 'Poppins_400Regular' },
+                                    formatYLabel: (v) => `${Math.round(Number(v))}`,
+                                }}
+                                bezier
+                                style={styles.chart}
+                            />
+                        ) : null}
+                    </View>
+
+                    <View style={[styles.tipCard, { backgroundColor: cores.card, borderLeftColor: cores.primary }, SOMBRA.pequena]}>
+                        <Ionicons name="bulb-outline" size={24} color={cores.primary} style={{ marginRight: 10 }} />
+                        <Text style={[styles.tipText, { color: cores.text }]}>{dica}</Text>
+                    </View>
+
                     <TouchableOpacity
-                        style={[styles.devicePrompt, { backgroundColor: cores.primaryLight, borderColor: cores.primary }]}
+                        style={[styles.deviceBtn, { backgroundColor: cores.card, borderColor: cores.primary }, SOMBRA.pequena]}
                         onPress={() => navigation.navigate('Device')}
                     >
-                        <Ionicons name="add-circle-outline" size={20} color={cores.primary} />
-                        <Text style={[styles.devicePromptText, { color: cores.primaryDark }]}>
-                            Cadastra seu dispositivo pra ver quanto você tá economizando 💡
+                        <Ionicons name="phone-portrait-outline" size={18} color={cores.primary} />
+                        <Text style={[styles.deviceBtnText, { color: cores.primaryDark }]}>
+                            {aparelho ? `Seu dispositivo: ${aparelho.name}` : 'Cadastrar meu dispositivo'}
                         </Text>
+                        <Ionicons name="chevron-forward" size={16} color={cores.primary} />
                     </TouchableOpacity>
-                )}
+                </GradeDeCards>
             </View>
-
-            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Últimos 7 dias</Text>
-                {registros.length > 0 ? (
-                    <LineChart
-                        data={{
-                            labels: rotulosDoGrafico,
-                            datasets: [{ data: dadosDoGrafico }],
-                        }}
-                        width={LARGURA_DO_GRAFICO}
-                        height={180}
-                        fromZero
-                        segments={Math.max(1, Math.min(4, Math.max(...dadosDoGrafico)))}
-                        chartConfig={{
-                            backgroundColor: cores.card,
-                            backgroundGradientFrom: cores.card,
-                            backgroundGradientTo: cores.card,
-                            decimalPlaces: 0,
-                            color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
-                            labelColor: () => cores.textSecondary,
-                            propsForDots: { r: '4', strokeWidth: '2', stroke: cores.primaryDark },
-                            propsForBackgroundLines: { stroke: cores.borderLight },
-                            propsForLabels: { fontFamily: 'Poppins_400Regular' },
-                            formatYLabel: (v) => `${Math.round(Number(v))}`,
-                        }}
-                        bezier
-                        style={styles.chart}
-                    />
-                ) : (
-                    <Text style={[styles.emptyChart, { color: cores.textMuted }]}>Ainda não tem nada por aqui. Bora começar? 📝</Text>
-                )}
-            </View>
-
-            <View style={[styles.tipCard, { backgroundColor: cores.card, borderLeftColor: cores.primary }, SOMBRA.pequena]}>
-                <Ionicons name="bulb-outline" size={24} color={cores.primary} style={{ marginRight: 10 }} />
-                <Text style={[styles.tipText, { color: cores.text }]}>{dica}</Text>
-            </View>
-
-            <TouchableOpacity
-                style={[styles.deviceBtn, { backgroundColor: cores.card, borderColor: cores.primary }, SOMBRA.pequena]}
-                onPress={() => navigation.navigate('Device')}
-            >
-                <Ionicons name="phone-portrait-outline" size={18} color={cores.primary} />
-                <Text style={[styles.deviceBtnText, { color: cores.primaryDark }]}>
-                    {aparelho ? `Seu dispositivo: ${aparelho.name}` : 'Cadastrar meu dispositivo'}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color={cores.primary} />
-            </TouchableOpacity>
         </ScrollView>
         </View>
     );
@@ -457,6 +530,11 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     excessText: { flex: 1, fontSize: 12, fontFamily: 'Poppins_600SemiBold', lineHeight: 16 },
+    calendarSummary: { fontSize: 13, fontFamily: 'Poppins_600SemiBold', marginTop: 12, textAlign: 'center' },
+    calendarLegend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginTop: 8 },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    legendDot: { width: 12, height: 12, borderRadius: RAIO.sm },
+    legendText: { fontSize: 11, fontFamily: 'Poppins_400Regular' },
     statNum: { fontSize: 26, fontFamily: 'Poppins_800ExtraBold' },
     statLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 2, lineHeight: 14 },
     goalTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },

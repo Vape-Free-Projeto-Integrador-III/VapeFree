@@ -14,6 +14,18 @@ Toda tela nova deve renderizar `<ScreenHeader>` como primeiro filho do `ScrollVi
 
 Espaço do topo é `useSafeAreaInsets().top + 12` (não é valor fixo — respeita notch/status bar alta). Quando o `OfflineBanner` está visível ele já consumiu o inset acima do header, então o header cai pra `12` puro; a condição é lida do próprio componente (`usarConexao()` + `usarAuth()`), sem prop.
 
+## `GradeDeCards` (`components/GradeDeCards.js`)
+
+Distribui os filhos em N colunas para telas largas (web/tablet). Props: `colunas` (default `1`), `espacamento` (default `0`), `children`.
+
+- Com `colunas <= 1` devolve os filhos crus, sem nenhuma `View` extra — no celular o layout fica idêntico ao de antes.
+- Com `colunas >= 2` monta uma row de `View`s `flex: 1`. Cada card, na ordem original, entra na **coluna mais curta** no momento (empate → coluna da esquerda): a coluna 1 recebe registro 1, 2 e 3 enquanto for a mais baixa, e só então o 4 cai na coluna 2. Cada coluna empilha sozinha (masonry), então card alto de um lado não abre buraco do outro.
+- Pra saber quem é a coluna mais curta o componente mede cada card com `onLayout` e guarda a altura num state chaveado pela `key` que o `React.Children.toArray` garante (chave e não índice: filtrar a lista não embaralha as medidas). Antes da primeira medição todo card vale `ALTURA_PADRAO`, então o primeiro frame cai em round-robin e reorganiza sozinho — sem flash de tudo empilhado numa coluna só.
+- `toArray` achata array de filhos, então um `.map()` inteiro conta como vários itens na distribuição, não como bloco único. É o que faz o gráfico, o `InsightsCard` e os registros do Histórico compartilharem a mesma grade — duas grades seguidas deixariam um vão do tamanho do card mais alto da primeira.
+- `espacamento` vira `columnGap`. Use `0` quando os cards já têm `marginHorizontal: 16` (Home, Histórico, Crises — as margens formam o vão); use `12` quando o vão lateral vem de `paddingHorizontal` na section e o card não tem margem própria (Missões, Conquistas).
+
+Quem decide o número de colunas é `usarLayoutResponsivo()` (`utils/responsivo.js`) — ver [styling.md](styling.md).
+
 ## `GuestDataChoiceModal` (`components/GuestDataChoiceModal.js`)
 
 Modal genérico de 3 botões (Importar / Descartar / Cancelar) usado só no fluxo de login/cadastro quando existem dados de convidado a resolver. Props: `visivel`, `titulo`, `mensagem`, `rotuloImportar`, `rotuloDescartar`, `rotuloCancelar` (default `'Cancelar'`), `aoImportar`, `aoDescartar`, `aoCancelar`. Ver uso em [auth.md](auth.md).
@@ -22,7 +34,9 @@ Nota: usa paleta de cores própria hardcoded (`#2F6FED` etc.), não vem de `usar
 
 ## `InsightsCard` (`components/InsightsCard.js`)
 
-Card "Seus padrões" da tela de Histórico, renderizado entre o gráfico e a lista de registros. Props: `registros`, `sessoesDeCrise` (default `[]`), `cores`.
+Card "Seus padrões" da tela de Histórico, renderizado entre o gráfico e a lista de registros. Props: `registros`, `sessoesDeCrise` (default `[]`), `cores`, `aoVerCrises` (opcional).
+
+Recebe sempre a lista **completa** de registros, nunca o recorte filtrado da tela — derivar "seu gatilho mais comum" de uma lista já filtrada por gatilho seria circular.
 
 Componente de apresentação puro — todo o cálculo vive em `calcularInsights` (`utils/insights.js`), que é função pura sobre a lista de registros. Três estados:
 
@@ -36,9 +50,24 @@ Insight novo = função nova em `utils/insights.js` devolvendo `{ id, icone, tit
 
 Nenhum insight usa o campo `time` do registro: ele guarda a hora em que o formulário foi salvo, não a hora do uso (o registro pode ser retroativo).
 
+Com `aoVerCrises` e pelo menos uma sessão de crise salva, o card ganha no rodapé o atalho "Ver todas as crises (N)" pra `CrisisHistoryScreen`. Esse atalho conta como conteúdo: com sessão salva mas nenhum insight qualificado ainda (uma crise só), o card renderiza mesmo assim, com a linha "Registre por mais X dias" em cima.
+
+## `CalendarioMensal` (`components/CalendarioMensal.js`)
+
+Grade mensal de 7 colunas (semana começando na segunda), apresentação pura. Props: `ano`, `mes` (0-11), `cores`, `aoMudarMes({ ano, mes })`, `bloquearAvanco`, `maximo` (data `YYYY-MM-DD` — dias depois dela ficam apagados e sem toque), `estiloDoDia(dataStr) => { fundo, corDoTexto, borda }`, `aoTocarDia(dataStr)` (opcional — sem ele as células não são tocáveis).
+
+O componente **não sabe o que as cores significam**: quem decide é o `estiloDoDia` de quem usa. Dois usos hoje:
+
+- **`HomeScreen`** — heatmap "Seu mês": verde = dia limpo, claro = dentro do limite, vermelho = acima, cinza = sem registro. Sem toque nos dias.
+- **`HistoryScreen`** — seleção do intervalo do filtro "Período": 1º toque define o início, 2º o fim (inverte se for anterior), o 3º recomeça.
+
+Toda a matemática de data mora em `utils/calendario.js` (`gradeDoMes`, `estadoDoDia`, `resumoDoMes`, `datasNoIntervalo`, `diasNoIntervalo`, `estaNoIntervalo`), funções puras no mesmo estilo de `utils/records.js`. `estadoDoDia` recebe a meta do dia já resolvida — quem chama `metaEfetiva(meta, aparelho, data)` é a tela, nunca `metaDiaria()` direto.
+
 ## `CrisisOutcomeModal` (`components/CrisisOutcomeModal.js`)
 
 Modal central usado só pela `CrisisScreen`, ao encerrar uma sessão de modo crise. Pergunta "E aí, como foi?" com três chips (Passou / Diminuiu / Acabei usando) + nota opcional. Props: `visivel`, `cores`, `aoEnviar(desfecho, nota)`, `aoPular`.
+
+Os três desfechos vêm de `DESFECHOS_DE_CRISE` (`utils/insights.js`), fonte única compartilhada com a `CrisisHistoryScreen`, que exibe o mesmo rótulo/emoji no badge de cada sessão.
 
 É um dos poucos casos legítimos de `Modal` em vez de `Alert` (escolha de dados + texto livre). A resposta vira o campo `outcome` da `CrisisSession` e alimenta `metodoDeCriseRecomendado` — sem ela, o app não tem como aprender qual método funciona pra aquele usuário. O texto de "Acabei usando" é deliberadamente sem julgamento.
 

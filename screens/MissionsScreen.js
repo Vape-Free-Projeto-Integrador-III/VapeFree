@@ -7,7 +7,9 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
+import GradeDeCards from '../components/GradeDeCards';
 import { RAIO, SOMBRA } from '../utils/theme';
+import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
 import { sincronizarGamificacao, dataDeHoje } from '../utils/storage';
@@ -25,6 +27,7 @@ function formatarProgresso(missao) {
 
 export default function MissionsScreen({ navigation }) {
     const { cores } = usarTema();
+    const { colunas } = usarLayoutResponsivo();
     const { mostrarRecompensas } = usarToast();
     const [missoes, setMissoes] = useState([]);
 
@@ -115,23 +118,29 @@ export default function MissionsScreen({ navigation }) {
                 aoPressionarVoltar={() => navigation.goBack()}
             />
 
-            <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: cores.text }]}>🎯 Hoje</Text>
-                <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
-                    Renovam à meia-noite
-                </Text>
-                {diarias.map(renderizarMissao)}
-            </View>
+            <View style={estiloDoConteudo}>
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: cores.text }]}>🎯 Hoje</Text>
+                    <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
+                        Renovam à meia-noite
+                    </Text>
+                    <GradeDeCards colunas={colunas} espacamento={12}>
+                        {diarias.map(renderizarMissao)}
+                    </GradeDeCards>
+                </View>
 
-            <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: cores.text }]}>📅 Esta semana</Text>
-                <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
-                    Renovam toda segunda-feira
-                </Text>
-                {semanais.map(renderizarMissao)}
-            </View>
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: cores.text }]}>📅 Esta semana</Text>
+                    <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
+                        Renovam toda segunda-feira
+                    </Text>
+                    <GradeDeCards colunas={colunas} espacamento={12}>
+                        {semanais.map(renderizarMissao)}
+                    </GradeDeCards>
+                </View>
 
-            <View style={{ height: 24 }} />
+                <View style={{ height: 24 }} />
+            </View>
         </ScrollView>
         </View>
     );

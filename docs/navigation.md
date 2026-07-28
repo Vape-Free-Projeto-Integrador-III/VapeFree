@@ -20,6 +20,7 @@ AppNavigator
 │    ├─ Settings  (SettingsScreen)
 │    ├─ Account   (AccountScreen)    nome/e-mail/senha e exclusão de conta (só logado)
 │    ├─ Crisis    (CrisisScreen)     modo crise, a partir do card da Home
+│    ├─ CrisisHistory (CrisisHistoryScreen) lista das sessões de crise, a partir do InsightsCard no Histórico
 │    ├─ Missions  (MissionsScreen)   missões diárias/semanais, a partir do card da Home
 │    ├─ Breathing (BreathingScreen)  respiração guiada
 │    └─ Onboarding (OnboardingScreen) "ver o tutorial de novo", a partir das Configurações
@@ -51,6 +52,8 @@ Só o par `Crisis` ↔ `Breathing` usa `route.params`:
 ## Saída interceptada (Crisis)
 
 `CrisisScreen` bloqueia a saída com `navigation.addListener('beforeRemove')`: gesto de swipe e back de hardware dão `e.preventDefault()` e abrem o modal de desfecho, igual ao voltar do `ScreenHeader`. As saídas legítimas (`pular`, e o `goBack` depois de salvar a sessão) marcam um `saindoRef` antes do `goBack` pro listener deixar passar. Se o modal já está aberto (`pendente !== null`), o back só é engolido — não reabre nada.
+
+`CrisisHistory` é só leitura e não interfere nesse fluxo: é aberta pelo atalho "Ver todas as crises" do `InsightsCard` (tela de Histórico) e sai por `goBack()`. Do estado vazio dela dá pra ir direto pro `Crisis`.
 
 O resto da navegação é `navigation.navigate('NomeDaRota')` sem payload. `Device` e `Profile` são acessíveis a partir de qualquer tab via `aoPressionarPerfil`/botões dedicados (não fazem parte das tabs, ficam como telas de stack "por cima").
 

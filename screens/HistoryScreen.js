@@ -5,14 +5,23 @@ import {
     ScrollView,
     StyleSheet,
     TouchableOpacity,
-    Dimensions,
     Modal,
     TouchableWithoutFeedback,
     TextInput,
 } from 'react-native';
 import ScreenHeader from '../components/ScreenHeader';
 import InsightsCard from '../components/InsightsCard';
-import { normalizarIntensidade, converterDataLocal } from '../utils/insights';
+import CalendarioMensal from '../components/CalendarioMensal';
+import GradeDeCards from '../components/GradeDeCards';
+import { normalizarIntensidade, converterDataLocal, emojiDoRotulo } from '../utils/insights';
+import {
+    MESES_CURTOS,
+    formatarDataCompleta,
+    formatarDiaMes,
+    diasNoIntervalo,
+    estaNoIntervalo,
+    mesDeData,
+} from '../utils/calendario';
 import { useFocusEffect } from '@react-navigation/native';
 import { BarChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,19 +35,19 @@ import {
     obterEconomia,
     obterSessoesDeCrise,
     sincronizarGamificacao,
+    dataDeHoje,
 } from '../utils/storage';
 import { puxadasDoRegistro } from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS } from '../utils/theme';
+import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
 
-const { width } = Dimensions.get('window');
-const LARGURA_DO_GRAFICO = width - 64;
-
 const FILTROS = [
-    { id: 'day', rotulo: 'Dia', dias: 7 },
-    { id: 'week', rotulo: 'Semana', dias: 28 },
-    { id: 'month', rotulo: 'Mês', dias: 90 },
+    { id: 'day', rotulo: 'Dia' },
+    { id: 'week', rotulo: 'Semana' },
+    { id: 'month', rotulo: 'Mês' },
+    { id: 'range', rotulo: 'Período' },
 ];
 
 const METRICAS = [
@@ -46,12 +55,10 @@ const METRICAS = [
     { id: 'intensity', rotulo: 'Vontade' },
 ];
 
-const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-function formatarRotuloDoDia(dataStr) {
-    const data = converterDataLocal(dataStr);
-    return `${String(data.getDate()).padStart(2, '0')}/${String(data.getMonth() + 1).padStart(2, '0')}`;
-}
+// Acima disso o gráfico vira ilegível com uma barra por dia — o intervalo
+// escolhido passa a ser agrupado por semana e depois por mês.
+const DIAS_ATE_AGRUPAR_POR_SEMANA = 31;
+const DIAS_ATE_AGRUPAR_POR_MES = 180;
 
 function chaveDoInicioDaSemana(dataStr) {
     const data = converterDataLocal(dataStr);
@@ -73,17 +80,7 @@ function formatarRotuloDaSemana(dataStr) {
 
 function formatarRotuloDaChaveDoMes(chaveDoMes) {
     const [ano, mes] = chaveDoMes.split('-');
-    return `${MESES[Number(mes) - 1]} ${ano}`;
-}
-
-const MESES_POR_EXTENSO = [
-    'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
-];
-
-function formatarDataCompleta(dataStr) {
-    const data = converterDataLocal(dataStr);
-    return `${data.getDate()} de ${MESES_POR_EXTENSO[data.getMonth()]} de ${data.getFullYear()}`;
+    return `${MESES_CURTOS[Number(mes) - 1]} ${ano}`;
 }
 
 function compararChavesDeData(a, b) {
@@ -113,13 +110,23 @@ function agruparRegistrosPor(registros, obterChave, metrica) {
 
 export default function HistoryScreen({ navigation }) {
     const { cores } = usarTema();
+    const { colunas } = usarLayoutResponsivo();
     const { mostrarErro, mostrarRecompensas } = usarToast();
+    // Largura do gráfico medida do card: com 2 colunas não dá pra derivar da janela.
+    const [larguraDoCardDoGrafico, setLarguraDoCardDoGrafico] = useState(0);
     const [registros, setRegistros] = useState([]);
     const [sessoesDeCrise, setSessoesDeCrise] = useState([]);
     const [filtro, setFiltro] = useState('day');
     const [metrica, setMetrica] = useState('puffs');
     const [registroEmEdicao, setRegistroEmEdicao] = useState(null);
     const [idParaExcluirConfirmacao, setIdParaExcluirConfirmacao] = useState(null);
+    // Período aplicado ({ inicio, fim }) vs o que está sendo escolhido no
+    // calendário — separados pra fechar o modal sem aplicar não perder o filtro.
+    const [periodo, setPeriodo] = useState(null);
+    const [rascunhoDePeriodo, setRascunhoDePeriodo] = useState({ inicio: null, fim: null });
+    const [modalDePeriodoAberto, setModalDePeriodoAberto] = useState(false);
+    const [mesDoSeletor, setMesDoSeletor] = useState(() => mesDeData(dataDeHoje()));
+    const [rotulosSelecionados, setRotulosSelecionados] = useState([]);
 
     const carregar = async () => {
         const [r, sessoes] = await Promise.all([obterRegistros(), obterSessoesDeCrise()]);
@@ -129,17 +136,30 @@ export default function HistoryScreen({ navigation }) {
 
     useFocusEffect(useCallback(() => { carregar(); }, []));
 
+    // Gráfico e lista trabalham sempre em cima do recorte filtrado. O
+    // InsightsCard não — ver comentário na renderização.
+    const periodoAtivo = filtro === 'range' && periodo && periodo.inicio && periodo.fim ? periodo : null;
+    const registrosFiltrados = registros.filter((registro) => {
+        if (periodoAtivo && !estaNoIntervalo(registro.date, periodoAtivo.inicio, periodoAtivo.fim)) return false;
+        if (rotulosSelecionados.length > 0) {
+            const rotulosDoRegistro = [...(registro.triggers || []), ...(registro.helps || [])];
+            // Vários rótulos selecionados = OU: basta o registro bater com um.
+            if (!rotulosSelecionados.some((rotulo) => rotulosDoRegistro.includes(rotulo))) return false;
+        }
+        return true;
+    });
+
     const obterDadosAgrupados = () => {
         if (filtro === 'day') {
-            const gruposPorDia = agruparRegistrosPor(registros, (dataStr) => dataStr, metrica);
+            const gruposPorDia = agruparRegistrosPor(registrosFiltrados, (dataStr) => dataStr, metrica);
             const datasDoGrafico = Object.keys(gruposPorDia).sort(compararChavesDeData).slice(-10);
             return {
-                rotulos: datasDoGrafico.map(formatarRotuloDoDia),
+                rotulos: datasDoGrafico.map(formatarDiaMes),
                 dados: datasDoGrafico.map((chaveDaData) => gruposPorDia[chaveDaData]),
             };
         }
         if (filtro === 'week') {
-            const gruposPorSemana = agruparRegistrosPor(registros, chaveDoInicioDaSemana, metrica);
+            const gruposPorSemana = agruparRegistrosPor(registrosFiltrados, chaveDoInicioDaSemana, metrica);
             const semanasOrdenadas = Object.keys(gruposPorSemana).sort(compararChavesDeData).slice(-6);
             return {
                 rotulos: semanasOrdenadas.map(formatarRotuloDaSemana),
@@ -147,18 +167,104 @@ export default function HistoryScreen({ navigation }) {
             };
         }
         if (filtro === 'month') {
-            const gruposPorMes = agruparRegistrosPor(registros, chaveDoInicioDoMes, metrica);
+            const gruposPorMes = agruparRegistrosPor(registrosFiltrados, chaveDoInicioDoMes, metrica);
             const mesesOrdenados = Object.keys(gruposPorMes).sort(compararChavesDeData).slice(-6);
             return { rotulos: mesesOrdenados.map(formatarRotuloDaChaveDoMes), dados: mesesOrdenados.map((m) => gruposPorMes[m]) };
+        }
+        if (filtro === 'range') {
+            if (!periodoAtivo) return { rotulos: [], dados: [] };
+            // Sem slice: o intervalo escolhido aparece inteiro, só muda a
+            // granularidade pra não virar uma barra por dia em 6 meses.
+            const dias = diasNoIntervalo(periodoAtivo.inicio, periodoAtivo.fim);
+            const [obterChave, formatarRotulo] =
+                dias <= DIAS_ATE_AGRUPAR_POR_SEMANA
+                    ? [(dataStr) => dataStr, formatarDiaMes]
+                    : dias <= DIAS_ATE_AGRUPAR_POR_MES
+                    ? [chaveDoInicioDaSemana, formatarRotuloDaSemana]
+                    : [chaveDoInicioDoMes, formatarRotuloDaChaveDoMes];
+
+            const grupos = agruparRegistrosPor(registrosFiltrados, obterChave, metrica);
+            const chaves = Object.keys(grupos).sort(compararChavesDeData);
+            return { rotulos: chaves.map(formatarRotulo), dados: chaves.map((chave) => grupos[chave]) };
         }
         return { rotulos: [], dados: [] };
     };
 
     const { rotulos: rotulosDoGrafico, dados: dadosDoGrafico } = obterDadosAgrupados();
-    const todosOsRegistros = [...registros].sort((a, b) => {
+    // Menos de ~38px por barra o rótulo de data vira borrão sobreposto.
+    const larguraDisponivel = Math.max(240, larguraDoCardDoGrafico - 32);
+    const larguraDoGrafico = Math.max(larguraDisponivel, rotulosDoGrafico.length * 38);
+    const todosOsRegistros = [...registrosFiltrados].sort((a, b) => {
         const porData = compararChavesDeData(b.date, a.date);
         return porData !== 0 ? porData : b.id - a.id;
     });
+
+    // Os chips vêm dos rótulos que o usuário realmente usou, não do array
+    // GATILHOS — assim o texto livre de "Outro" (salvo como rótulo cru) também
+    // vira filtro. Mais frequentes primeiro.
+    const contagemDeRotulos = registros.reduce((mapa, registro) => {
+        [...(registro.triggers || []), ...(registro.helps || [])].forEach((rotulo) => {
+            mapa[rotulo] = (mapa[rotulo] || 0) + 1;
+        });
+        return mapa;
+    }, {});
+    const rotulosDisponiveis = Object.entries(contagemDeRotulos)
+        .sort((a, b) => b[1] - a[1])
+        .map(([rotulo]) => rotulo);
+
+    const temFiltroAtivo = !!periodoAtivo || rotulosSelecionados.length > 0;
+
+    const descricaoDoRecorte = (() => {
+        const prefixo = metrica === 'puffs' ? 'Total de puxadas' : 'Vontade média';
+        if (filtro === 'range') {
+            if (!periodoAtivo) return 'Escolha um período pra ver o gráfico.';
+            return `${prefixo} de ${formatarDiaMes(periodoAtivo.inicio)} a ${formatarDiaMes(periodoAtivo.fim)}`;
+        }
+        if (filtro === 'day') return `${prefixo} nos últimos 10 dias com registro`;
+        if (filtro === 'week') return `${prefixo} nas últimas 6 semanas com registro`;
+        return `${prefixo} nos últimos 6 meses com registro`;
+    })();
+
+    const abrirSeletorDePeriodo = () => {
+        setRascunhoDePeriodo(periodo || { inicio: null, fim: null });
+        setMesDoSeletor(mesDeData(periodo?.inicio || dataDeHoje()));
+        setModalDePeriodoAberto(true);
+    };
+
+    const tocarDiaNoSeletor = (dataStr) => {
+        setRascunhoDePeriodo((atual) => {
+            // Sem início ainda, ou intervalo já fechado: recomeça a seleção.
+            if (!atual.inicio || atual.fim) return { inicio: dataStr, fim: null };
+            return dataStr < atual.inicio
+                ? { inicio: dataStr, fim: atual.inicio }
+                : { inicio: atual.inicio, fim: dataStr };
+        });
+    };
+
+    const aplicarPeriodo = () => {
+        setPeriodo(rascunhoDePeriodo);
+        setFiltro('range');
+        setModalDePeriodoAberto(false);
+    };
+
+    const limparFiltros = () => {
+        setPeriodo(null);
+        setRotulosSelecionados([]);
+        setFiltro('day');
+    };
+
+    const alternarRotulo = (rotulo) => {
+        setRotulosSelecionados((atual) =>
+            atual.includes(rotulo) ? atual.filter((r) => r !== rotulo) : [...atual, rotulo]
+        );
+    };
+
+    const estiloDoDiaNoSeletor = (dataStr) => {
+        const { inicio, fim } = rascunhoDePeriodo;
+        if (dataStr === inicio || dataStr === fim) return { fundo: cores.primary, corDoTexto: '#fff' };
+        if (estaNoIntervalo(dataStr, inicio, fim)) return { fundo: cores.primaryLight, corDoTexto: cores.primaryDark };
+        return { corDoTexto: cores.text };
+    };
 
     const iconeDaIntensidade = (n) => { if (n <= 3) return '🟢'; if (n <= 6) return '🟡'; return '🔴'; };
 
@@ -214,134 +320,259 @@ export default function HistoryScreen({ navigation }) {
                 aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
             />
 
-            <View style={styles.filtersRow}>
-                {FILTROS.map((f) => (
-                    <TouchableOpacity
-                        key={f.id}
-                        style={[
-                            styles.filterBtn,
-                            { borderColor: cores.border, backgroundColor: cores.card },
-                            filtro === f.id && { borderColor: cores.primary, backgroundColor: cores.primaryLight },
-                        ]}
-                        onPress={() => setFiltro(f.id)}
-                    >
-                        <Text style={[styles.filterBtnText, { color: cores.textSecondary }, filtro === f.id && { color: cores.primaryDark }]}>
-                            {f.rotulo}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-
-            <View style={styles.filtersRow}>
-                {METRICAS.map((m) => (
-                    <TouchableOpacity
-                        key={m.id}
-                        style={[
-                            styles.filterBtn,
-                            { borderColor: cores.border, backgroundColor: cores.card },
-                            metrica === m.id && { borderColor: cores.primary, backgroundColor: cores.primaryLight },
-                        ]}
-                        onPress={() => setMetrica(m.id)}
-                    >
-                        <Text style={[styles.filterBtnText, { color: cores.textSecondary }, metrica === m.id && { color: cores.primaryDark }]}>
-                            {m.rotulo}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-
-            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                <View style={styles.cardHeader}>
-                    <View>
-                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
-                            {metrica === 'puffs' ? 'Puxadas' : 'Intensidade da vontade'}
-                        </Text>
-                        <Text style={[styles.cardSubtitle, { color: cores.textSecondary }]}>
-                            {metrica === 'puffs'
-                                ? (filtro === 'day' ? 'Total de puxadas nos últimos 10 dias com registro' : filtro === 'week' ? 'Total de puxadas nas últimas 6 semanas com registro' : 'Total de puxadas nos últimos 6 meses com registro')
-                                : (filtro === 'day' ? 'Vontade média nos últimos 10 dias com registro' : filtro === 'week' ? 'Vontade média nas últimas 6 semanas com registro' : 'Vontade média nos últimos 6 meses com registro')}
-                        </Text>
-                    </View>
+            <View style={estiloDoConteudo}>
+                <View style={styles.filtersRow}>
+                    {FILTROS.map((f) => (
+                        <TouchableOpacity
+                            key={f.id}
+                            style={[
+                                styles.filterBtn,
+                                { borderColor: cores.border, backgroundColor: cores.card },
+                                filtro === f.id && { borderColor: cores.primary, backgroundColor: cores.primaryLight },
+                            ]}
+                            onPress={() => (f.id === 'range' ? abrirSeletorDePeriodo() : setFiltro(f.id))}
+                        >
+                            <Text style={[styles.filterBtnText, { color: cores.textSecondary }, filtro === f.id && { color: cores.primaryDark }]}>
+                                {f.rotulo}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
                 </View>
 
-                {dadosDoGrafico.length > 0 ? (
-                    <BarChart
-                        data={{ labels: rotulosDoGrafico, datasets: [{ data: dadosDoGrafico }] }}
-                        width={LARGURA_DO_GRAFICO}
-                        height={180}
-                        fromZero
-                        showValuesOnTopOfBars
-                        segments={Math.max(1, Math.min(4, Math.max(...dadosDoGrafico)))}
-                        chartConfig={{
-                            backgroundColor: cores.card,
-                            backgroundGradientFrom: cores.card,
-                            backgroundGradientTo: cores.card,
-                            decimalPlaces: 0,
-                            color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
-                            labelColor: () => cores.textSecondary,
-                            propsForBackgroundLines: { stroke: cores.borderLight },
-                            propsForLabels: { fontFamily: 'Poppins_400Regular' },
-                            propsForTopLabels: { fontFamily: 'Poppins_600SemiBold' },
-                            barPercentage: 0.65,
-                            fillShadowGradient: cores.primary,
-                            fillShadowGradientOpacity: 1,
-                            formatYLabel: (v) => `${Math.round(Number(v))}`,
-                        }}
-                        style={styles.chart}
-                    />
-                ) : (
-                    <View style={styles.emptyChartWrap}>
-                        <Ionicons name="bar-chart-outline" size={28} color={cores.border} />
-                        <Text style={[styles.emptyChart, { color: cores.textMuted }]}>Nada registrado nesse período ainda.</Text>
-                    </View>
-                )}
-                {!registros.length ? (
-                    <Text style={[styles.emptySubtitle, { color: cores.textMuted }]}>Que tal registrar agora? 😊</Text>
+                <View style={styles.filtersRow}>
+                    {METRICAS.map((m) => (
+                        <TouchableOpacity
+                            key={m.id}
+                            style={[
+                                styles.filterBtn,
+                                { borderColor: cores.border, backgroundColor: cores.card },
+                                metrica === m.id && { borderColor: cores.primary, backgroundColor: cores.primaryLight },
+                            ]}
+                            onPress={() => setMetrica(m.id)}
+                        >
+                            <Text style={[styles.filterBtnText, { color: cores.textSecondary }, metrica === m.id && { color: cores.primaryDark }]}>
+                                {m.rotulo}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {rotulosDisponiveis.length > 0 ? (
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.tagFilterScroll}
+                        contentContainerStyle={styles.tagFilterRow}
+                    >
+                        {rotulosDisponiveis.map((rotulo) => {
+                            const selecionado = rotulosSelecionados.includes(rotulo);
+                            return (
+                                <TouchableOpacity
+                                    key={rotulo}
+                                    style={[
+                                        styles.chip,
+                                        { borderColor: cores.border, backgroundColor: cores.card },
+                                        selecionado && { borderColor: cores.primary, backgroundColor: cores.primary },
+                                    ]}
+                                    onPress={() => alternarRotulo(rotulo)}
+                                >
+                                    <Text style={[styles.chipText, { color: cores.textSecondary }, selecionado && { color: '#fff' }]}>
+                                        {emojiDoRotulo(rotulo)} {rotulo}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
                 ) : null}
-            </View>
 
-            <InsightsCard registros={registros} sessoesDeCrise={sessoesDeCrise} cores={cores} />
+                {temFiltroAtivo ? (
+                    <View style={[styles.activeFilterRow, { backgroundColor: cores.primaryLight }]}>
+                        <Ionicons name="funnel-outline" size={16} color={cores.primaryDark} />
+                        <Text style={[styles.activeFilterText, { color: cores.primaryDark }]}>
+                            {registrosFiltrados.length} {registrosFiltrados.length === 1 ? 'registro' : 'registros'}
+                            {periodoAtivo ? ` · ${formatarDiaMes(periodoAtivo.inicio)} → ${formatarDiaMes(periodoAtivo.fim)}` : ''}
+                            {rotulosSelecionados.length > 0 ? ` · ${rotulosSelecionados.join(', ')}` : ''}
+                        </Text>
+                        <TouchableOpacity onPress={limparFiltros}>
+                            <Text style={[styles.clearFilterText, { color: cores.primaryDark }]}>Limpar</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : null}
 
-            {registros.length > 0 ? (
-                todosOsRegistros.map((reg) => (
-                    <View key={reg.id} style={[styles.histItem, { backgroundColor: cores.card }, SOMBRA.pequena]}>
-                        <View style={styles.histTop}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={[styles.histDate, { color: cores.text }]}>{formatarDataCompleta(reg.date)}</Text>
+                <GradeDeCards colunas={colunas}>
+                    <View
+                        style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}
+                        onLayout={(e) => setLarguraDoCardDoGrafico(e.nativeEvent.layout.width)}
+                    >
+                        <View style={styles.cardHeader}>
+                            <View>
+                                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                                    {metrica === 'puffs' ? 'Puxadas' : 'Intensidade da vontade'}
+                                </Text>
+                                <Text style={[styles.cardSubtitle, { color: cores.textSecondary }]}>{descricaoDoRecorte}</Text>
                             </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                                {reg.used ? (
-                                    <Text style={[styles.histPuffs, { color: cores.text }]}>{reg.puffs} puxadas</Text>
-                                ) : (
-                                    <Text style={[styles.histNone, { color: cores.primary }]}>Não usou ✓</Text>
-                                )}
-                                <Text style={[styles.histIntensity, { color: cores.textMuted }]}>
-                                    {iconeDaIntensidade(reg.intensity)} Vontade: {reg.intensity}/10
+                        </View>
+
+                        {dadosDoGrafico.length === 0 ? (
+                            <View style={styles.emptyChartWrap}>
+                                <Ionicons name="bar-chart-outline" size={28} color={cores.border} />
+                                <Text style={[styles.emptyChart, { color: cores.textMuted }]}>
+                                    {temFiltroAtivo ? 'Nenhum registro com esses filtros.' : 'Nada registrado nesse período ainda.'}
                                 </Text>
                             </View>
-                            <View style={styles.actionButtons}>
-                                <TouchableOpacity style={styles.editBtn} onPress={() => setRegistroEmEdicao({ ...reg })}>
-                                    <Ionicons name="pencil" size={18} color={cores.primary} />
+                        ) : larguraDoCardDoGrafico > 0 ? (
+                            // Intervalo longo agrupado por dia gera mais barras do que cabe
+                            // na tela — aí o gráfico cresce e rola na horizontal.
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={larguraDoGrafico > larguraDisponivel}
+                                scrollEnabled={larguraDoGrafico > larguraDisponivel}
+                            >
+                            <BarChart
+                                data={{ labels: rotulosDoGrafico, datasets: [{ data: dadosDoGrafico }] }}
+                                width={larguraDoGrafico}
+                                height={180}
+                                fromZero
+                                showValuesOnTopOfBars
+                                segments={Math.max(1, Math.min(4, Math.max(...dadosDoGrafico)))}
+                                chartConfig={{
+                                    backgroundColor: cores.card,
+                                    backgroundGradientFrom: cores.card,
+                                    backgroundGradientTo: cores.card,
+                                    decimalPlaces: 0,
+                                    color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
+                                    labelColor: () => cores.textSecondary,
+                                    propsForBackgroundLines: { stroke: cores.borderLight },
+                                    propsForLabels: { fontFamily: 'Poppins_400Regular' },
+                                    propsForTopLabels: { fontFamily: 'Poppins_600SemiBold' },
+                                    barPercentage: 0.65,
+                                    fillShadowGradient: cores.primary,
+                                    fillShadowGradientOpacity: 1,
+                                    formatYLabel: (v) => `${Math.round(Number(v))}`,
+                                }}
+                                style={styles.chart}
+                            />
+                            </ScrollView>
+                        ) : null}
+                        {!registros.length ? (
+                            <Text style={[styles.emptySubtitle, { color: cores.textMuted }]}>Que tal registrar agora? 😊</Text>
+                        ) : null}
+                    </View>
+
+                    {/* Insights sempre sobre a base inteira: derivar padrão de um
+                        recorte já filtrado por gatilho seria circular. */}
+                    <InsightsCard
+                        registros={registros}
+                        sessoesDeCrise={sessoesDeCrise}
+                        cores={cores}
+                        aoVerCrises={() => navigation.navigate('CrisisHistory')}
+                    />
+
+                    {registros.length > 0 && todosOsRegistros.length === 0 ? (
+                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+                            <Text style={[styles.emptyChart, { color: cores.textMuted }]}>Nenhum registro com esses filtros.</Text>
+                        </View>
+                    ) : null}
+
+                    {todosOsRegistros.length > 0 ? (
+                        todosOsRegistros.map((reg) => (
+                            <View key={reg.id} style={[styles.histItem, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+                                <View style={styles.histTop}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.histDate, { color: cores.text }]}>{formatarDataCompleta(reg.date)}</Text>
+                                    </View>
+                                    <View style={{ alignItems: 'flex-end' }}>
+                                        {reg.used ? (
+                                            <Text style={[styles.histPuffs, { color: cores.text }]}>{reg.puffs} puxadas</Text>
+                                        ) : (
+                                            <Text style={[styles.histNone, { color: cores.primary }]}>Não usou ✓</Text>
+                                        )}
+                                        <Text style={[styles.histIntensity, { color: cores.textMuted }]}>
+                                            {iconeDaIntensidade(reg.intensity)} Vontade: {reg.intensity}/10
+                                        </Text>
+                                    </View>
+                                    <View style={styles.actionButtons}>
+                                        <TouchableOpacity style={styles.editBtn} onPress={() => setRegistroEmEdicao({ ...reg })}>
+                                            <Ionicons name="pencil" size={18} color={cores.primary} />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={styles.deleteBtn} onPress={() => setIdParaExcluirConfirmacao(reg.id)}>
+                                            <Ionicons name="trash-outline" size={18} color={cores.danger} />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                                {(reg.triggers?.length > 0 || reg.helps?.length > 0) && (
+                                    <View style={styles.histTags}>
+                                        {[...(reg.triggers || []), ...(reg.helps || [])].map((tag, i) => (
+                                            <View key={i} style={[styles.histTag, { backgroundColor: cores.primaryLight }]}>
+                                                <Text style={[styles.histTagText, { color: cores.primaryDark }]}>{tag}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
+                            </View>
+                        ))
+                    ) : null}
+                </GradeDeCards>
+
+                <View style={{ height: 24 }} />
+            </View>
+
+            {/* Modal de seleção de período */}
+            <Modal visible={modalDePeriodoAberto} transparent animationType="slide" onRequestClose={() => setModalDePeriodoAberto(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: cores.modalBg }]}>
+                        <View style={[styles.modalHeader, { borderBottomColor: cores.border }]}>
+                            <Text style={[styles.modalTitle, { color: cores.text }]}>Escolher período</Text>
+                            <TouchableOpacity onPress={() => setModalDePeriodoAberto(false)}>
+                                <Ionicons name="close" size={24} color={cores.textMuted} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.modalBody}>
+                            <CalendarioMensal
+                                ano={mesDoSeletor.ano}
+                                mes={mesDoSeletor.mes}
+                                cores={cores}
+                                aoMudarMes={setMesDoSeletor}
+                                bloquearAvanco={
+                                    mesDoSeletor.ano === mesDeData(dataDeHoje()).ano &&
+                                    mesDoSeletor.mes === mesDeData(dataDeHoje()).mes
+                                }
+                                maximo={dataDeHoje()}
+                                estiloDoDia={estiloDoDiaNoSeletor}
+                                aoTocarDia={tocarDiaNoSeletor}
+                            />
+
+                            <Text style={[styles.periodSummary, { color: cores.text }]}>
+                                {!rascunhoDePeriodo.inicio
+                                    ? 'Toque na data inicial'
+                                    : !rascunhoDePeriodo.fim
+                                    ? `${formatarDiaMes(rascunhoDePeriodo.inicio)} → toque na data final`
+                                    : `${formatarDiaMes(rascunhoDePeriodo.inicio)} → ${formatarDiaMes(rascunhoDePeriodo.fim)}`}
+                            </Text>
+
+                            <View style={styles.periodButtons}>
+                                <TouchableOpacity
+                                    style={[styles.periodClearBtn, { backgroundColor: cores.borderLight }]}
+                                    onPress={() => setRascunhoDePeriodo({ inicio: null, fim: null })}
+                                >
+                                    <Text style={[styles.periodClearText, { color: cores.textSecondary }]}>Limpar</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={styles.deleteBtn} onPress={() => setIdParaExcluirConfirmacao(reg.id)}>
-                                    <Ionicons name="trash-outline" size={18} color={cores.danger} />
+                                <TouchableOpacity
+                                    style={[
+                                        styles.periodApplyBtn,
+                                        { backgroundColor: rascunhoDePeriodo.fim ? cores.primary : cores.border },
+                                    ]}
+                                    disabled={!rascunhoDePeriodo.fim}
+                                    onPress={aplicarPeriodo}
+                                >
+                                    <Text style={styles.periodApplyText}>Aplicar</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
-                        {(reg.triggers?.length > 0 || reg.helps?.length > 0) && (
-                            <View style={styles.histTags}>
-                                {[...(reg.triggers || []), ...(reg.helps || [])].map((tag, i) => (
-                                    <View key={i} style={[styles.histTag, { backgroundColor: cores.primaryLight }]}>
-                                        <Text style={[styles.histTagText, { color: cores.primaryDark }]}>{tag}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        )}
                     </View>
-                ))
-            ) : null}
-
-            <View style={{ height: 24 }} />
+                </View>
+            </Modal>
 
             {/* Modal de confirmação de exclusão */}
             <Modal visible={idParaExcluirConfirmacao !== null} transparent animationType="fade" onRequestClose={() => setIdParaExcluirConfirmacao(null)}>
@@ -496,6 +727,25 @@ const styles = StyleSheet.create({
     filtersRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 14 },
     filterBtn: { flex: 1, paddingVertical: 10, borderRadius: RAIO.md, borderWidth: 1.5, alignItems: 'center' },
     filterBtnText: { fontSize: 12, fontFamily: 'Poppins_600SemiBold' },
+    tagFilterScroll: { marginTop: 12 },
+    tagFilterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
+    activeFilterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginHorizontal: 16,
+        marginTop: 12,
+        padding: 10,
+        borderRadius: RAIO.md,
+    },
+    activeFilterText: { flex: 1, fontSize: 12, fontFamily: 'Poppins_500Medium' },
+    clearFilterText: { fontSize: 12, fontFamily: 'Poppins_700Bold', textDecorationLine: 'underline' },
+    periodSummary: { fontSize: 14, fontFamily: 'Poppins_600SemiBold', textAlign: 'center', marginTop: 14 },
+    periodButtons: { flexDirection: 'row', gap: 12, marginTop: 16, marginBottom: 24 },
+    periodClearBtn: { flex: 1, paddingVertical: 13, alignItems: 'center', borderRadius: RAIO.md },
+    periodClearText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
+    periodApplyBtn: { flex: 2, paddingVertical: 13, alignItems: 'center', borderRadius: RAIO.md },
+    periodApplyText: { fontSize: 14, fontFamily: 'Poppins_700Bold', color: '#fff' },
     card: { borderRadius: RAIO.lg, padding: 16, marginHorizontal: 16, marginTop: 14 },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: 12 },
     cardTitle: { fontSize: 12, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.8 },
