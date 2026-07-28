@@ -1,1 +1,239 @@
+COISAS PARA FAZER — VapeFree
+(revisão geral do projeto, feita em 28/07/2026)
+
+=========================================================
+BUGS / COISAS QUEBRADAS
+=========================================================
+
 [ ] Arrumar login do google pelo android
+    - screens/LoginScreen.js:146 tem `androidClientId: 'COLOQUE_AQUI_O_ANDROID_CLIENT_ID...'`
+      (placeholder literal) — no Android o fluxo nunca vai fechar.
+    - app.json não tem bloco "android" nem `android.package`. Sem package name +
+      SHA-1 no console do Google não existe Android OAuth client. É a causa raiz.
+    - app.json:18 `ios.bundleIdentifier: "com.googleauth.ios"` também é resquício
+      de teste, precisa virar algo como com.vapefree.app.
+    - app.json:4 `slug: "Projeto Integrador III"` tem espaços — slug de EAS não
+      aceita, vai atrapalhar o build.
+
+[x] App.js:26 — `style={estaEscuro ? 'light' : 'light'}` na StatusBar: os dois
+    lados do ternário são iguais. Decidir se é 'light' sempre (header é verde)
+    e apagar o ternário, ou corrigir pro modo claro.
+    FEITO: ternário apagado, 'light' fixo (header é cores.primary verde nos dois
+    temas). Login/SignUp têm fundo branco fixo e ganharam <StatusBar style="dark" />
+    local, que sobrescreve o do App.js.
+
+[ ] app.json:9 `userInterfaceStyle: "light"` conflita com o dark mode do app.
+    No iOS isso força os componentes nativos (teclado, alerts, picker) em claro
+    mesmo com o tema escuro ligado. Trocar por "automatic".
+
+[ ] screens/LoginScreen.js:137 — `console.log(redirectUri)` solto em produção.
+    Tirar (tem ~15 console.log espalhados pelo projeto; os de catch podem ficar,
+    esse não).
+
+[ ] screens/LoginScreen.js — checkbox "Lembrar-me" (linha 337) não faz nada.
+    A persistência já é sempre ligada (getReactNativePersistence). Ou implementar
+    (browserSessionPersistence quando desmarcado) ou remover o checkbox.
+
+[ ] screens/LoginScreen.js:223 — "Esqueceu a senha?" só mostra "Ainda não rolou".
+    Dá pra fechar com `sendPasswordResetEmail` do firebase/auth, é 10 linhas.
+
+[ ] utils/notifications.js — as DUAS notificações diárias estão agendadas no
+    mesmo horário (HORA_PADRAO = 9). Quem tem streak e não registrou recebe dois
+    banners às 9h. Separar os horários (ex: lembrete 9h, aviso de streak 20h).
+
+[ ] utils/notifications.js — o texto da notificação é calculado NA HORA DE
+    AGENDAR e repete igual todo dia até o app ser reaberto. Se o usuário ficar
+    3 dias fora, recebe "você ainda não registrou hoje" mesmo tendo registrado.
+    Não tem solução perfeita sem push, mas dá pra agendar N dias à frente com
+    conteúdo por dia em vez de um trigger DAILY único.
+
+[ ] screens/HistoryScreen.js:173 — `economia` é lido do Promise.all e nunca
+    usado (variável morta).
+
+[ ] screens/HistoryScreen.js — editar/excluir registro recalcula a economia mas
+    NÃO chama verificarEConcluirMissoes / verificarEDesbloquearConquistas /
+    atualizarXp. Register, Crisis, Missions e Home chamam. Resultado: editar um
+    registro muda o XP real mas o toast/nível só atualiza no próximo foco da
+    Home. Mesmo caso em screens/DeviceScreen.js:82 (salvar aparelho muda a
+    economia inteira e pode desbloquear economy_50/200/500/1000 na hora).
+
+[ ] utils/achievements.js:45 conquista `no_puffs_1` ("Dia Livre") só olha os
+    registros de HOJE. Quem registra ontem e não hoje não desbloqueia, e um dia
+    limpo antigo nunca conta. Provavelmente deveria ser "existe algum dia limpo".
+
+[ ] utils/achievements.js:77 conquista `total_no_7` conta datas com registro
+    `!used`; se um dia tiver dois registros (um com uso e um sem), o dia conta
+    como limpo. Usar a mesma regra de dia limpo do resto do app
+    (nenhum registro com used === true).
+
+[ ] Conquista `breathing_5` (utils/achievements.js:161) só é alimentada por
+    sessões salvas, e sessão só é salva vindo do modo crise com desfecho
+    respondido. Fazer respiração pela tela solta (Breathing) não conta nunca.
+    Decidir: ou salvar sessão da respiração avulsa, ou mudar a descrição.
+
+[ ] screens/CrisisScreen.js — o voltar do ScreenHeader abre o modal de desfecho,
+    mas o gesto de voltar do Android/iOS (hardware back / swipe) sai da tela sem
+    perguntar nada. Interceptar com `beforeRemove` do navigation.
+
+[ ] screens/RegisterScreen.js:181 — a checagem de registro existente por data
+    considera só o PRIMEIRO registro daquele dia (`.find`). Se o histórico já
+    tiver dois registros no mesmo dia (dado antigo), sobrescreve um e o outro
+    fica órfão inflando XP/gráfico.
+
+[ ] components/Toast.js:62 e components/OfflineBanner.js:30 usam os dois
+    `insets.top` — offline, o toast aparece por cima da faixa "sem internet".
+
+[ ] components/ScreenHeader.js:51 `paddingTop: 30` fixo. O SafeAreaProvider já
+    está montado; usar `useSafeAreaInsets().top` pra não cortar/colar o título
+    em aparelho com notch ou barra alta.
+
+=========================================================
+COISAS PRA REMOVER (código/dependência morta)
+=========================================================
+
+[ ] package.json:19 — dependência `"caveman-installer": "github:JuliusBrussee/caveman"`.
+    Não tem nada a ver com o app, é ferramenta de dev. Tirar do package.json.
+
+[ ] package.json:33 — `react-native-paper` 4.9.2 não é importado em lugar
+    nenhum (o CLAUDE.md já avisa isso). Remover.
+
+[ ] `expo-haptics` só é usado em components/AchievementCelebration.js:8 — está
+    ok, mas conferir se `react-native-reanimated` + `react-native-worklets`
+    ainda são necessários: o único uso é o import de efeito colateral em
+    App.js:2, nenhum arquivo usa a API. Se nada precisar, são ~2 dependências
+    nativas a menos no build.
+
+[ ] utils/theme.js:2 — `export const CORES` não é importado por NENHUM arquivo
+    (Login e SignUp declaram um CORES local próprio). É tema morto pré-dark
+    mode. Apagar o export.
+
+[ ] components/ScreenHeader.js — a prop `aoPressionarPerfil` / o branch
+    `mostrarPerfil` nunca é usado: toda tela passa `mostrarConfiguracoes` ou
+    `mostrarPerfil={false}`. Ou remover o branch, ou voltar a usar.
+
+[ ] Comentários `// src/...` no topo de quase todo arquivo apontam pra uma
+    estrutura de pasta que não existe mais. Limpar de uma vez (o CLAUDE.md já
+    precisa avisar pra ignorar).
+
+[ ] screens/HomeScreen.js:325 — estilo `welcomeText` declarado e nunca usado.
+    Mesmo caso em HistoryScreen (`listHeader`, `listTitle`, `listCount`,
+    `emptyWrap`, `emptyTitle`, `histDev`).
+
+=========================================================
+CONSISTÊNCIA / DÍVIDA TÉCNICA
+=========================================================
+
+[ ] Login e SignUp são as duas únicas telas que ignoram o tema: cada uma tem seu
+    próprio objeto CORES hardcoded (azul/branco), enquanto o resto do app é
+    verde e responde ao dark mode. Migrar pra usarTema().cores.
+
+[ ] screens/SignUpScreen.js:152 escreve no Firestore direto (`setDoc` em
+    users/{uid}) — é a única escrita de dado fora de utils/storage.js. Fora da
+    convenção e não funciona offline. Mover pra uma função em storage.js.
+
+[ ] screens/SignUpScreen.js:46 `validarSenhaForte` só checa comprimento >= 8,
+    mas a mensagem de erro do Firebase fala "senha fraca". Ou validar de verdade
+    (número + letra) ou renomear pra `validarTamanhoDaSenha`.
+
+[ ] screens/MissionsScreen.js e screens/BreathingScreen.js e CrisisScreen não
+    envolvem o ScrollView num `<View style={{flex:1, backgroundColor}}>` como as
+    outras telas fazem. Deixa faixa de fundo errada no overscroll.
+
+[ ] O bloco "carrega dados -> verifica missões -> verifica conquistas ->
+    atualiza XP -> mostra recompensas" está copiado 4x
+    (HomeScreen:52, RegisterScreen:130, CrisisScreen:196, MissionsScreen:41).
+    Extrair pra um helper (ex: `sincronizarGamificacao()` em utils/storage.js ou
+    um hook `usarGamificacao()`).
+
+[ ] context/ThemeContext.js — o tema começa sempre claro e só troca depois do
+    AsyncStorage responder: quem usa dark mode vê um flash branco a cada
+    abertura. Guardar `null` até ler a flag (mesmo padrão do onboarding em
+    AppNavigator.js:116).
+
+[ ] context/ThemeContext.js não considera o tema do sistema. Adicionar opção
+    "seguir o sistema" com `useColorScheme()` e salvar 'claro'|'escuro'|'sistema'
+    em vez de boolean.
+
+[ ] Não existe firestore.rules no repo. As regras do banco moram só no console
+    do Firebase — qualquer redeploy/troca de projeto perde. Versionar o arquivo.
+
+[ ] Sem lint/format/test nenhum (o CLAUDE.md confirma). Pelo menos ESLint +
+    Prettier com o config do Expo evitaria variável morta e import não usado.
+
+[ ] package.json usa `"*"` como versão de @react-navigation/*,
+    react-native-chart-kit e @miblanchard/react-native-slider. Um `npm install`
+    novo pode puxar major diferente e quebrar sem aviso. Pinar as versões.
+
+[ ] package.json:43 `"name": "ProjetoIntegradorIII"` não combina com o app
+    (Vape Free). Renomear pra vapefree.
+
+=========================================================
+FEATURES QUE FALTAM (ordenado por custo/benefício)
+=========================================================
+
+[ ] Tela de Configurações só tem Perfil + modo escuro. Faltam:
+    - liga/desliga notificações + escolher o horário do lembrete
+    - "apagar todos os meus dados" (hoje não existe jeito nenhum de zerar)
+    - link pro onboarding de novo ("ver o tutorial")
+    - versão do app
+
+[ ] Não tem como excluir a conta (exigência de loja de app, tanto Play quanto
+    App Store). Precisa de deleteUser + limpar users/{uid} e subcoleções.
+
+[ ] Não tem como editar nome/e-mail do perfil, nem trocar senha logado.
+
+[ ] Exportar dados (CSV/JSON dos registros). Barato de fazer, ajuda o usuário
+    que quer levar o histórico pro médico.
+
+[ ] Meta de redução em vez de só "usei / não usei": deixar o usuário definir
+    "quero cair pra X puxadas/dia até tal data" e acompanhar. Hoje a única meta
+    é a derivada do aparelho (totalPuffs/days), que é consumo, não objetivo.
+
+[ ] Histórico não tem filtro por período com data inicial/final nem busca por
+    gatilho — só Dia/Semana/Mês fixos nos últimos 10/6/6 pontos.
+
+[ ] Falta gráfico/visão de dias limpos vs dias com uso (calendário mensal tipo
+    heatmap). É o dado que mais motiva e hoje não existe em nenhuma tela.
+
+[ ] Sem lembrete "registre seu dia" configurável por horário — o único horário
+    é 9h fixo no código.
+
+[ ] Modo crise não tem histórico visível: as sessões só alimentam insights e
+    conquistas. Uma lista "suas últimas crises e como terminaram" já tem todo o
+    dado salvo.
+
+[ ] DIAS_PARA_TRAS_NO_REGISTRO = 7 é fixo no código; nada avisa o usuário que
+    depois de 7 dias o dia é perdido pra sempre. Ou avisar melhor, ou permitir
+    preencher retroativo sem XP.
+
+[ ] Missões: só 6, todas fixas. Dá pra adicionar sem custo nenhum (só uma
+    entrada em MISSOES) — ex: "use o modo crise em vez de usar o vape 3x na
+    semana", "registre 3 dias seguidos", "fique abaixo da sua meta diária".
+
+[ ] Conquistas: nenhuma envolve o escudo, nem a redução (ex: "sua média semanal
+    caiu pela metade"), que é justamente o que o app calcula melhor.
+
+[ ] Onboarding não pergunta nada — nem o aparelho, nem quanto usa hoje. Pedir o
+    aparelho no fim do tutorial faria a economia funcionar desde o dia 1
+    (hoje a Home aparece com card vazio "cadastra seu dispositivo").
+
+[ ] Nenhum tratamento de acessibilidade: sem accessibilityLabel nos ícones
+    (todos os botões são só Ionicons), sem suporte a fonte aumentada
+    (fontSize fixo em tudo).
+
+=========================================================
+BUILD / DEPLOY
+=========================================================
+
+[ ] Sem eas.json e sem .github/ — build e deploy 100% manual (docs/deployment.md
+    já lista). Criar eas.json com perfis development/preview/production.
+
+[ ] app.json sem `android.package`, `android.versionCode`, `ios.buildNumber` e
+    sem `android.adaptiveIcon`. Nada disso dá pra publicar sem.
+
+[ ] debug.keystore está commitado na raiz do repo. É só de debug, mas não
+    deveria estar versionado — mover pro .gitignore.
+
+[ ] app.json não declara `notification` nem permissões Android
+    (POST_NOTIFICATIONS no Android 13+). Conferir se o pedido de permissão
+    funciona em release, não só no Expo Go.

@@ -17,6 +17,12 @@ Cor de marca: verde (`#4CAF50` claro / `#66BB6A` escuro). Telas de auth (`LoginS
 
 `ThemeContext` guarda `estaEscuro` em `AsyncStorage` (`@vapefree_dark_mode`), alternado pelo botão sol/lua no `ScreenHeader`. Aplica-se a todo o app **exceto** telas de auth (Login/SignUp, que são sempre claras).
 
+O "exceto" é implementado por `forcarTemaClaro(bool)`, exposto pelo `ThemeContext`: o `AuthStack` (`navigation/AppNavigator.js`) chama `forcarTemaClaro(true)` no mount e `false` no unmount. Enquanto ligado, `cores` e o `estaEscuro` devolvido por `usarTema()` são os claros — a preferência salva não é tocada, então sair da stack de auth volta ao escuro. Precisa ser global (e não um provider só em volta da tela) porque o `Toast` e o `ConfirmModal` são renderizados pelo `ToastProvider`, que fica **acima** do `NavigationContainer`; sem isso eles apareceriam escuros por cima da tela de login branca.
+
+### StatusBar
+
+`App.js` fixa `<StatusBar style="light" />` (o `ScreenHeader` é `cores.primary`, verde nos dois temas). `LoginScreen` e `SignUpScreen` têm fundo branco fixo e renderizam o próprio `<StatusBar style="dark" />` — no `expo-status-bar` o componente montado por último vence.
+
 ## Espaçamento e forma
 
 `RAIO` (`sm:8, md:12, lg:16, xl:20, full:999`) e `SOMBRA` (`small`, `medium` — `shadowColor/Offset/Opacity/Radius` + `elevation`) de `utils/theme.js`, usados em quase todo `View` com fundo (cards, botões, chips, modais). Não crie novo raio/sombra ad-hoc sem checar se um desses já serve.

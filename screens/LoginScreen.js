@@ -9,6 +9,7 @@ import {
     Platform,
 } from 'react-native';
 import Alert from '../utils/alert';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 import {
@@ -259,6 +260,8 @@ export default function LoginScreen({ navigation }) {
 
     return (
         <View style={{ flex: 1, backgroundColor: CORES.background }}>
+        {/* tela tem fundo branco fixo, sobrescreve o style="light" do App.js */}
+        <StatusBar style="dark" />
         <KeyboardAvoidingView
             style={styles.flex}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}

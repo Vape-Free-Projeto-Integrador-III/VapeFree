@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from '@expo-google-fonts/poppins';
 import AppNavigator from './navigation/AppNavigator';
-import { ThemeProvider, usarTema } from './context/ThemeContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ConnectionProvider } from './context/ConnectionContext';
@@ -20,10 +20,10 @@ LogBox.ignoreLogs([
 configurarHandlerDeNotificacoes();
 
 function AppContent() {
-    const { estaEscuro } = usarTema();
     return (
         <SafeAreaProvider>
-            <StatusBar style={estaEscuro ? 'light' : 'light'} />
+            {/* header é sempre verde (cores.primary) nos dois temas, então ícones claros sempre */}
+            <StatusBar style="light" />
             <ConnectionProvider>
                 <ToastProvider>
                     <AppNavigator />

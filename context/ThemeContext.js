@@ -7,11 +7,17 @@ const CHAVE_MODO_ESCURO = '@vapefree_dark_mode';
 export const ThemeContext = createContext({
   estaEscuro: false,
   alternarTema: () => {},
+  forcarTemaClaro: () => {},
   cores: {},
 });
 
 export function ThemeProvider({ children }) {
   const [estaEscuro, setEstaEscuro] = useState(false);
+  // Telas de auth (Login/SignUp) têm layout de fundo branco fixo, então elas
+  // pedem tema claro enquanto estão montadas. Fica aqui no provider (e não
+  // dentro da tela) porque o toast e o ConfirmModal moram acima da navegação:
+  // só forçando no tema global eles também ficam claros junto.
+  const [claroForcado, setClaroForcado] = useState(false);
 
   React.useEffect(() => {
     AsyncStorage.getItem(CHAVE_MODO_ESCURO).then((valor) => {
@@ -27,10 +33,15 @@ export function ThemeProvider({ children }) {
     });
   };
 
-  const cores = estaEscuro ? CORES_ESCURAS : CORES_CLARAS;
+  // "estaEscuro" exposto é o efetivo (o que a UI deve pintar); a preferência
+  // salva continua intacta no state, então sair da tela de auth volta ao escuro.
+  const escuroEfetivo = estaEscuro && !claroForcado;
+  const cores = escuroEfetivo ? CORES_ESCURAS : CORES_CLARAS;
 
   return (
-    <ThemeContext.Provider value={{ estaEscuro, alternarTema, cores }}>
+    <ThemeContext.Provider
+      value={{ estaEscuro: escuroEfetivo, alternarTema, forcarTemaClaro: setClaroForcado, cores }}
+    >
       {children}
     </ThemeContext.Provider>
   );

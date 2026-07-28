@@ -88,6 +88,15 @@ function MainStack() {
 
 // Stack exibida quando NÃO existe usuário autenticado.
 function AuthStack({ rotaInicial = 'Login' }) {
+  // Login/SignUp são desenhadas com paleta clara fixa (CORES local em cada
+  // tela), então o tema global vira claro enquanto essa stack existe. Isso
+  // também deixa o toast e o ConfirmModal claros, que ficam fora da navegação.
+  const { forcarTemaClaro } = usarTema();
+  useEffect(() => {
+    forcarTemaClaro(true);
+    return () => forcarTemaClaro(false);
+  }, [forcarTemaClaro]);
+
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }} initialRouteName={rotaInicial}>
       <Stack.Screen name="Login" component={LoginScreen} />
