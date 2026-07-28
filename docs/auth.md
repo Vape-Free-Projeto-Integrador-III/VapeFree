@@ -48,6 +48,20 @@ Ao fazer login/cadastro (e-mail ou Google), se existirem dados locais de convida
 
 A pergunta acontece **antes** de `signInWithEmailAndPassword`/`promptAsync`, resolvida via `Promise` armazenada em `useRef` (`guestChoiceResolverRef`) — só depois de resolvida o login prossegue. Mesmo padrão duplicado em `LoginScreen.js` e `SignUpScreen.js` (não está extraído em hook compartilhado).
 
+## Gerenciar a conta (`screens/AccountScreen.js`)
+
+Aberta pelas Configurações, só pra usuário logado (convidado não vê o atalho). Como as telas de auth, fala com `firebase/auth` direto — nome/e-mail/senha são estado do Auth, não dado de domínio.
+
+- **Nome**: `updateProfile(displayName)` + `salvarPerfilDaConta(uid, { nome, email })`. Não exige senha.
+- **E-mail**: `verifyBeforeUpdateEmail`, não `updateEmail` — com a proteção contra enumeração de e-mail ligada no projeto, `updateEmail` é rejeitado. O e-mail só troca depois que o usuário clica no link enviado pro endereço novo, então o doc `users/{uid}` **não** é atualizado nesse momento.
+- **Senha**: `updatePassword`, com a mesma `validarSenhaForte` do cadastro (8+ caracteres, letra e número).
+- **Excluir conta**: `apagarContaNoBanco(uid)` **antes** de `deleteUser`. A ordem importa: depois do `deleteUser` ninguém mais tem permissão de escrever em `users/{uid}`, e os dados ficariam órfãos. Se a limpeza falhar (sem rede), a conta não é excluída e a tela avisa.
+
+Trocar e-mail, trocar senha e excluir conta exigem login recente no Firebase. A tela pede a **senha atual** e refaz a autenticação com `reauthenticateWithCredential(EmailAuthProvider.credential(...))` antes de cada uma. Tudo isso passa por `executarOperacaoSensivel(chave, operacao)`, que existe por dois motivos:
+
+- **Trava de duplo toque** (`emAndamentoRef`): `ocupado` é state, então entre o toque e o re-render o botão ainda aceita um segundo toque. Na troca de senha isso dava um falso "senha atual incorreta" — a segunda chamada reautenticava com a senha que a primeira acabara de trocar.
+- **Fases separadas**: só erro do `reauthenticateWithCredential` vira "senha atual incorreta" (`mensagemDoErro(erro, true)`). Erro de credencial vindo depois da operação já concluída fala em sessão expirada, não em senha errada. Quem entrou com Google não tem provedor `password`: nesse caso a tela esconde os formulários de e-mail/senha (são gerenciados pelo Google), tenta a exclusão sem reautenticar e, se vier `auth/requires-recent-login`, pede pra sair e entrar de novo.
+
 ## Notificações e sessão
 
 `AuthContext` agenda/cancela notificações motivacionais conforme `usuario`/`ehConvidado` mudam — ver [notifications.md](notifications.md).

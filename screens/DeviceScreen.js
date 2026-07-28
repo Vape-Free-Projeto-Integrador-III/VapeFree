@@ -15,11 +15,7 @@ import {
     salvarAparelho,
     obterRegistros,
     recalcularEconomia,
-    obterSessoesDeCrise,
-    obterMissoes,
-    verificarEConcluirMissoes,
-    verificarEDesbloquearConquistas,
-    atualizarXp,
+    sincronizarGamificacao,
 } from '../utils/storage';
 import { custoPorPuxada, metaDiaria } from '../utils/records';
 import { RAIO, SOMBRA } from '../utils/theme';
@@ -91,14 +87,13 @@ export default function DeviceScreen({ navigation }) {
         // economia (economy_50/200/...) e missões podem cair na hora.
         const todosRegistros = await obterRegistros();
         const economia = await recalcularEconomia(todosRegistros, aparelho);
-        const sessoes = await obterSessoesDeCrise();
-        const novasMissoes = await verificarEConcluirMissoes(todosRegistros, economia, sessoes);
-        const missoesConcluidas = await obterMissoes();
-        const novasConquistas = await verificarEDesbloquearConquistas(todosRegistros, economia, missoesConcluidas);
-        const resumo = await atualizarXp(todosRegistros, null, missoesConcluidas);
+        const { recompensas } = await sincronizarGamificacao({
+            registros: todosRegistros,
+            economia,
+        });
         setSalvando(false);
         mostrarSucesso();
-        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
+        mostrarRecompensas(recompensas);
     };
 
     // Aparelho "em rascunho", só pra prévia — os helpers puros fazem as contas.

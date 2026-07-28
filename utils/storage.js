@@ -69,6 +69,11 @@ const CHAVES = {
 // a aparecer depois de um login.
 const CHAVE_ONBOARDING = '@vapefree_onboarding';
 
+// Preferência de notificação (ligada/desligada + horário do lembrete). Também
+// fica fora de CHAVES: é do aparelho, não da conta — quem troca de celular
+// escolhe o horário de novo, e as notificações são agendadas localmente.
+const CHAVE_NOTIFICACOES = '@vapefree_notifications';
+
 // Quantos dias de abertura do app ficam guardados. 60 cobre com folga a
 // maior conquista de presença diária (7 dias seguidos).
 const LIMITE_DE_ABERTURAS = 60;
@@ -228,6 +233,47 @@ export async function concluirOnboarding() {
   }
 }
 
+// Usado pelo "ver o tutorial de novo" das Configurações. A tela de tutorial é
+// aberta pela navegação; apagar a flag aqui é só pra ele voltar a aparecer na
+// próxima abertura do app caso o usuário feche no meio.
+export async function reiniciarOnboarding() {
+  try {
+    await AsyncStorage.removeItem(CHAVE_ONBOARDING);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Preferência de notificação ─────────────────────────────────────────────
+// Sempre local, como o tutorial: o agendamento é feito pelo próprio aparelho
+// (expo-notifications), então não faz sentido guardar isso na conta.
+
+export const PREFERENCIAS_DE_NOTIFICACAO_PADRAO = { ativas: true, hora: 9, minuto: 0 };
+
+export async function obterPreferenciasDeNotificacao() {
+  const salvo = await lerJson(CHAVE_NOTIFICACOES, null);
+  if (!salvo || typeof salvo !== 'object') {
+    return { ...PREFERENCIAS_DE_NOTIFICACAO_PADRAO };
+  }
+  return {
+    ativas: salvo.ativas !== false,
+    hora: Number.isInteger(salvo.hora) ? salvo.hora : PREFERENCIAS_DE_NOTIFICACAO_PADRAO.hora,
+    minuto: Number.isInteger(salvo.minuto) ? salvo.minuto : PREFERENCIAS_DE_NOTIFICACAO_PADRAO.minuto,
+  };
+}
+
+export async function salvarPreferenciasDeNotificacao(preferencias) {
+  try {
+    const atuais = await obterPreferenciasDeNotificacao();
+    const novas = { ...atuais, ...preferencias };
+    await AsyncStorage.setItem(CHAVE_NOTIFICACOES, JSON.stringify(novas));
+    return novas;
+  } catch {
+    return null;
+  }
+}
+
 async function substituirDocsDaColecao(uid, subcolecao, entradas) {
   const snap = await getDocs(collection(db, 'users', uid, subcolecao));
 
@@ -293,6 +339,95 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
 
   await limparDadosLocaisDoConvidado();
   return true;
+}
+
+// ─── Apagar tudo ────────────────────────────────────────────────────────────
+// Zera o progresso do usuário. Como a migração, é uma operação que NÃO funciona
+// offline: pra apagar as subcoleções é preciso listar o que está no servidor, e
+// parar no meio deixaria a conta pela metade. Por isso exige rede.
+//
+// O espelho e a fila são descartados antes: qualquer escrita pendente ia subir
+// depois da limpeza e ressuscitar dado que o usuário mandou apagar.
+
+const SUBCOLECOES = ['records', 'achievements', 'crisisSessions', 'missions'];
+
+async function apagarDocsDaColecao(uid, subcolecao) {
+  const snap = await comTempoLimite(getDocs(collection(db, 'users', uid, subcolecao)));
+  await Promise.all(snap.docs.map((item) => comTempoLimite(deleteDoc(item.ref))));
+}
+
+// Apaga só os DADOS da conta (registros, conquistas, crises, missões e os
+// campos derivados do doc do usuário). O documento users/{uid} continua
+// existindo — quem apaga ele é apagarContaNoBanco, na exclusão de conta.
+async function apagarDadosDaConta(uid) {
+  await limparCacheEFila(uid);
+
+  for (const subcolecao of SUBCOLECOES) {
+    await apagarDocsDaColecao(uid, subcolecao);
+  }
+
+  await comTempoLimite(
+    setDoc(
+      doc(db, 'users', uid),
+      { device: null, economy: {}, xp: null, appOpenDays: [] },
+      { merge: true }
+    )
+  );
+
+  // Deixa o espelho quente e vazio, senão a próxima leitura offline devolveria
+  // o padrão neutro sem saber que o dado foi apagado de propósito.
+  await Promise.all([
+    escreverCache(uid, ESPELHOS.REGISTROS, []),
+    escreverCache(uid, ESPELHOS.CONQUISTAS, []),
+    escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, []),
+    escreverCache(uid, ESPELHOS.MISSOES, []),
+    escreverCache(uid, ESPELHOS.APARELHO, null),
+    escreverCache(uid, ESPELHOS.ECONOMIA, {}),
+    escreverCache(uid, ESPELHOS.XP, null),
+    escreverCache(uid, ESPELHOS.ABERTURAS, []),
+  ]);
+}
+
+export async function apagarTodosOsDados() {
+  const uid = obterUid();
+
+  if (!uid) {
+    try {
+      await limparDadosLocaisDoConvidado();
+      return OK;
+    } catch {
+      return falha('rede');
+    }
+  }
+
+  if (!(await estaOnline())) {
+    return falha('rede');
+  }
+
+  try {
+    await apagarDadosDaConta(uid);
+    return OK;
+  } catch (e) {
+    console.log('Erro ao apagar os dados da conta:', e);
+    return falha('rede');
+  }
+}
+
+// Limpeza que precede o deleteUser do Firebase Auth (ver screens/AccountScreen).
+// Apaga os dados E o documento users/{uid}, além do espelho local.
+export async function apagarContaNoBanco(uid = obterUid()) {
+  if (!uid) return falha('sem_conta');
+  if (!(await estaOnline())) return falha('rede');
+
+  try {
+    await apagarDadosDaConta(uid);
+    await comTempoLimite(deleteDoc(doc(db, 'users', uid)));
+    await limparCacheEFila(uid);
+    return OK;
+  } catch (e) {
+    console.log('Erro ao apagar a conta no banco:', e);
+    return falha('rede');
+  }
 }
 
 // ─── Registros ──────────────────────────────────────────────────────────────
@@ -925,4 +1060,44 @@ export async function verificarEDesbloquearConquistas(
     console.log('Erro ao verificar conquistas:', e);
     return [];
   }
+}
+
+// ─── Sincronização de gamificação ────────────────────────────────────────────
+// Bloco único de "carrega dados -> conclui missões -> desbloqueia conquistas ->
+// atualiza XP". Toda tela que pode gerar recompensa (Home, Register, Crisis,
+// Missions) chama isto em vez de repetir a sequência — a ordem importa:
+// concluir missão pode desbloquear conquista (ex: first_mission), e o XP só é
+// recalculado depois das duas.
+//
+// Aceita dados já carregados pela tela (evita reler) e devolve tudo o que as
+// telas usam, incluindo `recompensas` pronto pro mostrarRecompensas() do
+// usarToast(). Nunca lança — cada etapa já engole o próprio erro.
+export async function sincronizarGamificacao(entrada = {}) {
+  const registros = entrada.registros ?? (await obterRegistros());
+  const economia = entrada.economia ?? (await obterEconomia());
+  const sessoesDeCrise = entrada.sessoesDeCrise ?? (await obterSessoesDeCrise());
+  const diasDeAbertura = entrada.diasDeAbertura ?? (await obterDiasDeAbertura());
+
+  const novasMissoes = await verificarEConcluirMissoes(registros, economia, sessoesDeCrise);
+  const missoesConcluidas = await obterMissoes();
+  const novasConquistas = await verificarEDesbloquearConquistas(
+    registros,
+    economia,
+    missoesConcluidas,
+    { sessoesDeCrise, diasDeAbertura }
+  );
+  const resumo = await atualizarXp(registros, null, missoesConcluidas);
+
+  return {
+    registros,
+    economia,
+    sessoesDeCrise,
+    missoesConcluidas,
+    resumo,
+    recompensas: {
+      conquistas: novasConquistas,
+      missoes: novasMissoes,
+      ganho: resumo.ganho,
+    },
+  };
 }

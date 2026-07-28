@@ -19,59 +19,27 @@ BUGS / COISAS QUEBRADAS
 CONSISTÊNCIA / DÍVIDA TÉCNICA
 =========================================================
 
-[ ] screens/SignUpScreen.js:46 `validarSenhaForte` só checa comprimento >= 8,
-    mas a mensagem de erro do Firebase fala "senha fraca". Ou validar de verdade
-    (número + letra) ou renomear pra `validarTamanhoDaSenha`.
-
-[ ] screens/MissionsScreen.js e screens/BreathingScreen.js e CrisisScreen não
-    envolvem o ScrollView num `<View style={{flex:1, backgroundColor}}>` como as
-    outras telas fazem. Deixa faixa de fundo errada no overscroll.
-
-[ ] O bloco "carrega dados -> verifica missões -> verifica conquistas ->
-    atualiza XP -> mostra recompensas" está copiado 4x
-    (HomeScreen:52, RegisterScreen:130, CrisisScreen:196, MissionsScreen:41).
-    Extrair pra um helper (ex: `sincronizarGamificacao()` em utils/storage.js ou
-    um hook `usarGamificacao()`).
-
-[ ] context/ThemeContext.js — o tema começa sempre claro e só troca depois do
-    AsyncStorage responder: quem usa dark mode vê um flash branco a cada
-    abertura. Guardar `null` até ler a flag (mesmo padrão do onboarding em
-    AppNavigator.js:116).
-
-[ ] context/ThemeContext.js não considera o tema do sistema. Adicionar opção
-    "seguir o sistema" com `useColorScheme()` e salvar 'claro'|'escuro'|'sistema'
-    em vez de boolean.
-
-[ ] Não existe firestore.rules no repo. As regras do banco moram só no console
-    do Firebase — qualquer redeploy/troca de projeto perde. Versionar o arquivo.
-
 [ ] Sem lint/format/test nenhum (o CLAUDE.md confirma). Pelo menos ESLint +
     Prettier com o config do Expo evitaria variável morta e import não usado.
-
-[ ] package.json usa `"*"` como versão de @react-navigation/*,
-    react-native-chart-kit e @miblanchard/react-native-slider. Um `npm install`
-    novo pode puxar major diferente e quebrar sem aviso. Pinar as versões.
-
-[ ] package.json:43 `"name": "ProjetoIntegradorIII"` não combina com o app
-    (Vape Free). Renomear pra vapefree.
 
 =========================================================
 FEATURES QUE FALTAM (ordenado por custo/benefício)
 =========================================================
 
-[ ] Tela de Configurações só tem Perfil + modo escuro. Faltam:
-    - liga/desliga notificações + escolher o horário do lembrete
-    - "apagar todos os meus dados" (hoje não existe jeito nenhum de zerar)
-    - link pro onboarding de novo ("ver o tutorial")
-    - versão do app
+[x] Tela de Configurações: liga/desliga notificações + horário do lembrete,
+    "apagar todos os meus dados", "ver o tutorial de novo" e versão do app.
+    Preferência de notificação em @vapefree_notifications (do aparelho);
+    quem agenda é aplicarPreferenciasDeNotificacao() (utils/notifications.js).
 
-[ ] Não tem como excluir a conta (exigência de loja de app, tanto Play quanto
-    App Store). Precisa de deleteUser + limpar users/{uid} e subcoleções.
+[x] Excluir conta (screens/AccountScreen.js): apagarContaNoBanco(uid) limpa
+    users/{uid} + subcoleções ANTES do deleteUser, com reautenticação por
+    senha. Quem entrou com Google precisa sair e entrar de novo.
 
-[ ] Não tem como editar nome/e-mail do perfil, nem trocar senha logado.
+[x] Editar nome/e-mail e trocar senha logado — mesma AccountScreen. E-mail usa
+    verifyBeforeUpdateEmail (só troca depois do link de confirmação).
 
-[ ] Exportar dados (CSV/JSON dos registros). Barato de fazer, ajuda o usuário
-    que quer levar o histórico pro médico.
+[x] Exportar dados (CSV/JSON) — utils/exportacao.js, expo-file-system +
+    expo-sharing no nativo, download por link na web.
 
 [ ] Meta de redução em vez de só "usei / não usei": deixar o usuário definir
     "quero cair pra X puxadas/dia até tal data" e acompanhar. Hoje a única meta
@@ -83,8 +51,9 @@ FEATURES QUE FALTAM (ordenado por custo/benefício)
 [ ] Falta gráfico/visão de dias limpos vs dias com uso (calendário mensal tipo
     heatmap). É o dado que mais motiva e hoje não existe em nenhuma tela.
 
-[ ] Sem lembrete "registre seu dia" configurável por horário — o único horário
-    é 9h fixo no código.
+[x] Lembrete "registre seu dia" agora tem horário configurável nas
+    Configurações (9h virou só o padrão). O aviso de streak continua às 20h de
+    propósito, mas obedece o liga/desliga.
 
 [ ] Modo crise não tem histórico visível: as sessões só alimentam insights e
     conquistas. Uma lista "suas últimas crises e como terminaram" já tem todo o

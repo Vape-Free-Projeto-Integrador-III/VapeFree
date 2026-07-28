@@ -25,10 +25,7 @@ import {
     recalcularEconomia,
     obterEconomia,
     obterSessoesDeCrise,
-    obterMissoes,
-    verificarEConcluirMissoes,
-    verificarEDesbloquearConquistas,
-    atualizarXp,
+    sincronizarGamificacao,
 } from '../utils/storage';
 import { puxadasDoRegistro } from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS } from '../utils/theme';
@@ -174,11 +171,12 @@ export default function HistoryScreen({ navigation }) {
         setRegistros(todosOsRegs);
         setSessoesDeCrise(sessoes);
 
-        const novasMissoes = await verificarEConcluirMissoes(todosOsRegs, economia, sessoes);
-        const missoesConcluidas = await obterMissoes();
-        const novasConquistas = await verificarEDesbloquearConquistas(todosOsRegs, economia, missoesConcluidas);
-        const resumo = await atualizarXp(todosOsRegs, null, missoesConcluidas);
-        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
+        const { recompensas } = await sincronizarGamificacao({
+            registros: todosOsRegs,
+            economia,
+            sessoesDeCrise: sessoes,
+        });
+        mostrarRecompensas(recompensas);
     };
 
     const salvarEdicao = async () => {

@@ -16,9 +16,12 @@ AppNavigator
 │    │    └─ Achievements  (AchievementsScreen)  label "Conquistas"
 │    ├─ Device    (DeviceScreen)
 │    ├─ Profile   (Profile)
+│    ├─ Settings  (SettingsScreen)
+│    ├─ Account   (AccountScreen)    nome/e-mail/senha e exclusão de conta (só logado)
 │    ├─ Crisis    (CrisisScreen)     modo crise, a partir do card da Home
 │    ├─ Missions  (MissionsScreen)   missões diárias/semanais, a partir do card da Home
-│    └─ Breathing (BreathingScreen)  respiração guiada
+│    ├─ Breathing (BreathingScreen)  respiração guiada
+│    └─ Onboarding (OnboardingScreen) "ver o tutorial de novo", a partir das Configurações
 └─ else                      → AuthStack (Stack.Navigator, headerShown: false)
      ├─ Login  (LoginScreen)
      └─ SignUp (SignUpScreen)
@@ -26,7 +29,7 @@ AppNavigator
 
 A troca `MainStack` ↔ `AuthStack` é automática: acontece porque `usuario`/`ehConvidado` (de `usarAuth()`) mudam e re-renderizam `AppNavigator` com uma árvore diferente. **Nunca use `navigation.replace('Main')` ou similar** para forçar essa troca — quem decide é sempre o `AuthContext` (via `onAuthStateChanged` do Firebase ou `continuarSemConta`/`sair`). Ver [auth.md](auth.md).
 
-`OnboardingScreen` (`screens/OnboardingScreen.js`) vem **antes** da decisão de login e não é um `Stack.Screen`: `AppNavigator` a renderiza direto, passando `aoConcluir`. São 5 passos horizontais (`FlatList` com `pagingEnabled`), com botão "Pular". Ao concluir/pular, grava a flag `@vapefree_onboarding` via `concluirOnboarding()` e o estado local em `AppNavigator` cai pra `false`, revelando `AuthStack`/`MainStack`. A flag é lida uma vez na montagem — enquanto isso o app mostra o `LoadingScreen`, pra o tutorial não piscar pra quem já passou por ele.
+`OnboardingScreen` (`screens/OnboardingScreen.js`) aparece de duas formas. Na primeira abertura ela vem **antes** da decisão de login, sem `Stack.Screen`: `AppNavigator` a renderiza direto, passando `aoConcluir`. A mesma tela também é a rota `Onboarding` da `MainStack`, usada pelo "ver o tutorial de novo" das Configurações — aí ela não recebe `aoConcluir` e o fim do tutorial cai em `navigation.goBack()`. Antes de navegar, a `SettingsScreen` chama `reiniciarOnboarding()` (apaga a flag), pra quem fechar o app no meio do tutorial ainda vê-lo na próxima abertura; concluir grava a flag de novo. São 5 passos horizontais (`FlatList` com `pagingEnabled`), com botão "Pular". Ao concluir/pular, grava a flag `@vapefree_onboarding` via `concluirOnboarding()` e o estado local em `AppNavigator` cai pra `false`, revelando `AuthStack`/`MainStack`. A flag é lida uma vez na montagem — enquanto isso o app mostra o `LoadingScreen`, pra o tutorial não piscar pra quem já passou por ele.
 
 `AuthStack` aceita `initialRouteName` (vindo de `telaDeAuth` no `AuthContext`) para poder abrir direto em `SignUp` quando o usuário clica "Cadastrar" na tela de Perfil em modo convidado.
 

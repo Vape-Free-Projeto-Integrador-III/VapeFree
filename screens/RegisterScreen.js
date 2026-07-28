@@ -18,19 +18,14 @@ import {
     obterRegistros,
     obterAparelho,
     recalcularEconomia,
-    verificarEDesbloquearConquistas,
-    verificarEConcluirMissoes,
-    obterSessoesDeCrise,
-    obterMissoes,
-    atualizarXp,
+    sincronizarGamificacao,
     obterEconomia,
     dataDeHoje,
     datasRegistraveis,
     dataEhRegistravel,
     DIAS_PARA_TRAS_NO_REGISTRO,
 } from '../utils/storage';
-import { agendarNotificacoesMotivacionais } from '../utils/notifications';
-import { agendarNotificacaoDeStreak } from '../utils/notifications';
+import { aplicarPreferenciasDeNotificacao } from '../utils/notifications';
 import {
     RAIO, SOMBRA,
     GATILHOS, AJUDAS, MENSAGENS_MOTIVACIONAIS,
@@ -129,24 +124,20 @@ export default function RegisterScreen({ navigation }) {
     const concederRecompensas = async (usouVape) => {
         const [novosRegistros, aparelho] = await Promise.all([obterRegistros(), obterAparelho()]);
         const economia = aparelho ? await recalcularEconomia(novosRegistros, aparelho) : await obterEconomia();
-        const sessoesDeCrise = await obterSessoesDeCrise();
 
-        const novasMissoes = await verificarEConcluirMissoes(novosRegistros, economia, sessoesDeCrise);
-        const missoesConcluidas = await obterMissoes();
-        const novasConquistas = await verificarEDesbloquearConquistas(novosRegistros, economia, missoesConcluidas);
-        const resumo = await atualizarXp(novosRegistros, null, missoesConcluidas);
+        const { recompensas } = await sincronizarGamificacao({
+            registros: novosRegistros,
+            economia,
+        });
 
-        await agendarNotificacoesMotivacionais().catch((err) =>
-            console.log('Erro ao reagendar notificações motivadoras:', err)
-        );
-        await agendarNotificacaoDeStreak().catch((err) =>
-            console.log('Erro ao reagendar notificação de streak:', err)
+        // Reagenda com o conteúdo novo (dica sorteada, streak atual), sempre
+        // respeitando o liga/desliga e o horário das Configurações.
+        await aplicarPreferenciasDeNotificacao().catch((err) =>
+            console.log('Erro ao reagendar as notificações:', err)
         );
 
         mostrarRecompensas({
-            conquistas: novasConquistas,
-            missoes: novasMissoes,
-            ganho: resumo.ganho,
+            ...recompensas,
             icone: usouVape ? '📝' : '🚭',
             titulo: usouVape ? 'Registro feito, sem culpa' : 'Dia sem cigarro eletrônico!',
         });

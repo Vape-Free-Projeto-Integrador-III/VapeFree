@@ -15,7 +15,10 @@ function getUid() {
 - **Logado** (`uid` existe) → Cloud Firestore, sob `users/{uid}/...`.
 - **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
 
-Exceção às duas regras acima: `@vapefree_onboarding` (flag `'true'` do tutorial de boas-vindas, lida/gravada por `onboardingFoiConcluido()`/`concluirOnboarding()`). É preferência **do aparelho**, como `@vapefree_dark_mode` e `@vapefree_guest_mode`: nunca vai pro Firestore, não tem espelho e fica de fora de `CHAVES` de propósito, pra `limparDadosLocaisDoConvidado()` não apagá-la e o tutorial não reaparecer depois de um login.
+Exceção às duas regras acima, as preferências **do aparelho** — como `@vapefree_dark_mode` e `@vapefree_guest_mode`, elas nunca vão pro Firestore, não têm espelho e ficam de fora de `CHAVES` de propósito, pra `limparDadosLocaisDoConvidado()` não apagá-las:
+
+- `@vapefree_onboarding` — flag `'true'` do tutorial de boas-vindas (`onboardingFoiConcluido()`/`concluirOnboarding()`/`reiniciarOnboarding()`). Fora de `CHAVES` pra o tutorial não reaparecer depois de um login.
+- `@vapefree_notifications` — `{ ativas, hora, minuto }` do lembrete diário (`obterPreferenciasDeNotificacao()`/`salvarPreferenciasDeNotificacao()`). Quem agenda é o próprio aparelho, então guardar na conta não faria sentido. Ver [notifications.md](notifications.md).
 
 O modo convidado fala direto com o `AsyncStorage`. O modo conta **não** fala direto com o Firestore: passa pelo espelho local + fila de `utils/offline.js` (ver abaixo).
 
@@ -86,7 +89,7 @@ Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
 **Mission (concluída)**: `{ id, missionId, period, periodKey, xp, completedAt }`. `id` = `` `${missionId}_${periodKey}` `` (ex: `daily_clean_2026-07-22`), o que torna a gravação idempotente dentro do período. `period` ∈ `'daily' | 'weekly'`; `periodKey` é a data do dia (diária) ou da segunda-feira da semana (semanal). Firestore: subcoleção `users/{uid}/missions`, doc id = o próprio `id`. Convidado: array em `@vapefree_missions`. Só missões **concluídas** são gravadas — a lista de missões possíveis é código, em `utils/missions.js`. Ver [missions.md](missions.md).
 
-**XP** (snapshot): `{ xp, level, levelName, updatedAt }`. Firestore: campo `xp` no doc `users/{uid}`. Convidado: `@vapefree_xp`. **Não é a fonte da verdade** — o XP é sempre *derivado* de registros + conquistas + missões + melhor streak por `calcularXp` (`utils/xp.js`); esse snapshot é só cache do último cálculo, gravado por `atualizarXp(records, achievements, missions)` (chamado no `carregar()` da HomeScreen, da MissionsScreen e depois de salvar registro/sessão de crise). Regras: +10 XP por registro, +30 por dia registrado sem uso, +100 por cada 7 dias seguidos sem uso (melhor streak histórico), + o campo `xp` de cada conquista desbloqueada, + o `xp` gravado em cada missão concluída. `atualizarXp` também devolve `ganho` (diferença pro snapshot anterior) — é o que alimenta o toast de XP. Níveis em `NIVEIS`: Iniciante 0, Resistente 200, Guerreiro 500, Campeão 1000, Lendário 2000+.
+**XP** (snapshot): `{ xp, level, levelName, updatedAt }`. Firestore: campo `xp` no doc `users/{uid}`. Convidado: `@vapefree_xp`. **Não é a fonte da verdade** — o XP é sempre *derivado* de registros + conquistas + missões + melhor streak por `calcularXp` (`utils/xp.js`); esse snapshot é só cache do último cálculo, gravado por `atualizarXp(records, achievements, missions)` (chamado sempre via `sincronizarGamificacao` — ver `docs/missions.md`, nunca direto pela tela). Regras: +10 XP por registro, +30 por dia registrado sem uso, +100 por cada 7 dias seguidos sem uso (melhor streak histórico), + o campo `xp` de cada conquista desbloqueada, + o `xp` gravado em cada missão concluída. `atualizarXp` também devolve `ganho` (diferença pro snapshot anterior) — é o que alimenta o toast de XP. Níveis em `NIVEIS`: Iniciante 0, Resistente 200, Guerreiro 500, Campeão 1000, Lendário 2000+.
 
 **CrisisSession** (modo crise): `{ id, date, time, method, durationSec, completed, outcome, note }`. `id` = `Date.now()`, `method` ∈ `'respiracao' | 'timer' | 'distracao' | null`, `outcome` ∈ `'passou' | 'diminuiu' | 'usei' | null` (null = usuário pulou o feedback). Firestore: subcoleção `users/{uid}/crisisSessions`. Convidado: array em `@vapefree_crisis`. Salva sempre que o usuário encerra a `CrisisScreen`, mesmo sem responder o feedback — ter pedido ajuda já é dado. Lido por `metodoDeCriseRecomendado` (`utils/insights.js`) para sugerir na próxima crise o método que já funcionou.
 
@@ -103,6 +106,21 @@ O `max(0, ...)` trunca o excesso: dia acima da meta vira economia `0` e o quanto
 `migrarDadosDoConvidadoParaConta(uid)`: lê tudo do `AsyncStorage`, grava `device`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements`, `crisisSessions` e `missions` (apaga os docs existentes na conta antes de escrever — é uma sobreposição, não um merge de listas), preenche o espelho local com o que subiu e só então limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
 
 É a **única operação que exige internet**: sai devolvendo `false` se `estaOnline()` for falso, e qualquer erro no meio é capturado — nesse caso os dados locais do convidado ficam intactos, pra dar pra tentar de novo. Não entra na fila offline porque apaga documentos remotos antes de escrever; parar no meio disso deixaria a conta pela metade.
+
+## Apagar dados
+
+`apagarTodosOsDados()` (Configurações → "Apagar todos os meus dados") zera o progresso mantendo a conta:
+
+- **Convidado**: `limparDadosLocaisDoConvidado()` — o tutorial, o tema e a preferência de notificação sobrevivem (ficam fora de `CHAVES`).
+- **Conta**: apaga todos os docs das quatro subcoleções, zera `device`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` e deixa o espelho **quente e vazio** (`[]`/`{}`/`null`), pra leitura offline não confundir "apagado" com "ainda não carregado".
+
+Como a migração, **exige internet** (devolve `{ ok: false, motivo: 'rede' }` offline): apagar subcoleção depende de listar o que está no servidor. A fila é descartada antes da limpeza — escrita pendente que subisse depois ressuscitaria dado que o usuário mandou apagar.
+
+`apagarContaNoBanco(uid)` é a versão usada na exclusão de conta: faz o mesmo e ainda apaga o documento `users/{uid}`. Precisa rodar **antes** do `deleteUser` do Firebase Auth — ver [auth.md](auth.md).
+
+## Exportar dados
+
+`utils/exportacao.js` → `exportarDados('csv' | 'json')`. Lê tudo por `storage.js`, então funciona igual pra convidado e conta (e offline, servido pelo espelho); não escreve nada. CSV traz só os registros, uma linha por registro, com a economia do dia junto; JSON traz o pacote completo (registros, aparelho, economia, conquistas, sessões de crise, missões, XP), que serve de backup. No nativo grava em `Paths.cache` (`expo-file-system`) e abre o `Sharing.shareAsync`; na web baixa por link temporário, porque `expo-sharing` não existe lá. Devolve `{ ok }` ou `{ ok: false, motivo }` com `motivo` ∈ `'sem_dados' | 'sem_compartilhamento' | 'falhou'`.
 
 ## Helpers puros (sem I/O)
 

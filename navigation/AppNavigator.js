@@ -12,6 +12,7 @@ import AchievementsScreen from '../screens/AchievementsScreen';
 import DeviceScreen from '../screens/DeviceScreen';
 import Profile from '../screens/Profile';
 import SettingsScreen from '../screens/SettingsScreen';
+import AccountScreen from '../screens/AccountScreen';
 import CrisisScreen from '../screens/CrisisScreen';
 import MissionsScreen from '../screens/MissionsScreen';
 import BreathingScreen from '../screens/BreathingScreen';
@@ -78,9 +79,14 @@ function MainStack() {
       <Stack.Screen name="Device" component={DeviceScreen} />
       <Stack.Screen name="Profile" component={Profile} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Crisis" component={CrisisScreen} />
       <Stack.Screen name="Missions" component={MissionsScreen} />
       <Stack.Screen name="Breathing" component={BreathingScreen} />
+      {/* Mesma tela do tutorial de boas-vindas, aqui como rota normal: é o
+          "ver o tutorial de novo" das Configurações. Sem `aoConcluir`, ela
+          volta pela navegação. */}
+      <Stack.Screen name="Onboarding" component={OnboardingScreen} />
     </Stack.Navigator>
   );
 }

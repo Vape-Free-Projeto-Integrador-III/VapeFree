@@ -154,6 +154,7 @@ export default function BreathingScreen({ navigation, route }) {
     }
 
     return (
+        <View style={{ flex: 1, backgroundColor: cores.background }}>
         <ScrollView
             style={[styles.scroll, { backgroundColor: cores.background }]}
             contentContainerStyle={styles.container}
@@ -246,6 +247,7 @@ export default function BreathingScreen({ navigation, route }) {
                 </Text>
             </TouchableOpacity>
         </ScrollView>
+        </View>
     );
 }
 

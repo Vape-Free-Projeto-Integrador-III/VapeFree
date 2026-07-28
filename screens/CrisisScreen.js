@@ -25,11 +25,7 @@ import {
     obterRegistros,
     obterSessoesDeCrise,
     salvarSessaoDeCrise,
-    obterEconomia,
-    obterMissoes,
-    verificarEConcluirMissoes,
-    verificarEDesbloquearConquistas,
-    atualizarXp,
+    sincronizarGamificacao,
     dataDeHoje,
 } from '../utils/storage';
 import { usarToast } from '../context/ToastContext';
@@ -206,16 +202,8 @@ export default function CrisisScreen({ navigation, route }) {
         }
 
         // Vencer a vontade é missão diária — concede o XP antes de sair.
-        const [registros, economia, sessoesDeCrise] = await Promise.all([
-            obterRegistros(),
-            obterEconomia(),
-            obterSessoesDeCrise(),
-        ]);
-        const novasMissoes = await verificarEConcluirMissoes(registros, economia, sessoesDeCrise);
-        const missoesConcluidas = await obterMissoes();
-        const novasConquistas = await verificarEDesbloquearConquistas(registros, economia, missoesConcluidas);
-        const resumo = await atualizarXp(registros, null, missoesConcluidas);
-        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
+        const { recompensas } = await sincronizarGamificacao();
+        mostrarRecompensas(recompensas);
 
         setPendente(null);
         salvandoRef.current = false;
@@ -248,7 +236,7 @@ export default function CrisisScreen({ navigation, route }) {
         : METODOS;
 
     return (
-        <>
+        <View style={{ flex: 1, backgroundColor: cores.background }}>
             <ScrollView
                 style={[styles.scroll, { backgroundColor: cores.background }]}
                 contentContainerStyle={styles.container}
@@ -354,7 +342,7 @@ export default function CrisisScreen({ navigation, route }) {
                 aoEnviar={(desfecho, nota) => persistir(desfecho, nota)}
                 aoPular={pular}
             />
-        </>
+        </View>
     );
 }
 

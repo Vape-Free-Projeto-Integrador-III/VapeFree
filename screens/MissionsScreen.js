@@ -10,16 +10,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
-import {
-    obterRegistros,
-    obterEconomia,
-    obterSessoesDeCrise,
-    obterMissoes,
-    verificarEConcluirMissoes,
-    verificarEDesbloquearConquistas,
-    atualizarXp,
-    dataDeHoje,
-} from '../utils/storage';
+import { sincronizarGamificacao, dataDeHoje } from '../utils/storage';
 import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 
 function formatarProgresso(missao) {
@@ -38,19 +29,11 @@ export default function MissionsScreen({ navigation }) {
     const [missoes, setMissoes] = useState([]);
 
     const carregar = useCallback(async () => {
-        const [registros, economia, sessoesDeCrise] = await Promise.all([
-            obterRegistros(),
-            obterEconomia(),
-            obterSessoesDeCrise(),
-        ]);
+        const { registros, economia, sessoesDeCrise, missoesConcluidas, recompensas } =
+            await sincronizarGamificacao();
 
-        const novasMissoes = await verificarEConcluirMissoes(registros, economia, sessoesDeCrise);
-        const concluidas = await obterMissoes();
-        const novasConquistas = await verificarEDesbloquearConquistas(registros, economia, concluidas);
-        const resumo = await atualizarXp(registros, null, concluidas);
-
-        setMissoes(verificarMissoes(montarContextoDeMissoes(registros, economia, sessoesDeCrise, dataDeHoje()), concluidas));
-        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
+        setMissoes(verificarMissoes(montarContextoDeMissoes(registros, economia, sessoesDeCrise, dataDeHoje()), missoesConcluidas));
+        mostrarRecompensas(recompensas);
     }, [mostrarRecompensas]);
 
     useFocusEffect(useCallback(() => { carregar(); }, [carregar]));
@@ -113,6 +96,7 @@ export default function MissionsScreen({ navigation }) {
     );
 
     return (
+        <View style={{ flex: 1, backgroundColor: cores.background }}>
         <ScrollView style={[styles.scroll, { backgroundColor: cores.background }]} contentContainerStyle={styles.container}>
             <ScreenHeader
                 titulo="Missões"
@@ -141,6 +125,7 @@ export default function MissionsScreen({ navigation }) {
 
             <View style={{ height: 24 }} />
         </ScrollView>
+        </View>
     );
 }
 

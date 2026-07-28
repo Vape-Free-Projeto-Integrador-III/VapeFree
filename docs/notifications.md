@@ -2,6 +2,14 @@
 
 Só notificações **locais** (`expo-notifications`), sem servidor/push remoto. Tudo em `utils/notifications.js`. Não funciona na web (`Platform.OS === 'web'` retorna cedo em toda função exportada).
 
+## Preferência do usuário (liga/desliga + horário)
+
+`{ ativas, hora, minuto }`, padrão `{ true, 9, 0 }`, em `@vapefree_notifications` — preferência **do aparelho**, como tema e tutorial: fica fora de `CHAVES` e nunca vai pro Firestore (quem agenda é o próprio aparelho). Lida/gravada por `obterPreferenciasDeNotificacao()`/`salvarPreferenciasDeNotificacao()` (`utils/storage.js`), editada na `SettingsScreen`.
+
+`aplicarPreferenciasDeNotificacao()` é o **único ponto de agendamento** que o resto do app usa: lê a preferência e agenda as duas notificações no horário escolhido, ou cancela as duas se `ativas` for `false`. Devolve `{ ativas, hora, minuto, permitido }` — `permitido: false` quando o usuário negou a permissão do sistema, e é o que faz a `SettingsScreen` avisar que os lembretes estão bloqueados. Não chame `agendarNotificacoesMotivacionais`/`agendarNotificacaoDeStreak` direto de tela nenhuma: isso reativaria lembrete desligado.
+
+O horário escolhido vale só pro lembrete motivacional. O aviso de streak continua às 20h (só faz sentido perto do fim do dia), mas obedece o liga/desliga junto.
+
 ## Duas notificações, horários diferentes (motivacional 9h, streak 20h por padrão)
 
 Horários separados de propósito: quem tem streak e não registrou não recebe os dois banners juntos.
@@ -13,7 +21,7 @@ Motivacional usa `identifier`s fixos por dia — reagendar cancela todos os `-0`
 
 ## Quando são (re)agendadas
 
-`AuthContext` chama `agendarNotificacoesMotivacionais()` + `agendarNotificacaoDeStreak()` sempre que `user || ehConvidado` fica verdadeiro (login, cadastro, ou "continuar sem conta"), e cancela ambas quando volta a ficar fora do app (logout). Além disso, `RegisterScreen.handleSave` reagenda as duas depois de cada registro salvo/editado — assim o conteúdo (dica sorteada, streak atual) fica atualizado no mesmo dia.
+`AuthContext` chama `aplicarPreferenciasDeNotificacao()` sempre que `user || ehConvidado` fica verdadeiro (login, cadastro, ou "continuar sem conta"), e cancela ambas quando volta a ficar fora do app (logout). Além disso, `RegisterScreen.handleSave` chama a mesma função depois de cada registro salvo/editado — assim o conteúdo (dica sorteada, streak atual) fica atualizado no mesmo dia. A `SettingsScreen` chama logo depois de salvar a preferência, pra o horário novo valer na hora e não só na próxima abertura.
 
 ## Permissão
 

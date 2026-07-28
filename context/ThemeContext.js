@@ -12,7 +12,10 @@ export const ThemeContext = createContext({
 });
 
 export function ThemeProvider({ children }) {
-  const [estaEscuro, setEstaEscuro] = useState(false);
+  // null = flag ainda não foi lida do AsyncStorage. Enquanto isso o provider não
+  // renderiza nada: se assumisse "claro", quem usa dark mode via um flash branco
+  // a cada abertura (mesmo padrão do onboarding em AppNavigator.js).
+  const [estaEscuro, setEstaEscuro] = useState(null);
   // Telas de auth (Login/SignUp) têm layout de fundo branco fixo, então elas
   // pedem tema claro enquanto estão montadas. Fica aqui no provider (e não
   // dentro da tela) porque o toast e o ConfirmModal moram acima da navegação:
@@ -20,9 +23,9 @@ export function ThemeProvider({ children }) {
   const [claroForcado, setClaroForcado] = useState(false);
 
   React.useEffect(() => {
-    AsyncStorage.getItem(CHAVE_MODO_ESCURO).then((valor) => {
-      if (valor === 'true') setEstaEscuro(true);
-    });
+    AsyncStorage.getItem(CHAVE_MODO_ESCURO)
+      .then((valor) => setEstaEscuro(valor === 'true'))
+      .catch(() => setEstaEscuro(false));
   }, []);
 
   const alternarTema = () => {
@@ -48,6 +51,8 @@ export function ThemeProvider({ children }) {
     if (typeof Appearance.setColorScheme !== 'function') return;
     Appearance.setColorScheme(escuroEfetivo ? 'dark' : 'light');
   }, [escuroEfetivo]);
+
+  if (estaEscuro === null) return null;
 
   return (
     <ThemeContext.Provider

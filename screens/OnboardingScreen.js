@@ -1,8 +1,12 @@
 //
-// Tutorial de boas-vindas, exibido UMA vez, na primeira abertura do app —
-// antes de qualquer decisão de login (ver navigation/AppNavigator.js).
-// Por isso ele não usa ScreenHeader nem faz parte de nenhum Stack: é uma tela
-// solta, com callback `aoConcluir` em vez de `navigation`.
+// Tutorial de boas-vindas, exibido na primeira abertura do app — antes de
+// qualquer decisão de login (ver navigation/AppNavigator.js). Nesse caso ele
+// não usa ScreenHeader nem faz parte de nenhum Stack: é uma tela solta, que
+// avisa que terminou pelo callback `aoConcluir`.
+//
+// A MESMA tela também é uma rota da MainStack ('Onboarding'), pro "ver o
+// tutorial de novo" das Configurações. Aí não vem `aoConcluir` e o fim do
+// tutorial volta pela navegação.
 //
 // A flag fica em AsyncStorage via concluirOnboarding() (utils/storage.js).
 
@@ -64,7 +68,7 @@ const PASSOS = [
   },
 ];
 
-export default function OnboardingScreen({ aoConcluir }) {
+export default function OnboardingScreen({ aoConcluir, navigation }) {
   const { cores } = usarTema();
   const { width } = useWindowDimensions();
   const [indice, setIndice] = useState(0);
@@ -78,7 +82,11 @@ export default function OnboardingScreen({ aoConcluir }) {
     if (finalizandoRef.current) return;
     finalizandoRef.current = true;
     await concluirOnboarding();
-    aoConcluir();
+    if (aoConcluir) {
+      aoConcluir();
+      return;
+    }
+    navigation?.goBack();
   }
 
   function avancar() {

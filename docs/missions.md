@@ -37,13 +37,19 @@ Concluir a primeira missão desbloqueia a conquista `first_mission` (`utils/achi
 
 ## Fluxo em runtime
 
-1. A tela carrega `registros`, `economia` e `sessoesDeCrise`.
-2. `verificarEConcluirMissoes(records, economy, crisisSessions)` (`utils/storage.js`) avalia, **salva** as recém-concluídas e devolve só essas novas.
-3. `verificarEDesbloquearConquistas(records, economy, completedMissions)` e `atualizarXp(records, null, completedMissions)`.
-4. `mostrarRecompensas({ achievements, missions, gained })` (`context/ToastContext.js`) mostra um toast por conquista/missão nova e um genérico com o XP restante.
-5. Para exibir, a tela usa `verificarMissoes(ctx, completedMissions)` — devolve o estado de todas as missões do período com `current`/`target`/`completed`.
+A tela **não** repete os passos na mão: chama `sincronizarGamificacao(entrada?)` (`utils/storage.js`), que faz o bloco inteiro na ordem certa e nunca lança:
 
-Esse fluxo roda em `HomeScreen`, `MissionsScreen`, `RegisterScreen` (após salvar), `CrisisScreen` (ao encerrar a sessão), `HistoryScreen` (após editar/excluir registro — muda puxadas e economia) e `DeviceScreen` (após salvar aparelho — recalcula a economia inteira).
+1. Carrega `registros`, `economia`, `sessoesDeCrise` e `diasDeAbertura` — ou usa os que a tela já carregou e passou em `entrada` (`{ registros, economia, sessoesDeCrise, diasDeAbertura }`, todos opcionais).
+2. `verificarEConcluirMissoes(records, economy, crisisSessions)` avalia, **salva** as recém-concluídas e devolve só essas novas.
+3. `verificarEDesbloquearConquistas(records, economy, completedMissions, ctx)` — a ordem importa: concluir missão pode desbloquear conquista (ex: `first_mission`).
+4. `atualizarXp(records, null, completedMissions)` por último, já com missão e conquista novas contabilizadas.
+
+Devolve `{ registros, economia, sessoesDeCrise, missoesConcluidas, resumo, recompensas }`. A tela então:
+
+5. `mostrarRecompensas(recompensas)` (`context/ToastContext.js`) — `recompensas` já vem no shape `{ conquistas, missoes, ganho }`; quem quer customizar o toast espalha e sobrescreve (`{ ...recompensas, icone, titulo }`, como o `RegisterScreen`).
+6. Para exibir a lista, usa `verificarMissoes(ctx, missoesConcluidas)` — devolve o estado de todas as missões do período com `current`/`target`/`completed`.
+
+Chamam `sincronizarGamificacao`: `HomeScreen` (passando `diasDeAbertura` de `registrarAberturaDoApp`), `MissionsScreen`, `RegisterScreen` (após salvar), `CrisisScreen` (ao encerrar a sessão), `HistoryScreen` (após editar/excluir registro — muda puxadas e economia) e `DeviceScreen` (após salvar aparelho — recalcula a economia inteira). **Não** reimplemente a sequência numa tela nova.
 
 ## UI
 

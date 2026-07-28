@@ -17,10 +17,7 @@ import {
     obterEconomia,
     ultimosNDias,
     obterSessoesDeCrise,
-    obterMissoes,
-    verificarEConcluirMissoes,
-    verificarEDesbloquearConquistas,
-    atualizarXp,
+    sincronizarGamificacao,
     calcularEstadoDeStreak,
     dataDeHoje,
     registrarAberturaDoApp,
@@ -62,18 +59,15 @@ export default function HomeScreen({ navigation }) {
         setAparelho(d);
         setEconomia(e);
 
-        const novasMissoes = await verificarEConcluirMissoes(r, e, c);
-        const missoesConcluidas = await obterMissoes();
-        setMissoes(verificarMissoes(montarContextoDeMissoes(r, e, c, dataDeHoje()), missoesConcluidas));
-
-        // Concluir missão pode desbloquear conquista (ex: first_mission).
-        const novasConquistas = await verificarEDesbloquearConquistas(r, e, missoesConcluidas, {
+        const { missoesConcluidas, resumo, recompensas } = await sincronizarGamificacao({
+            registros: r,
+            economia: e,
             sessoesDeCrise: c,
             diasDeAbertura,
         });
-        const resumo = await atualizarXp(r, null, missoesConcluidas);
+        setMissoes(verificarMissoes(montarContextoDeMissoes(r, e, c, dataDeHoje()), missoesConcluidas));
         setXp(resumo.xp);
-        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
+        mostrarRecompensas(recompensas);
     }, [mostrarRecompensas]);
 
     useFocusEffect(

@@ -15,7 +15,12 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { DICAS } from './theme';
-import { obterRegistros, dataDeHoje, calcularStreak } from './storage';
+import {
+  obterRegistros,
+  dataDeHoje,
+  calcularStreak,
+  obterPreferenciasDeNotificacao,
+} from './storage';
 
 // Identificador base: um id por dia agendado (ID_NOTIFICACAO_DIARIA-0, -1, ...),
 // assim cancelamos todos antes de criar os próximos (evita duplicar notificações).
@@ -153,12 +158,12 @@ export async function agendarNotificacoesMotivacionais(
 ) {
   if (Platform.OS === 'web') {
     // expo-notifications não tem suporte a notificações locais na web.
-    return;
+    return false;
   }
 
   const permitido = await pedirPermissaoDeNotificacoes();
   if (!permitido) {
-    return;
+    return false;
   }
 
   await garantirCanalAndroid();
@@ -184,6 +189,8 @@ export async function agendarNotificacoesMotivacionais(
       },
     });
   }
+
+  return true;
 }
 
 export async function agendarNotificacaoDeStreak(
@@ -191,12 +198,12 @@ export async function agendarNotificacaoDeStreak(
   minuto = MINUTO_PADRAO_STREAK
 ) {
   if (Platform.OS === 'web') {
-    return;
+    return false;
   }
 
   const permitido = await pedirPermissaoDeNotificacoes();
   if (!permitido) {
-    return;
+    return false;
   }
 
   await garantirCanalAndroid();
@@ -206,7 +213,7 @@ export async function agendarNotificacaoDeStreak(
   await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_STREAK).catch(() => {});
 
   if (!conteudo) {
-    return;
+    return true;
   }
 
   await Notifications.scheduleNotificationAsync({
@@ -219,6 +226,31 @@ export async function agendarNotificacaoDeStreak(
       channelId: Platform.OS === 'android' ? 'motivational' : undefined,
     },
   });
+
+  return true;
+}
+
+// Ponto único de agendamento: lê a preferência do aparelho (liga/desliga +
+// horário do lembrete, ver utils/storage.js) e agenda ou cancela tudo de
+// acordo. É o que a SettingsScreen chama depois de mudar a preferência e o que
+// o AuthContext chama ao entrar no app.
+//
+// O horário escolhido vale pro lembrete diário. O aviso de streak continua no
+// fim do dia (20h) de propósito — ele só faz sentido perto do fim do dia — mas
+// obedece o liga/desliga junto.
+export async function aplicarPreferenciasDeNotificacao() {
+  const preferencias = await obterPreferenciasDeNotificacao();
+
+  if (!preferencias.ativas) {
+    await cancelarNotificacoesMotivacionais();
+    await cancelarNotificacaoDeStreak();
+    return { ...preferencias, permitido: true };
+  }
+
+  const agendou = await agendarNotificacoesMotivacionais(preferencias.hora, preferencias.minuto);
+  await agendarNotificacaoDeStreak();
+
+  return { ...preferencias, permitido: agendou };
 }
 
 // Cancela a notificação motivadora diária (chamar no logout, por exemplo,

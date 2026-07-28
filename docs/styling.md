@@ -15,7 +15,7 @@ Cor de marca: verde (`#4CAF50` claro / `#66BB6A` escuro). Telas de auth (`LoginS
 
 ## Dark mode
 
-`ThemeContext` guarda `estaEscuro` em `AsyncStorage` (`@vapefree_dark_mode`), alternado pelo botão sol/lua no `ScreenHeader`. Aplica-se a todo o app **exceto** telas de auth (Login/SignUp, que são sempre claras).
+`ThemeContext` guarda `estaEscuro` em `AsyncStorage` (`@vapefree_dark_mode`), alternado pelo botão sol/lua no `ScreenHeader`. O state começa em `null` (flag ainda não lida) e o provider **não renderiza os filhos** nesse intervalo — assumir "claro" fazia quem usa dark mode ver um flash branco a cada abertura. Mesmo padrão do `mostrarOnboarding` em `AppNavigator.js`. Aplica-se a todo o app **exceto** telas de auth (Login/SignUp, que são sempre claras).
 
 O "exceto" é implementado por `forcarTemaClaro(bool)`, exposto pelo `ThemeContext`: o `AuthStack` (`navigation/AppNavigator.js`) chama `forcarTemaClaro(true)` no mount e `false` no unmount. Enquanto ligado, `cores` e o `estaEscuro` devolvido por `usarTema()` são os claros — a preferência salva não é tocada, então sair da stack de auth volta ao escuro. Precisa ser global (e não um provider só em volta da tela) porque o `Toast` e o `ConfirmModal` são renderizados pelo `ToastProvider`, que fica **acima** do `NavigationContainer`; sem isso eles apareceriam escuros por cima da tela de login branca.
 

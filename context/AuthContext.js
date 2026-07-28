@@ -20,8 +20,7 @@ import { auth } from '../services/firebase';
 import { contarPendencias, sincronizar } from '../utils/offline';
 import { descartarEspelhoDaConta } from '../utils/storage';
 import {
-  agendarNotificacoesMotivacionais,
-  agendarNotificacaoDeStreak,
+  aplicarPreferenciasDeNotificacao,
   cancelarNotificacoesMotivacionais,
   cancelarNotificacaoDeStreak,
 } from '../utils/notifications';
@@ -105,11 +104,9 @@ export function AuthProvider({ children }) {
     const estaDentroDoApp = !!usuario || ehConvidado;
 
     if (estaDentroDoApp) {
-      agendarNotificacoesMotivacionais().catch((erro) =>
-        console.log('Erro ao agendar notificações motivadoras:', erro)
-      );
-      agendarNotificacaoDeStreak().catch((erro) =>
-        console.log('Erro ao agendar notificação de streak:', erro)
+      // Respeita o liga/desliga e o horário escolhidos nas Configurações.
+      aplicarPreferenciasDeNotificacao().catch((erro) =>
+        console.log('Erro ao aplicar as preferências de notificação:', erro)
       );
     } else {
       cancelarNotificacoesMotivacionais().catch((erro) =>
