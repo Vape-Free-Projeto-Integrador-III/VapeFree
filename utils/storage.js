@@ -1,4 +1,3 @@
-// src/utils/storage.js
 //
 // Camada de dados do app. As funções exportadas aqui (obterRegistros,
 // salvarRegistro, obterAparelho, etc.) são o único caminho de leitura/escrita

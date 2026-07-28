@@ -103,7 +103,6 @@ export default function Profile({ navigation }) {
                 subtitulo={ehConvidado ? 'Você tá no modo convidado' : 'Seus dados'}
                 cores={cores}
                 aoPressionarVoltar={handleVoltar}
-                mostrarPerfil={false}
             />
 
             {ehConvidado ? (

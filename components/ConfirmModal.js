@@ -1,4 +1,3 @@
-// src/components/ConfirmModal.js
 // Modal de confirmação genérico, no mesmo visual do GuestDataChoiceModal, mas
 // temado (usarTema) e dirigido por um array de botões no formato do
 // Alert.alert do React Native: [{ text, onPress, style }].

@@ -1,4 +1,3 @@
-// src/components/AchievementCelebration.js
 // Modal de celebração que aparece ao desbloquear uma conquista.
 // Emoji grande com pulso, confete animado (Animated puro, sem lib) e vibração.
 // Quem dispara é o ToastProvider (context/ToastContext.js), uma conquista

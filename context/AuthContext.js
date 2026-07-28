@@ -1,4 +1,3 @@
-// src/context/AuthContext.js
 //
 // Context responsável por TODO o gerenciamento de sessão do app.
 // Ele escuta o Firebase Authentication via onAuthStateChanged() e

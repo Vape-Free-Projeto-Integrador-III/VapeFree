@@ -1,4 +1,3 @@
-// src/components/CrisisOutcomeModal.js
 //
 // Fecha o ciclo do modo crise: pergunta como foi depois que o usuário
 // encerra a sessão. A resposta alimenta metodoDeCriseRecomendado

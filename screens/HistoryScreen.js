@@ -1,4 +1,3 @@
-// src/screens/HistoryScreen.js
 import React, { useState, useCallback } from 'react';
 import {
     View,
@@ -26,6 +25,10 @@ import {
     recalcularEconomia,
     obterEconomia,
     obterSessoesDeCrise,
+    obterMissoes,
+    verificarEConcluirMissoes,
+    verificarEDesbloquearConquistas,
+    atualizarXp,
 } from '../utils/storage';
 import { puxadasDoRegistro } from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS } from '../utils/theme';
@@ -113,7 +116,7 @@ function agruparRegistrosPor(registros, obterChave, metrica) {
 
 export default function HistoryScreen({ navigation }) {
     const { cores } = usarTema();
-    const { mostrarErro } = usarToast();
+    const { mostrarErro, mostrarRecompensas } = usarToast();
     const [registros, setRegistros] = useState([]);
     const [sessoesDeCrise, setSessoesDeCrise] = useState([]);
     const [filtro, setFiltro] = useState('day');
@@ -162,6 +165,22 @@ export default function HistoryScreen({ navigation }) {
 
     const iconeDaIntensidade = (n) => { if (n <= 3) return '🟢'; if (n <= 6) return '🟡'; return '🔴'; };
 
+    // Editar/excluir registro muda puxadas e economia, então pode concluir
+    // missão e desbloquear conquista na hora — mesmo fluxo do Register/Crisis.
+    const recalcularEConceder = async () => {
+        const [todosOsRegs, aparelho] = await Promise.all([obterRegistros(), obterAparelho()]);
+        const economia = aparelho ? await recalcularEconomia(todosOsRegs, aparelho) : await obterEconomia();
+        const sessoes = await obterSessoesDeCrise();
+        setRegistros(todosOsRegs);
+        setSessoesDeCrise(sessoes);
+
+        const novasMissoes = await verificarEConcluirMissoes(todosOsRegs, economia, sessoes);
+        const missoesConcluidas = await obterMissoes();
+        const novasConquistas = await verificarEDesbloquearConquistas(todosOsRegs, economia, missoesConcluidas);
+        const resumo = await atualizarXp(todosOsRegs, null, missoesConcluidas);
+        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
+    };
+
     const salvarEdicao = async () => {
         if (!registroEmEdicao) return;
         const resultado = await atualizarRegistro(registroEmEdicao);
@@ -170,10 +189,8 @@ export default function HistoryScreen({ navigation }) {
             mostrarErro('Não deu pra salvar a edição', 'Verifique sua conexão e tente de novo.');
             return;
         }
-        const [todosOsRegs, aparelho, economia] = await Promise.all([obterRegistros(), obterAparelho(), obterEconomia()]);
-        await recalcularEconomia(todosOsRegs, aparelho);
-        setRegistros(todosOsRegs);
         setRegistroEmEdicao(null);
+        await recalcularEConceder();
     };
 
     const excluir = async () => {
@@ -184,10 +201,8 @@ export default function HistoryScreen({ navigation }) {
             setIdParaExcluirConfirmacao(null);
             return;
         }
-        const [todosOsRegs, aparelho] = await Promise.all([obterRegistros(), obterAparelho()]);
-        await recalcularEconomia(todosOsRegs, aparelho);
-        setRegistros(todosOsRegs);
         setIdParaExcluirConfirmacao(null);
+        await recalcularEConceder();
     };
 
     return (
@@ -490,16 +505,10 @@ const styles = StyleSheet.create({
     chart: { borderRadius: RAIO.md },
     emptyChartWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 28 },
     emptyChart: { fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', paddingTop: 10 },
-    listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 16, marginTop: 20 },
-    listTitle: { fontSize: 16, fontFamily: 'Poppins_700Bold' },
-    listCount: { fontSize: 12 , fontFamily: 'Poppins_400Regular'},
-    emptyWrap: { alignItems: 'center', paddingVertical: 60 },
-    emptyTitle: { fontSize: 16, fontFamily: 'Poppins_700Bold', marginTop: 12 },
     emptySubtitle: { fontSize: 13, fontFamily: 'Poppins_400Regular', marginTop: 4 },
     histItem: { borderRadius: RAIO.md, padding: 14, marginHorizontal: 16, marginTop: 10 },
     histTop: { flexDirection: 'row', alignItems: 'flex-start' },
     histDate: { fontSize: 13, fontFamily: 'Poppins_700Bold' },
-    histDev: { fontSize: 11, fontFamily: 'Poppins_400Regular', marginTop: 2 },
     histPuffs: { fontSize: 14, fontFamily: 'Poppins_800ExtraBold' },
     histNone: { fontSize: 14, fontFamily: 'Poppins_800ExtraBold' },
     histIntensity: { fontSize: 11, fontFamily: 'Poppins_400Regular', marginTop: 2 },

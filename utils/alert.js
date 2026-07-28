@@ -1,4 +1,3 @@
-// src/utils/alert.js
 // Mantém a assinatura de Alert.alert do React Native de propósito: é um
 // drop-in do componente nativo, só que renderizando o UI do próprio app.
 //

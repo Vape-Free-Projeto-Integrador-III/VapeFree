@@ -1,5 +1,3 @@
-// App.js
-import 'react-native-reanimated';
 import React from 'react';
 import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';

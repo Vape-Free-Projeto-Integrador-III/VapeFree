@@ -1,19 +1,29 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usarConexao } from '../context/ConnectionContext';
+import { usarAuth } from '../context/AuthContext';
 
 export default function ScreenHeader({
     titulo,
     subtitulo,
     cores,
-    aoPressionarPerfil,
     aoPressionarVoltar,
     aoPressionarConfiguracoes,
-    mostrarPerfil = true,
     mostrarConfiguracoes = false,
 }) {
+    const insets = useSafeAreaInsets();
+    const { online } = usarConexao();
+    const { usuario } = usarAuth();
+
+    // O OfflineBanner (quando visível) já fica acima do header e come o inset
+    // do topo — somar de novo aqui abriria um vão dobrado.
+    const faixaOfflineVisivel = !online && !!usuario;
+    const espacoDoTopo = (faixaOfflineVisivel ? 0 : insets.top) + 12;
+
     return (
-        <View style={[styles.header, { backgroundColor: cores.primary }]}>
+        <View style={[styles.header, { backgroundColor: cores.primary, paddingTop: espacoDoTopo }]}>
             {aoPressionarVoltar ? (
                 <TouchableOpacity onPress={aoPressionarVoltar} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={22} color="#fff" />
@@ -32,10 +42,6 @@ export default function ScreenHeader({
                     <TouchableOpacity onPress={aoPressionarConfiguracoes} style={styles.settingsBtn}>
                         <Ionicons name="settings-outline" size={22} color="#fff" />
                     </TouchableOpacity>
-                ) : mostrarPerfil ? (
-                    <TouchableOpacity onPress={aoPressionarPerfil} style={styles.profileBtn}>
-                        <Ionicons name="person-circle-outline" size={28} color="#fff" />
-                    </TouchableOpacity>
                 ) : (
                     <View style={styles.profilePlaceholder} />
                 )}
@@ -47,7 +53,6 @@ export default function ScreenHeader({
 const styles = StyleSheet.create({
     header: {
         paddingHorizontal: 16,
-        paddingTop: 30,
         paddingBottom: 20,
         flexDirection: 'row',
         alignItems: 'center',
@@ -82,14 +87,6 @@ const styles = StyleSheet.create({
     actions: {
         alignItems: 'center',
         gap: 8,
-    },
-    profileBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.2)',
     },
     settingsBtn: {
         width: 38,

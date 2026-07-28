@@ -1,21 +1,3 @@
-// src/utils/theme.js
-export const CORES = {
-  primary: '#4CAF50',
-  primaryLight: '#E8F5E9',
-  primaryMid: '#81C784',
-  primaryDark: '#2E7D32',
-  background: '#F9F9F9',
-  white: '#FFFFFF',
-  text: '#1A1A1A',
-  textSecondary: '#555555',
-  textMuted: '#888888',
-  border: '#E0E0E0',
-  borderLight: '#F0F0F0',
-  danger: '#E53935',
-  warning: '#FB8C00',
-  cardShadow: '#00000014',
-};
-
 export const RAIO = {
   sm: 8,
   md: 12,

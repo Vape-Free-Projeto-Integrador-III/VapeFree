@@ -1,4 +1,3 @@
-// src/screens/OnboardingScreen.js
 //
 // Tutorial de boas-vindas, exibido UMA vez, na primeira abertura do app —
 // antes de qualquer decisão de login (ver navigation/AppNavigator.js).

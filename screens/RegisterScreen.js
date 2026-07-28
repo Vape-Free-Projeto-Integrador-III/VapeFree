@@ -1,4 +1,3 @@
-// src/screens/RegisterScreen.js
 import React, { useState, useRef } from 'react';
 import {
     View,

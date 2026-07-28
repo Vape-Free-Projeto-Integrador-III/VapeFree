@@ -1,4 +1,3 @@
-// src/screens/DeviceScreen.js
 import React, { useState, useEffect } from 'react';
 import {
     View,
@@ -11,7 +10,17 @@ import {
 } from 'react-native';
 import Alert from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
-import { obterAparelho, salvarAparelho, obterRegistros, recalcularEconomia } from '../utils/storage';
+import {
+    obterAparelho,
+    salvarAparelho,
+    obterRegistros,
+    recalcularEconomia,
+    obterSessoesDeCrise,
+    obterMissoes,
+    verificarEConcluirMissoes,
+    verificarEDesbloquearConquistas,
+    atualizarXp,
+} from '../utils/storage';
 import { custoPorPuxada, metaDiaria } from '../utils/records';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
@@ -20,7 +29,7 @@ import ScreenHeader from '../components/ScreenHeader';
 
 export default function DeviceScreen({ navigation }) {
     const { cores } = usarTema();
-    const { mostrarErro } = usarToast();
+    const { mostrarErro, mostrarRecompensas } = usarToast();
     const [nome, setNome] = useState('');
     const [preco, setPreco] = useState('');
     const [totalDePuxadas, setTotalDePuxadas] = useState('');
@@ -78,10 +87,18 @@ export default function DeviceScreen({ navigation }) {
             mostrarErro('Não deu pra salvar o aparelho', 'Verifique sua conexão e tente de novo.');
             return;
         }
+        // Trocar o aparelho recalcula a economia inteira, então conquistas de
+        // economia (economy_50/200/...) e missões podem cair na hora.
         const todosRegistros = await obterRegistros();
-        await recalcularEconomia(todosRegistros, aparelho);
+        const economia = await recalcularEconomia(todosRegistros, aparelho);
+        const sessoes = await obterSessoesDeCrise();
+        const novasMissoes = await verificarEConcluirMissoes(todosRegistros, economia, sessoes);
+        const missoesConcluidas = await obterMissoes();
+        const novasConquistas = await verificarEDesbloquearConquistas(todosRegistros, economia, missoesConcluidas);
+        const resumo = await atualizarXp(todosRegistros, null, missoesConcluidas);
         setSalvando(false);
         mostrarSucesso();
+        mostrarRecompensas({ conquistas: novasConquistas, missoes: novasMissoes, ganho: resumo.ganho });
     };
 
     // Aparelho "em rascunho", só pra prévia — os helpers puros fazem as contas.

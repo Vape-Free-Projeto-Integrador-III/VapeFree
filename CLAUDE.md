@@ -15,7 +15,6 @@ Detalhes por assunto ficam em `docs/`. Este arquivo só traz regras permanentes 
 - **StyleSheet.create** do React Native para estilos — sem NativeWind/Tailwind, sem styled-components.
 - `react-native-chart-kit` (gráficos), `@miblanchard/react-native-slider` (sliders), `@expo/vector-icons` (ícones Ionicons).
 - `react-native-view-shot` + `expo-sharing` — só no compartilhamento de conquista (`components/AchievementCelebration.js`).
-- `react-native-paper` está no `package.json` mas **não é usado em nenhum lugar do código** — não assuma que está configurado/wired.
 - Sem ESLint, Prettier, Jest, `babel.config.js`, `metro.config.js` ou `eas.json` no repo — projeto roda só com os defaults do Expo.
 
 Ver `docs/architecture.md` para como as camadas se conectam.
@@ -36,13 +35,13 @@ docs/                # documentação detalhada por assunto (este índice)
 coisasParaFazer.txt  # backlog/roadmap do projeto — ver antes de propor features novas
 ```
 
-Não existe pasta `src/` — tudo fica na raiz. Vários arquivos começam com comentário `// src/...` (resquício de uma estrutura antiga); ignore esse comentário, o caminho real é a partir da raiz.
+Não existe pasta `src/` — tudo fica na raiz.
 
 ## Convenções obrigatórias
 
 - **Imports relativos sempre.** Não existe alias configurado (nem `babel-module-resolver`, nem `tsconfig paths`). Não introduza aliases sem discutir primeiro — quebraria consistência com todo o código existente.
 - **Toda leitura/escrita de dados passa por `utils/storage.js`.** Telas nunca chamam `AsyncStorage` ou `firestore` diretamente (exceção: telas de auth, que chamam `firebase/auth` diretamente — ver `docs/auth.md`). Isso é o que permite o app funcionar igual para convidado e usuário logado.
-- **Cores/tema vêm de `usarTema().cores`**, nunca do `CORES` estático exportado por `utils/theme.js` (esse export é resquício do tema antigo, anterior ao dark mode, e não reage a `estaEscuro`). `RAIO`, `SOMBRA`, `DICAS`, `GATILHOS`, `AJUDAS`, `MENSAGENS_MOTIVACIONAIS` de `utils/theme.js` continuam válidos e são estáticos por natureza.
+- **Cores/tema vêm de `usarTema().cores`** — é a única fonte que reage a `estaEscuro`. Exceção: `LoginScreen`/`SignUpScreen`, que têm um `CORES` local próprio (paleta azul fixa das telas de auth). `RAIO`, `SOMBRA`, `DICAS`, `GATILHOS`, `AJUDAS`, `MENSAGENS_MOTIVACIONAIS` de `utils/theme.js` continuam válidos e são estáticos por natureza.
 - **Toda tela usa `<ScreenHeader>`** (`components/ScreenHeader.js`) no topo, dentro de um `ScrollView` com `backgroundColor: cores.background`. Ver `docs/components.md`.
 - **`Alert` sempre de `utils/alert.js`, nunca de `react-native`.** `Alert.alert` nativo não funciona no web; o wrapper cobre native e web com a mesma assinatura. Ver `docs/components.md`.
 - **Todo o código em português.** Nomes de função, variável, parâmetro, handler e prop são em português, sem acento no identificador (`salvar`, `registros`, `aoPressionar`, `estaEscuro`). Continuam em inglês só: campos de dado persistido no Firestore/AsyncStorage (`date`, `puffs`, `used`, `totalPuffs`, `unlockedAt`, `missionId`, ...), chaves `@vapefree_*`, tokens de cor (`cores.primary`), route names da navegação, nomes de componente/arquivo e APIs de bibliotecas.

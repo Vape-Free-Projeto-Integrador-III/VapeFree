@@ -1,4 +1,3 @@
-// src/screens/CrisisScreen.js
 //
 // Modo crise ("Estou com vontade"). Menu direto: o usuário escolhe o
 // método, nada é imposto. Se o histórico de crises já mostrar um método
@@ -90,6 +89,9 @@ export default function CrisisScreen({ navigation, route }) {
     const iniciadoEm = useRef(Date.now());
     const intervaloDeEspera = useRef(null);
     const salvandoRef = useRef(false);
+    // Saída já decidida pelo usuário (pulou ou salvou o desfecho): o
+    // beforeRemove deixa passar em vez de reabrir o modal.
+    const saindoRef = useRef(false);
 
     const carregar = useCallback(async () => {
         const [registros, sessoes] = await Promise.all([obterRegistros(), obterSessoesDeCrise()]);
@@ -149,6 +151,16 @@ export default function CrisisScreen({ navigation, route }) {
         };
     }, []);
 
+    // Voltar por gesto/botão do sistema tem que perguntar o desfecho igual ao
+    // voltar do ScreenHeader — senão a sessão some sem registro nenhum.
+    useEffect(() => {
+        return navigation.addListener('beforeRemove', (e) => {
+            if (saindoRef.current) return;
+            e.preventDefault();
+            if (pendente === null) encerrar(metodoAtivo, segundosDecorridos(), false);
+        });
+    }, [navigation, metodoAtivo, pendente]);
+
     function segundosDecorridos() {
         return Math.round((Date.now() - iniciadoEm.current) / 1000);
     }
@@ -166,6 +178,7 @@ export default function CrisisScreen({ navigation, route }) {
     // vira sessão registrada, só fecha a tela (sem XP, sem contar pras stats).
     function pular() {
         setPendente(null);
+        saindoRef.current = true;
         navigation.goBack();
     }
 
@@ -206,6 +219,7 @@ export default function CrisisScreen({ navigation, route }) {
 
         setPendente(null);
         salvandoRef.current = false;
+        saindoRef.current = true;
         navigation.goBack();
     }
 

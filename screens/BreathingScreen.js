@@ -1,4 +1,3 @@
-// src/screens/BreathingScreen.js
 //
 // Respiração box 4-4-4-4: inspirar 4s -> segurar 4s -> expirar 4s -> segurar 4s.
 // Funciona sozinha ou como método do modo crise (route.params.fromCrisis).

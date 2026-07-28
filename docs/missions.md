@@ -43,7 +43,7 @@ Concluir a primeira missão desbloqueia a conquista `first_mission` (`utils/achi
 4. `mostrarRecompensas({ achievements, missions, gained })` (`context/ToastContext.js`) mostra um toast por conquista/missão nova e um genérico com o XP restante.
 5. Para exibir, a tela usa `verificarMissoes(ctx, completedMissions)` — devolve o estado de todas as missões do período com `current`/`target`/`completed`.
 
-Esse fluxo roda em `HomeScreen`, `MissionsScreen`, `RegisterScreen` (após salvar) e `CrisisScreen` (ao encerrar a sessão).
+Esse fluxo roda em `HomeScreen`, `MissionsScreen`, `RegisterScreen` (após salvar), `CrisisScreen` (ao encerrar a sessão), `HistoryScreen` (após editar/excluir registro — muda puxadas e economia) e `DeviceScreen` (após salvar aparelho — recalcula a economia inteira).
 
 ## UI
 

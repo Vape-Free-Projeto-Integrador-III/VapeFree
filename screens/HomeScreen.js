@@ -1,4 +1,3 @@
-// src/screens/HomeScreen.js
 import React, { useState, useCallback } from 'react';
 import {
     View,
@@ -322,7 +321,6 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
-    welcomeText: { fontSize: 14, fontFamily: 'Poppins_700Bold', color: '#fff', marginTop: 6 },
     card: {
         borderRadius: RAIO.lg,
         padding: 16,

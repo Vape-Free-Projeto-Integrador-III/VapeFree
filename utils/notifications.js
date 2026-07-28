@@ -1,4 +1,3 @@
-// src/utils/notifications.js
 //
 // Notificações LOCAIS (in-app) motivadoras, sem precisar de servidor/push.
 // Usa a biblioteca oficial `expo-notifications`. Funciona normalmente no
@@ -18,14 +17,25 @@ import * as Notifications from 'expo-notifications';
 import { DICAS } from './theme';
 import { obterRegistros, dataDeHoje, calcularStreak } from './storage';
 
-// Identificador fixo: usamos sempre o mesmo, assim cancelamos a notificação
-// anterior antes de criar uma nova (evita duplicar notificações).
+// Identificador base: um id por dia agendado (ID_NOTIFICACAO_DIARIA-0, -1, ...),
+// assim cancelamos todos antes de criar os próximos (evita duplicar notificações).
 const ID_NOTIFICACAO_DIARIA = 'vapefree-motivational-daily';
 const ID_NOTIFICACAO_DE_STREAK = 'vapefree-streak-warning-daily';
 
-// Horário padrão do lembrete diário (9h da manhã).
+// Horário padrão do lembrete motivacional (9h da manhã) e do aviso de
+// streak (20h) — horários diferentes pra não mandar os dois banners juntos
+// pra quem tem streak e ainda não registrou.
 const HORA_PADRAO = 9;
 const MINUTO_PADRAO = 0;
+const HORA_PADRAO_STREAK = 20;
+const MINUTO_PADRAO_STREAK = 0;
+
+// Quantos dias à frente agendar de uma vez. Só o dia 0 (hoje) reflete o
+// estado real (se já registrou, streak atual); os demais dias usam
+// conteúdo genérico (dica motivacional), pra não repetir uma afirmação
+// ("você ainda não registrou hoje") que pode ficar falsa se o app ficar
+// dias sem ser reaberto — um trigger DAILY único faria isso.
+const DIAS_DE_ANTECEDENCIA = 7;
 
 // Define como a notificação se comporta quando chega com o app ABERTO
 // (em primeiro plano). Sem isso, no iOS a notificação pode não aparecer
@@ -97,6 +107,27 @@ async function conteudoDoLembreteDiario() {
   };
 }
 
+// Conteúdo genérico pros dias futuros (dia > 0): não dá pra saber se o
+// usuário vai ter registrado ou não naquele dia, então usamos só uma dica
+// motivacional em vez de afirmar um estado que pode estar errado.
+function conteudoGenericoDoLembrete() {
+  return {
+    title: 'VapeFree 💚',
+    body: sortearDica(),
+  };
+}
+
+// Calcula a data/hora do gatilho pro N-ésimo dia à frente (0 = hoje),
+// no horário informado. Se o horário de hoje já passou, o dia 0 dispara
+// no mesmo instante (expo-notifications já lida com isso reagendando pro
+// próximo minuto), mas aqui sempre miramos hora:minuto do dia calculado.
+function dataDoGatilho(diasAFrente, hora, minuto) {
+  const data = new Date();
+  data.setDate(data.getDate() + diasAFrente);
+  data.setHours(hora, minuto, 0, 0);
+  return data;
+}
+
 async function conteudoDoAvisoDeStreak() {
   const registros = await obterRegistros();
   const hoje = dataDeHoje();
@@ -132,26 +163,32 @@ export async function agendarNotificacoesMotivacionais(
 
   await garantirCanalAndroid();
 
-  const conteudo = await conteudoDoLembreteDiario();
+  const conteudoDeHoje = await conteudoDoLembreteDiario();
 
-  // Cancela a notificação diária anterior (se existir) para não duplicar.
-  await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DIARIA).catch(() => {});
+  // Cancela as notificações diárias anteriores (se existirem) para não duplicar.
+  await Promise.all(
+    Array.from({ length: DIAS_DE_ANTECEDENCIA }, (_, dia) =>
+      Notifications.cancelScheduledNotificationAsync(`${ID_NOTIFICACAO_DIARIA}-${dia}`).catch(() => {})
+    )
+  );
 
-  await Notifications.scheduleNotificationAsync({
-    identifier: ID_NOTIFICACAO_DIARIA,
-    content: { ...conteudo, sound: true },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: hora,
-      minute: minuto,
-      channelId: Platform.OS === 'android' ? 'motivational' : undefined,
-    },
-  });
+  for (let dia = 0; dia < DIAS_DE_ANTECEDENCIA; dia++) {
+    const conteudo = dia === 0 ? conteudoDeHoje : conteudoGenericoDoLembrete();
+    await Notifications.scheduleNotificationAsync({
+      identifier: `${ID_NOTIFICACAO_DIARIA}-${dia}`,
+      content: { ...conteudo, sound: true },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: dataDoGatilho(dia, hora, minuto),
+        channelId: Platform.OS === 'android' ? 'motivational' : undefined,
+      },
+    });
+  }
 }
 
 export async function agendarNotificacaoDeStreak(
-  hora = HORA_PADRAO,
-  minuto = MINUTO_PADRAO
+  hora = HORA_PADRAO_STREAK,
+  minuto = MINUTO_PADRAO_STREAK
 ) {
   if (Platform.OS === 'web') {
     return;
@@ -190,7 +227,11 @@ export async function cancelarNotificacoesMotivacionais() {
   if (Platform.OS === 'web') {
     return;
   }
-  await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DIARIA).catch(() => {});
+  await Promise.all(
+    Array.from({ length: DIAS_DE_ANTECEDENCIA }, (_, dia) =>
+      Notifications.cancelScheduledNotificationAsync(`${ID_NOTIFICACAO_DIARIA}-${dia}`).catch(() => {})
+    )
+  );
 }
 
 export async function cancelarNotificacaoDeStreak() {

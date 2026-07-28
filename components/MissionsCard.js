@@ -1,4 +1,3 @@
-// src/components/MissionsCard.js
 // Card da HomeScreen com as missões diárias. A lista já vem calculada pela
 // tela (verificarMissoes em utils/missions.js) — aqui é só apresentação.
 import React from 'react';

@@ -1,4 +1,3 @@
-// src/utils/insights.js
 //
 // Funções PURAS de derivação — igual utils/achievements.js, não leem nem
 // escrevem nada. Recebem a lista de registros e devolvem os padrões que o

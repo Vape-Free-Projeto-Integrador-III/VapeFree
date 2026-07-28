@@ -1,4 +1,3 @@
-// src/utils/achievements.js
 
 export const CONQUISTAS = [
   {
@@ -47,11 +46,10 @@ export const CONQUISTAS = [
     titulo: 'Dia Livre',
     descricao: 'Passou 1 dia sem usar o vape',
     icone: '✅',
-    condicao: (registros) => {
-      const hoje = new Date().toISOString().slice(0, 10);
-      const registrosDeHoje = registros.filter((r) => r.date === hoje);
-      return registrosDeHoje.length > 0 && registrosDeHoje.every((r) => !r.used);
-    },
+    // Qualquer dia limpo do histórico serve — não só o de hoje. Amarrar em
+    // "hoje" fazia a conquista sumir no dia seguinte e nunca desbloquear pra
+    // quem registra com atraso.
+    condicao: (registros) => listarDiasLimpos(registros).length >= 1,
   },
   {
     id: 'no_puffs_3',
@@ -59,19 +57,10 @@ export const CONQUISTAS = [
     titulo: 'Três Dias Limpos',
     descricao: 'Passou 3 dias sem usar o vape',
     icone: '🎯',
-    condicao: (registros) => {
-      const datas = [...new Set(registros.map((r) => r.date))].sort().reverse();
-      let diasLimpos = 0;
-      for (const data of datas) {
-        const registrosDoDia = registros.filter((r) => r.date === data);
-        if (registrosDoDia.length > 0 && registrosDoDia.every((r) => !r.used)) {
-          diasLimpos++;
-        } else {
-          break;
-        }
-      }
-      return diasLimpos >= 3;
-    },
+    // Melhor sequência de dias limpos do histórico inteiro, não só a que termina
+    // no dia mais recente — igual `no_puffs_1`, um dia com uso hoje não apaga
+    // uma sequência limpa que já aconteceu.
+    condicao: (registros) => calcularStreakDeDias(listarDiasLimpos(registros)) >= 3,
   },
   {
     id: 'total_no_7',
@@ -161,7 +150,7 @@ export const CONQUISTAS = [
     id: 'breathing_5',
     xp: 60,
     titulo: 'Respira Fundo',
-    descricao: 'Você usou a técnica de respiração 5 vezes',
+    descricao: 'Você usou a técnica de respiração 5 vezes no modo crise',
     icone: '🫁',
     condicao: (registros, economia, missoesConcluidas, contexto) =>
       (contexto?.sessoesDeCrise || []).filter(
@@ -230,6 +219,20 @@ export function calcularStreakDeDias(datas) {
   }
 
   return melhor;
+}
+
+// Datas 'YYYY-MM-DD' ordenadas dos dias limpos: dia com pelo menos um registro
+// e nenhum com `used === true` — mesma definição usada pelo streak/escudo.
+export function listarDiasLimpos(registros) {
+  const registrosPorData = agruparRegistrosPorData(
+    Array.isArray(registros) ? registros : []
+  );
+  return Object.entries(registrosPorData)
+    .filter(([, registrosDoDia]) =>
+      registrosDoDia.length > 0 && !registrosDoDia.some((registro) => registro.used === true)
+    )
+    .map(([data]) => data)
+    .sort();
 }
 
 function agruparRegistrosPorData(registros) {

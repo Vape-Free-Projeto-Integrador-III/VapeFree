@@ -1,4 +1,3 @@
-// src/components/InsightsCard.js
 //
 // Card "Seus padrões" da tela de Histórico. Componente de apresentação puro:
 // recebe os registros já carregados e só formata o resultado de

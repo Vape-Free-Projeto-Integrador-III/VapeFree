@@ -1,4 +1,3 @@
-// src/context/ThemeContext.js
 import React, { createContext, useContext, useState } from 'react';
 import { Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';

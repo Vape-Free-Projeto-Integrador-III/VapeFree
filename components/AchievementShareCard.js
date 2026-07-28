@@ -1,4 +1,3 @@
-// src/components/AchievementShareCard.js
 // Card estático que vira imagem PNG ao compartilhar uma conquista.
 // Ele é renderizado fora da tela (ver AchievementCelebration) só pra o
 // react-native-view-shot conseguir capturar — o usuário nunca vê esse card

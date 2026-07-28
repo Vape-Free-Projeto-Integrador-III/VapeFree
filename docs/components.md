@@ -4,13 +4,15 @@
 
 ## `ScreenHeader` (`components/ScreenHeader.js`)
 
-Cabeçalho colorido (`cores.primary`) usado no topo de toda tela. Props: `titulo`, `subtitulo`, `cores`, `aoPressionarPerfil`, `aoPressionarVoltar`, `aoPressionarConfiguracoes`, `mostrarPerfil` (default `true`), `mostrarConfiguracoes` (default `false`). Não existe mais toggle de tema no header — modo escuro só se altera dentro de `SettingsScreen` (`Switch` + `alternarTema` de `usarTema()`).
+Cabeçalho colorido (`cores.primary`) usado no topo de toda tela. Props: `titulo`, `subtitulo`, `cores`, `aoPressionarVoltar`, `aoPressionarConfiguracoes`, `mostrarConfiguracoes` (default `false`). Não existe mais toggle de tema no header — modo escuro só se altera dentro de `SettingsScreen` (`Switch` + `alternarTema` de `usarTema()`).
 
 - Sem `aoPressionarVoltar` → mostra espaço vazio à esquerda (tabs de nível raiz: Home, Register, History, Achievements).
 - Com `aoPressionarVoltar` → mostra seta de voltar (telas de stack: Device, Profile, Crisis, Breathing, Missions, Settings).
-- Praticamente toda tela passa `mostrarConfiguracoes` + `aoPressionarConfiguracoes={() => navigation.navigate('Settings')}`. Exceções: `SettingsScreen` e `Profile`, que usam `mostrarPerfil={false}` sem `mostrarConfiguracoes` (não faz sentido abrir configurações a partir de configurações, nem a partir do perfil que já é acessado via configurações).
+- Praticamente toda tela passa `mostrarConfiguracoes` + `aoPressionarConfiguracoes={() => navigation.navigate('Settings')}`. Exceções: `SettingsScreen` e `Profile`, que omitem a prop (não faz sentido abrir configurações a partir de configurações, nem a partir do perfil que já é acessado via configurações) — o canto direito vira um espaçador vazio, que mantém o título alinhado.
 
 Toda tela nova deve renderizar `<ScreenHeader>` como primeiro filho do `ScrollView`, passando `cores` de `usarTema()` e `mostrarConfiguracoes`/`aoPressionarConfiguracoes` apontando para `Settings`.
+
+Espaço do topo é `useSafeAreaInsets().top + 12` (não é valor fixo — respeita notch/status bar alta). Quando o `OfflineBanner` está visível ele já consumiu o inset acima do header, então o header cai pra `12` puro; a condição é lida do próprio componente (`usarConexao()` + `usarAuth()`), sem prop.
 
 ## `GuestDataChoiceModal` (`components/GuestDataChoiceModal.js`)
 
@@ -48,9 +50,11 @@ Card da `HomeScreen` com as missões **diárias** do dia. Props: `missoes` (já 
 
 Faixa fina no topo, sem props, montada uma única vez em `navigation/AppNavigator.js` acima do `NavigationContainer` — não replique por tela nem mexa no `ScreenHeader`. Lê `usarConexao()` (`context/ConnectionContext.js`) e só aparece quando está offline **e** tem usuário logado (convidado é sempre local, nunca tem pendência). Texto muda conforme `pendentes`: "Sem internet — N alterações vão sincronizar depois" ou, com a fila zerada, "Sem internet — seus dados estão salvos no aparelho". Ver [database.md](database.md).
 
+Altura fixa: `insets.top + ALTURA_DA_FAIXA_OFFLINE` (30), constante exportada pelo próprio arquivo porque o `Toast` a soma no seu `top` quando a faixa está visível. Se mudar o layout da faixa, ajuste a constante junto.
+
 ## `Toast` (`components/Toast.js`) + `ToastProvider` (`context/ToastContext.js`)
 
-Popup pequeno no topo da tela. Carrega todo feedback efêmero do app — XP/missão, validação, erro, sucesso —, não só XP (o nome `XpToast`/`usarToastDeXp` era da primeira versão e foi renomeado). Não use o componente direto: chame `usarToast()` e enfileire.
+Popup pequeno no topo da tela. Carrega todo feedback efêmero do app — XP/missão, validação, erro, sucesso —, não só XP (o nome `XpToast`/`usarToastDeXp` era da primeira versão e foi renomeado). Não use o componente direto: chame `usarToast()` e enfileire. Posição: `insets.top + 8`, mais `ALTURA_DA_FAIXA_OFFLINE` quando o `OfflineBanner` está na tela (mesma condição: offline **e** logado), pra não cobrir a faixa.
 
 - `mostrarRecompensas({ conquistas, missoes, ganho, icone, titulo })` — um toast por conquista/missão nova, mais um genérico com o XP que sobrou (registro, dia limpo, streak). `icone`/`titulo` personalizam só esse genérico: a `RegisterScreen` usa "🚭 Dia sem cigarro eletrônico!" quando `used === false` e "📝 Registro feito, sem culpa" quando o usuário usou.
 - `mostrarXp({ icone, titulo, xp })` / `mostrarGanhoDeXp(xp)` para casos avulsos.

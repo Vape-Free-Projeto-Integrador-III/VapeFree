@@ -37,6 +37,10 @@ Só o par `Crisis` ↔ `Breathing` usa `route.params`:
 - `Crisis` → `navigate('Breathing', { fromCrisis: true })`.
 - `Breathing` → `navigate('Crisis', { completedMethod: 'respiracao', durationSec, completed })` ao terminar ou parar. Como `Crisis` já está na stack, isso volta pra ela com os params novos, e ela abre o modal de "como foi?". A `CrisisScreen` limpa esses params com `navigation.setParams({ completedMethod: undefined, ... })` logo que os consome — senão reabriria o modal a cada foco.
 
+## Saída interceptada (Crisis)
+
+`CrisisScreen` bloqueia a saída com `navigation.addListener('beforeRemove')`: gesto de swipe e back de hardware dão `e.preventDefault()` e abrem o modal de desfecho, igual ao voltar do `ScreenHeader`. As saídas legítimas (`pular`, e o `goBack` depois de salvar a sessão) marcam um `saindoRef` antes do `goBack` pro listener deixar passar. Se o modal já está aberto (`pendente !== null`), o back só é engolido — não reabre nada.
+
 O resto da navegação é `navigation.navigate('NomeDaRota')` sem payload. `Device` e `Profile` são acessíveis a partir de qualquer tab via `aoPressionarPerfil`/botões dedicados (não fazem parte das tabs, ficam como telas de stack "por cima").
 
 ## Ícones das tabs

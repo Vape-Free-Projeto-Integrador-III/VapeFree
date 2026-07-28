@@ -1,4 +1,3 @@
-// src/context/ToastContext.js
 // Fila global de toasts. Qualquer tela chama usarToast() e enfileira
 // o que ganhou; o provider mostra um de cada vez, na ordem.
 //

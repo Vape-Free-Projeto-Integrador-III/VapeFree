@@ -1,4 +1,3 @@
-// src/utils/records.js
 //
 // Helpers puros de leitura de um registro (Record). Existem pra garantir que
 // todo lugar que soma puxadas trate um registro com `used: false` do mesmo

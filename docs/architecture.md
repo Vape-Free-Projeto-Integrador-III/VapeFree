@@ -44,7 +44,6 @@ Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda 
 | Sem Expo Router | Navegação já estruturada com React Navigation clássico (`navigation/AppNavigator.js`). |
 | Sem NativeWind | Estilo via `StyleSheet.create` + cores injetadas de `usarTema()`. |
 | Sem Redux/Zustand | Estado global é só Auth + Theme via Context; resto é local por tela. Ver [state.md](state.md). |
-| `react-native-paper` no `package.json` mas não usado | Dependência órfã — não assuma componentes do Paper disponíveis/estilizados. |
 
 ## Inconsistências conhecidas (não corrigir sem pedir)
 

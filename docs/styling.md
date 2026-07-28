@@ -5,7 +5,7 @@
 ## Duas fontes de valores de tema — não confundir
 
 1. **`context/ThemeContext.js`** — `CORES_CLARAS`/`CORES_ESCURAS`, expostos como `cores` via `usarTema()`. **Esta é a fonte correta para qualquer cor usada em JSX** (reage a dark mode).
-2. **`utils/theme.js`** — exporta `CORES` (paleta estática, só modo claro), além de `RAIO`, `SOMBRA`, `DICAS`, `GATILHOS`, `AJUDAS`, `MENSAGENS_MOTIVACIONAIS`. **`CORES` daqui é legado**, de antes do dark mode existir — não é usado por nenhuma tela hoje para cor visível. Ao escrever código novo, use `RAIO`/`SOMBRA`/`DICAS`/`GATILHOS`/`AJUDAS`/`MENSAGENS_MOTIVACIONAIS` deste arquivo normalmente, mas cores sempre de `usarTema().cores`.
+2. **`utils/theme.js`** — exporta `RAIO`, `SOMBRA`, `DICAS`, `GATILHOS`, `AJUDAS`, `MENSAGENS_MOTIVACIONAIS` (valores estáticos por natureza). **Não exporta cor nenhuma** — cor sempre de `usarTema().cores`.
 
 ## Paleta (chaves de `cores`)
 

@@ -1,4 +1,3 @@
-// src/utils/xp.js
 //
 // XP e nível do usuário. O XP é SEMPRE derivado dos dados que já existem
 // (registros, conquistas desbloqueadas, streak) — não é um contador que

@@ -10,6 +10,11 @@ import { usarTema } from '../context/ThemeContext';
 import { usarConexao } from '../context/ConnectionContext';
 import { usarAuth } from '../context/AuthContext';
 
+// Altura da faixa sem contar o inset do topo. Fica exportada porque o Toast
+// (components/Toast.js) precisa se deslocar pra baixo quando a faixa aparece,
+// senão os dois se sobrepõem no topo da tela.
+export const ALTURA_DA_FAIXA_OFFLINE = 30;
+
 export default function OfflineBanner() {
   const { cores } = usarTema();
   const { online, pendentes } = usarConexao();
@@ -27,7 +32,12 @@ export default function OfflineBanner() {
     <View
       style={[
         styles.faixa,
-        { backgroundColor: cores.card, borderBottomColor: cores.border, paddingTop: insets.top + 6 },
+        {
+          backgroundColor: cores.card,
+          borderBottomColor: cores.border,
+          paddingTop: insets.top,
+          height: insets.top + ALTURA_DA_FAIXA_OFFLINE,
+        },
       ]}
     >
       <Ionicons name="cloud-offline-outline" size={15} color={cores.textSecondary} />
@@ -45,7 +55,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingHorizontal: 16,
-    paddingBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   texto: { fontSize: 12, fontFamily: 'Poppins_600SemiBold' },

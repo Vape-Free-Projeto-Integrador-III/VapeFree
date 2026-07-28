@@ -1,4 +1,3 @@
-// src/screens/MissionsScreen.js
 //
 // Lista completa das missões do período atual (diárias e semanais).
 // A tela só apresenta: quem calcula é verificarMissoes (utils/missions.js) e

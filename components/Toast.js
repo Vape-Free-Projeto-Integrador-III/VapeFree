@@ -1,4 +1,3 @@
-// src/components/Toast.js
 // Popup pequeno no topo da tela. Variantes:
 //   'xp'      -> ganho de XP (borda verde, "+N XP" à direita)
 //   'erro'    -> falha ao salvar (borda vermelha, sem XP, dura mais)
@@ -12,6 +11,9 @@ import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
+import { usarConexao } from '../context/ConnectionContext';
+import { usarAuth } from '../context/AuthContext';
+import { ALTURA_DA_FAIXA_OFFLINE } from './OfflineBanner';
 
 export const DURACAO_DO_TOAST = 2200;
 export const DURACAO_DO_TOAST_LONGO = 3500;
@@ -19,7 +21,13 @@ export const DURACAO_DO_TOAST_LONGO = 3500;
 export default function Toast({ toast, aoEsconder }) {
     const { cores } = usarTema();
     const insets = useSafeAreaInsets();
+    const { online } = usarConexao();
+    const { usuario } = usarAuth();
     const animacao = useRef(new Animated.Value(0)).current;
+
+    // Mesma condição do OfflineBanner: quando a faixa está na tela, o toast
+    // desce a altura dela pra não cobrir o aviso de "sem internet".
+    const faixaOfflineVisivel = !online && !!usuario;
 
     useEffect(() => {
         if (!toast) return undefined;
@@ -59,7 +67,7 @@ export default function Toast({ toast, aoEsconder }) {
             pointerEvents="none"
             style={[
                 styles.wrapper,
-                { top: insets.top + 8 },
+                { top: insets.top + 8 + (faixaOfflineVisivel ? ALTURA_DA_FAIXA_OFFLINE : 0) },
                 {
                     opacity: animacao,
                     transform: [
