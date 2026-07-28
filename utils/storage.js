@@ -48,7 +48,7 @@ import {
 } from './offline';
 import { verificarConquistas, calcularStreak, calcularEstadoDeStreak } from './achievements';
 import { montarContextoDeMissoes, verificarMissoes } from './missions';
-import { normalizarRegistro, somarPuxadas } from './records';
+import { normalizarRegistro, somarPuxadas, metaDiaria, custoPorPuxada } from './records';
 import { resumoDeXp } from './xp';
 
 export { calcularStreak, calcularEstadoDeStreak };
@@ -494,8 +494,9 @@ export async function definirEconomia(mapaDeEconomia) {
 
 export async function recalcularEconomia(registros, aparelho) {
   if (!aparelho) return {};
-  const custoPorPuxada = aparelho.price / aparelho.totalPuffs;
-  const metaDiaria = aparelho.totalPuffs / aparelho.days;
+  const custoDaPuxada = custoPorPuxada(aparelho);
+  const meta = metaDiaria(aparelho);
+  if (custoDaPuxada === null || meta === null) return {};
 
   // Agrupa os registros por data
   const porData = {};
@@ -507,8 +508,8 @@ export async function recalcularEconomia(registros, aparelho) {
   const mapaDeEconomia = {};
   Object.entries(porData).forEach(([data, registrosDoDia]) => {
     const usadasHoje = somarPuxadas(registrosDoDia);
-    const naoDadas = Math.max(0, metaDiaria - usadasHoje);
-    mapaDeEconomia[data] = parseFloat((naoDadas * custoPorPuxada).toFixed(2));
+    const naoDadas = Math.max(0, meta - usadasHoje);
+    mapaDeEconomia[data] = parseFloat((naoDadas * custoDaPuxada).toFixed(2));
   });
 
   // O retorno continua sendo o mapa (as telas usam pra setState). Uma falha

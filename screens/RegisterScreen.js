@@ -62,7 +62,6 @@ function formatarOpcaoDeData(dataStr, hoje) {
 export default function RegisterScreen({ navigation }) {
     const { cores } = usarTema();
     const { mostrarRecompensas, mostrarErro } = usarToast();
-    const [tipoDeAparelho, setTipoDeAparelho] = useState('desc');
     const [usou, setUsou] = useState(null);
     const [puxadas, setPuxadas] = useState(0);
     const [gatilhos, setGatilhos] = useState([]);
@@ -219,7 +218,6 @@ export default function RegisterScreen({ navigation }) {
             if (existente) {
                 const registroAtualizado = {
                     ...existente,
-                    devType: tipoDeAparelho,
                     used: usou,
                     puffs: usou ? puxadas : 0,
                     triggers: rotulosDeGatilhos,
@@ -239,7 +237,6 @@ export default function RegisterScreen({ navigation }) {
                     id: Date.now(),
                     date: dataSelecionada,
                     time: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-                    devType: tipoDeAparelho,
                     used: usou,
                     puffs: usou ? puxadas : 0,
                     triggers: rotulosDeGatilhos,
@@ -349,22 +346,6 @@ export default function RegisterScreen({ navigation }) {
                         </Text>
                     </View>
                 )}
-
-                {/* Tipo de dispositivo */}
-                <Text style={[styles.fieldLabel, { color: cores.text }]}>Qual dispositivo você usa</Text>
-                <View style={styles.toggleRow}>
-                    {['desc', 'rec'].map((val) => (
-                        <TouchableOpacity
-                            key={val}
-                            style={[styles.toggleBtn, { borderColor: cores.border, backgroundColor: cores.card }, tipoDeAparelho === val && { borderColor: cores.primary, backgroundColor: cores.primary }]}
-                            onPress={() => setTipoDeAparelho(val)}
-                        >
-                            <Text style={[styles.toggleBtnText, { color: cores.textSecondary }, tipoDeAparelho === val && { color: '#fff' }]}>
-                                {val === 'desc' ? 'Descartável' : 'Recarregável'}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
 
                 {/* Usou hoje? */}
                 <Text style={[styles.fieldLabel, { color: cores.text }]}>Você usou o vape {rotuloDaDataSelecionada}?</Text>

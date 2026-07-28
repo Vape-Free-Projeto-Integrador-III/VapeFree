@@ -160,7 +160,6 @@ export default function HistoryScreen({ navigation }) {
         return porData !== 0 ? porData : b.id - a.id;
     });
 
-    const rotuloDoAparelho = (t) => (t === 'desc' ? 'Descartável' : 'Recarregável');
     const iconeDaIntensidade = (n) => { if (n <= 3) return '🟢'; if (n <= 6) return '🟡'; return '🔴'; };
 
     const salvarEdicao = async () => {
@@ -296,7 +295,6 @@ export default function HistoryScreen({ navigation }) {
                         <View style={styles.histTop}>
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.histDate, { color: cores.text }]}>{formatarDataCompleta(reg.date)}</Text>
-                                <Text style={[styles.histDev, { color: cores.textMuted }]}>{rotuloDoAparelho(reg.devType)}</Text>
                             </View>
                             <View style={{ alignItems: 'flex-end' }}>
                                 {reg.used ? (

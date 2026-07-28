@@ -12,6 +12,7 @@ import {
 import Alert from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { obterAparelho, salvarAparelho, obterRegistros, recalcularEconomia } from '../utils/storage';
+import { custoPorPuxada, metaDiaria } from '../utils/records';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
@@ -21,7 +22,6 @@ export default function DeviceScreen({ navigation }) {
     const { cores } = usarTema();
     const { mostrarErro } = usarToast();
     const [nome, setNome] = useState('');
-    const [tipo, setTipo] = useState('desc');
     const [preco, setPreco] = useState('');
     const [totalDePuxadas, setTotalDePuxadas] = useState('');
     const [dias, setDias] = useState('');
@@ -33,13 +33,25 @@ export default function DeviceScreen({ navigation }) {
         obterAparelho().then((a) => {
             if (a) {
                 setNome(a.name || '');
-                setTipo(a.type || 'desc');
                 setPreco(a.price?.toString() || '');
                 setTotalDePuxadas(a.totalPuffs?.toString() || '');
                 setDias(a.days?.toString() || '');
             }
         });
     }, []);
+
+    const aoDigitarPreco = (texto) => {
+        const limpo = texto.replace(/[^0-9,.]/g, '');
+        const partes = limpo.split(/[,.]/);
+        const normalizado = partes.length > 1
+            ? `${partes[0]},${partes.slice(1).join('')}`
+            : limpo;
+        setPreco(normalizado);
+    };
+
+    const aoDigitarInteiro = (setter) => (texto) => {
+        setter(texto.replace(/[^0-9]/g, ''));
+    };
 
     const mostrarSucesso = () => {
         setSucessoVisivel(true);
@@ -59,7 +71,7 @@ export default function DeviceScreen({ navigation }) {
         if (isNaN(tp) || tp <= 0) { Alert.alert('Opa', 'Quantas puxadas ele tem no total?'); return; }
         if (isNaN(d) || d <= 0) { Alert.alert('Opa', 'Quantos dias ele costuma durar?'); return; }
         setSalvando(true);
-        const aparelho = { name: nome.trim(), type: tipo, price: p, totalPuffs: tp, days: d };
+        const aparelho = { name: nome.trim(), price: p, totalPuffs: tp, days: d };
         const resultado = await salvarAparelho(aparelho);
         if (!resultado.ok) {
             setSalvando(false);
@@ -72,16 +84,21 @@ export default function DeviceScreen({ navigation }) {
         mostrarSucesso();
     };
 
-    const custoPorPuxada = () => {
-        const p = parseFloat(preco.replace(',', '.'));
-        const tp = parseInt(totalDePuxadas);
-        return (!isNaN(p) && !isNaN(tp) && tp > 0) ? `R$ ${(p / tp).toFixed(4)}` : '—';
+    // Aparelho "em rascunho", só pra prévia — os helpers puros fazem as contas.
+    const aparelhoDoFormulario = () => ({
+        price: parseFloat(preco.replace(',', '.')),
+        totalPuffs: parseInt(totalDePuxadas),
+        days: parseInt(dias),
+    });
+
+    const textoDoCustoPorPuxada = () => {
+        const custo = custoPorPuxada(aparelhoDoFormulario());
+        return custo === null ? '—' : `R$ ${custo.toFixed(4)}`;
     };
 
-    const metaDiaria = () => {
-        const tp = parseInt(totalDePuxadas);
-        const d = parseInt(dias);
-        return (!isNaN(tp) && !isNaN(d) && d > 0) ? `${Math.round(tp / d)} puxadas/dia` : '—';
+    const textoDaMetaDiaria = () => {
+        const meta = metaDiaria(aparelhoDoFormulario());
+        return meta === null ? '—' : `${Math.round(meta)} puxadas/dia`;
     };
 
     const estiloDoInput = [styles.input, { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text }];
@@ -108,38 +125,25 @@ export default function DeviceScreen({ navigation }) {
                     onChangeText={setNome}
                 />
 
-                <Text style={[styles.fieldLabel, { color: cores.text }]}>Tipo</Text>
-                <View style={styles.toggleRow}>
-                    {[{ val: 'desc', label: 'Descartável' }, { val: 'rec', label: 'Recarregável' }].map(({ val, label }) => (
-                        <TouchableOpacity
-                            key={val}
-                            style={[styles.toggleBtn, { borderColor: cores.border, backgroundColor: cores.card }, tipo === val && { borderColor: cores.primary, backgroundColor: cores.primary }]}
-                            onPress={() => setTipo(val)}
-                        >
-                            <Text style={[styles.toggleBtnText, { color: cores.textSecondary }, tipo === val && { color: '#fff' }]}>{label}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
                 <Text style={[styles.fieldLabel, { color: cores.text }]}>Preço (R$)</Text>
-                <TextInput style={estiloDoInput} placeholder="Ex: 39.90" placeholderTextColor={cores.textMuted} value={preco} onChangeText={setPreco} keyboardType="decimal-pad" />
+                <TextInput style={estiloDoInput} placeholder="Ex: 39.90" placeholderTextColor={cores.textMuted} value={preco} onChangeText={aoDigitarPreco} keyboardType="decimal-pad" />
 
                 <Text style={[styles.fieldLabel, { color: cores.text }]}>Quantas puxadas ele dá no total</Text>
-                <TextInput style={estiloDoInput} placeholder="Ex: 600" placeholderTextColor={cores.textMuted} value={totalDePuxadas} onChangeText={setTotalDePuxadas} keyboardType="number-pad" />
+                <TextInput style={estiloDoInput} placeholder="Ex: 600" placeholderTextColor={cores.textMuted} value={totalDePuxadas} onChangeText={aoDigitarInteiro(setTotalDePuxadas)} keyboardType="number-pad" />
 
                 <Text style={[styles.fieldLabel, { color: cores.text }]}>Quantos dias ele costuma durar</Text>
-                <TextInput style={estiloDoInput} placeholder="Ex: 14" placeholderTextColor={cores.textMuted} value={dias} onChangeText={setDias} keyboardType="number-pad" />
+                <TextInput style={estiloDoInput} placeholder="Ex: 14" placeholderTextColor={cores.textMuted} value={dias} onChangeText={aoDigitarInteiro(setDias)} keyboardType="number-pad" />
 
                 {(preco || totalDePuxadas || dias) && (
                     <View style={[styles.previewBox, { backgroundColor: cores.primaryLight }]}>
                         <Text style={[styles.previewTitle, { color: cores.primaryDark }]}>Prévia</Text>
                         <View style={styles.previewRow}>
                             <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Custo por puxada</Text>
-                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>{custoPorPuxada()}</Text>
+                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>{textoDoCustoPorPuxada()}</Text>
                         </View>
                         <View style={styles.previewRow}>
                             <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Sua meta por dia</Text>
-                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>{metaDiaria()}</Text>
+                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>{textoDaMetaDiaria()}</Text>
                         </View>
                     </View>
                 )}
@@ -180,9 +184,6 @@ const styles = StyleSheet.create({
     card: { borderRadius: RAIO.lg, padding: 18, marginHorizontal: 16, marginTop: 16 },
     fieldLabel: { fontSize: 14, fontFamily: 'Poppins_700Bold', marginBottom: 8, marginTop: 4 },
     input: { borderWidth: 1.5, borderRadius: RAIO.md, padding: 12, fontSize: 15, fontFamily: 'Poppins_400Regular', marginBottom: 14 },
-    toggleRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
-    toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: RAIO.md, borderWidth: 1.5, alignItems: 'center' },
-    toggleBtnText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
     previewBox: { borderRadius: RAIO.md, padding: 14, marginBottom: 16 },
     previewTitle: { fontSize: 12, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
     previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },

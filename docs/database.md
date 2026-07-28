@@ -60,7 +60,7 @@ Escritas **de fundo** continuam retornando boolean silencioso: `salvarConquista`
 
 **Record** (um por `salvarRegistro`, id = `Date.now()`):
 ```js
-{ id, date /* 'YYYY-MM-DD' */, time /* 'HH:MM' */, devType /* 'desc'|'rec' */,
+{ id, date /* 'YYYY-MM-DD' */, time /* 'HH:MM' */,
   used /* bool */, puffs /* number */, triggers /* string[] label */,
   helps /* string[] label */, intensity /* 0-10 */ }
 ```
@@ -72,7 +72,7 @@ Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Con
 
 **Device** (um por usuário):
 ```js
-{ name, type /* 'desc'|'rec' */, price, totalPuffs, days }
+{ name, price, totalPuffs, days }
 ```
 Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
@@ -90,7 +90,11 @@ Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
 ## Cálculo de economia
 
-`recalcularEconomia(records, device)`: `costPerPuff = device.price / device.totalPuffs`, `dailyGoal = device.totalPuffs / device.days`. Para cada dia com registro, `economia = max(0, dailyGoal - puffsUsados) * costPerPuff`. Grava o mapa inteiro via `definirEconomia`. Chamado depois de qualquer `salvarRegistro`/`atualizarRegistro`/`excluirRegistro` e depois de salvar um `aparelho` novo.
+As duas contas derivadas do aparelho ficam em `utils/records.js`, puras: `custoPorPuxada(device)` (`price / totalPuffs`) e `metaDiaria(device)` (`totalPuffs / days`). Ambas devolvem `null` quando algum campo não é número positivo. Use elas em vez de repetir a fórmula — são as mesmas usadas pela prévia do `DeviceScreen` e pelo alerta de excesso da Home.
+
+`recalcularEconomia(records, device)`: para cada dia com registro, `economia = max(0, metaDiaria - puffsUsados) * custoPorPuxada`. Grava o mapa inteiro via `definirEconomia`. Devolve `{}` sem gravar nada se o aparelho não permitir o cálculo. Chamado depois de qualquer `salvarRegistro`/`atualizarRegistro`/`excluirRegistro` e depois de salvar um `aparelho` novo.
+
+O `max(0, ...)` trunca o excesso: dia acima da meta vira economia `0` e o quanto passou não é persistido em lugar nenhum. Quem precisa desse número usa `excessoDoDia(registrosDoDia, device)` (`utils/records.js`), que devolve `{ puxadasAMais, custoAMais }` derivado na hora do render.
 
 ## Migração convidado → conta
 

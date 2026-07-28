@@ -26,7 +26,7 @@ import {
     dataDeHoje,
     registrarAberturaDoApp,
 } from '../utils/storage';
-import { somarPuxadas } from '../utils/records';
+import { somarPuxadas, excessoDoDia } from '../utils/records';
 import { obterNivel } from '../utils/xp';
 import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 import { DIAS_PARA_ESCUDO } from '../utils/achievements';
@@ -126,6 +126,15 @@ export default function HomeScreen({ navigation }) {
         return `Faltam ${faltam} ${faltam === 1 ? 'dia' : 'dias'} sem uso pra ganhar um escudo`;
     })();
 
+    // Excesso: quanto o dia passou da meta do aparelho, e o custo disso. A
+    // economia trunca esse valor em zero, então o alerta é o único lugar que
+    // mostra o que foi gasto a mais.
+    const excesso = excessoDoDia(registrosDeHoje, aparelho);
+    const mostrarExcesso = !!excesso && excesso.puxadasAMais > 0;
+    const mensagemDoExcesso = mostrarExcesso
+        ? `${excesso.puxadasAMais} ${excesso.puxadasAMais === 1 ? 'puxada' : 'puxadas'} acima da sua meta hoje — R$ ${excesso.custoAMais.toFixed(2)} a mais`
+        : '';
+
     const nivel = obterNivel(xp);
     const dica = DICAS[new Date().getDate() % DICAS.length];
 
@@ -190,6 +199,13 @@ export default function HomeScreen({ navigation }) {
                         {mensagemDoEscudo}
                     </Text>
                 </View>
+
+                {mostrarExcesso ? (
+                    <View style={[styles.excessRow, { backgroundColor: cores.danger + '22', borderColor: cores.danger }]}>
+                        <Ionicons name="alert-circle" size={20} color={cores.danger} />
+                        <Text style={[styles.excessText, { color: cores.danger }]}>{mensagemDoExcesso}</Text>
+                    </View>
+                ) : null}
             </View>
 
             <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
@@ -349,6 +365,16 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     shieldText: { flex: 1, fontSize: 12, fontFamily: 'Poppins_600SemiBold', lineHeight: 16 },
+    excessRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 8,
+        padding: 10,
+        borderRadius: RAIO.md,
+        borderWidth: 1,
+    },
+    excessText: { flex: 1, fontSize: 12, fontFamily: 'Poppins_600SemiBold', lineHeight: 16 },
     statNum: { fontSize: 26, fontFamily: 'Poppins_800ExtraBold' },
     statLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 2, lineHeight: 14 },
     xpHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
