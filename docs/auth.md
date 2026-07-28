@@ -30,7 +30,7 @@ Ativado por `continuarSemConta()` (botão "Continuar sem conta" no `LoginScreen`
 
 ## Cadastro
 
-`SignUpScreen.js` → `createUserWithEmailAndPassword` + `updateProfile(displayName)` + `salvarPerfilDaConta(uid, { nome, email })` (`utils/storage.js`), que grava `{ nome, displayName, email }` no doc `users/{uid}` pela fila offline — a tela não fala com o Firestore direto. Falha aí não bloqueia o cadastro: a conta já existe e o perfil sobe quando voltar a rede. Validações client-side: e-mail via regex simples, senha mínimo 8 caracteres (`validarSenhaForte`). Trata `auth/email-already-in-use`, `auth/invalid-email`, `auth/weak-password`.
+`SignUpScreen.js` → `createUserWithEmailAndPassword` + `updateProfile(displayName)` + `salvarPerfilDaConta(uid, { nome, email })` (`utils/storage.js`), que grava `{ nome, displayName, email }` no doc `users/{uid}` pela fila offline — a tela não fala com o Firestore direto. Falha aí não bloqueia o cadastro: a conta já existe e o perfil sobe quando voltar a rede. Validações client-side: e-mail via regex simples, senha mínimo 8 caracteres contendo pelo menos uma letra e um número (`validarSenhaForte`). Trata `auth/email-already-in-use`, `auth/invalid-email`, `auth/weak-password`.
 
 ## Login com Google
 

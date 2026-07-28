@@ -45,7 +45,7 @@ function validarEmail(email) {
 }
 
 function validarSenhaForte(senha) {
-    return senha.length >= 8;
+    return senha.length >= 8 && /[a-zA-Z]/.test(senha) && /[0-9]/.test(senha);
 }
 
 export default function SignUpScreen({ navigation }) {
@@ -120,7 +120,7 @@ export default function SignUpScreen({ navigation }) {
         if (!validarSenhaForte(senha)) {
             Alert.alert(
                 'Opa',
-                'Sua senha precisa ter pelo menos 8 caracteres.'
+                'Sua senha precisa ter pelo menos 8 caracteres, com letra e número.'
             );
             return;
         }
