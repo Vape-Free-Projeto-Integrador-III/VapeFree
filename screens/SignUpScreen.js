@@ -13,12 +13,12 @@ import Alert from '../utils/alert';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../services/firebase';
+import { auth } from '../services/firebase';
 import {
     temDadosLocaisDoConvidado,
     limparDadosLocaisDoConvidado,
     migrarDadosDoConvidadoParaConta,
+    salvarPerfilDaConta,
 } from '../utils/storage';
 import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
 
@@ -150,15 +150,16 @@ export default function SignUpScreen({ navigation }) {
                 displayName: nomeFormatado,
             });
 
-            await setDoc(
-                doc(db, 'users', credencialDoUsuario.user.uid),
-                {
-                    nome: nomeFormatado,
-                    displayName: nomeFormatado,
-                    email: emailFormatado,
-                },
-                { merge: true }
-            );
+            // A conta já existe neste ponto: se o perfil não subir agora, ele
+            // fica na fila offline e sobe sozinho. Por isso o cadastro segue em
+            // frente em vez de mostrar erro.
+            const perfilSalvo = await salvarPerfilDaConta(credencialDoUsuario.user.uid, {
+                nome: nomeFormatado,
+                email: emailFormatado,
+            });
+            if (!perfilSalvo.ok) {
+                console.log('Não deu pra salvar o perfil:', perfilSalvo.motivo);
+            }
 
             await finalizarDadosDeConvidado(credencialDoUsuario.user.uid, acao);
 

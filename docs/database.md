@@ -23,8 +23,8 @@ O modo convidado fala direto com o `AsyncStorage`. O modo conta **não** fala di
 
 `utils/offline.js` é o motor; só `utils/storage.js` importa dele (a UI usa `context/ConnectionContext.js`). Duas peças:
 
-- **Espelho** — cópia local do que está no Firestore, no `AsyncStorage`, sob `@vapefree_cache_{uid}_{nome}`, com `nome` ∈ `records`, `achievements`, `crisisSessions`, `missions`, `device`, `economy`, `xp`, `appOpenDays`.
-- **Fila** — `@vapefree_queue_{uid}`, array ordenado de mutações `{ id, tipo, colecao, docId, dados, tentativas }`, com `tipo` ∈ `'set' | 'delete' | 'merge_usuario'` (esse último = `setDoc(users/{uid}, dados, { merge: true })`, usado por device/economy/xp/appOpenDays).
+- **Espelho** — cópia local do que está no Firestore, no `AsyncStorage`, sob `@vapefree_cache_{uid}_{nome}`, com `nome` ∈ `records`, `achievements`, `crisisSessions`, `missions`, `device`, `economy`, `xp`, `appOpenDays`, `profile`.
+- **Fila** — `@vapefree_queue_{uid}`, array ordenado de mutações `{ id, tipo, colecao, docId, dados, tentativas }`, com `tipo` ∈ `'set' | 'delete' | 'merge_usuario'` (esse último = `setDoc(users/{uid}, dados, { merge: true })`, usado por device/economy/xp/appOpenDays/profile).
 
 Como cada operação se comporta:
 
@@ -75,6 +75,8 @@ Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Con
 { name, price, totalPuffs, days }
 ```
 Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
+
+**Profile** (só modo conta): `{ nome, displayName, email }`, campos do doc `users/{uid}`, gravados uma vez no cadastro por `salvarPerfilDaConta(uid, { nome, email })`. Espelho `profile`. Convidado não tem perfil. Nenhuma tela lê esses campos hoje — quem exibe o nome usa `auth.currentUser.displayName`.
 
 **Economy**: mapa `{ [date]: valorEconomizadoNoDia }`, recalculado por `recalcularEconomia(records, device)` — nunca editado manualmente pela UI. Firestore: campo `economy` no doc `users/{uid}`. Convidado: `@vapefree_economy`.
 

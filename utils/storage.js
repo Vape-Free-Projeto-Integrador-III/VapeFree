@@ -448,6 +448,26 @@ export async function salvarAparelho(aparelho) {
   }
 }
 
+// ─── Perfil da conta ────────────────────────────────────────────────────────
+// Campos nome/displayName/email do documento users/{uid}. Só existe no modo
+// conta — convidado não tem perfil. Recebe o uid por parâmetro porque quem
+// chama é a tela de cadastro, logo depois de createUserWithEmailAndPassword,
+// quando auth.currentUser ainda pode não estar propagado.
+
+export async function salvarPerfilDaConta(uid, { nome, email }) {
+  if (!uid) return falha('sem_conta');
+  const perfil = { nome, displayName: nome, email };
+  try {
+    await escreverNaConta(uid, ESPELHOS.PERFIL, perfil, {
+      tipo: 'merge_usuario',
+      dados: perfil,
+    });
+    return OK;
+  } catch {
+    return falha('rede');
+  }
+}
+
 // ─── Economia ───────────────────────────────────────────────────────────────
 // Modo conta: campo "economy" dentro do documento users/{uid}.
 // Modo convidado: AsyncStorage, como já era antes.

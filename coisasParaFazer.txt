@@ -19,10 +19,6 @@ BUGS / COISAS QUEBRADAS
 CONSISTÊNCIA / DÍVIDA TÉCNICA
 =========================================================
 
-[ ] screens/SignUpScreen.js:152 escreve no Firestore direto (`setDoc` em
-    users/{uid}) — é a única escrita de dado fora de utils/storage.js. Fora da
-    convenção e não funciona offline. Mover pra uma função em storage.js.
-
 [ ] screens/SignUpScreen.js:46 `validarSenhaForte` só checa comprimento >= 8,
     mas a mensagem de erro do Firebase fala "senha fraca". Ou validar de verdade
     (número + letra) ou renomear pra `validarTamanhoDaSenha`.

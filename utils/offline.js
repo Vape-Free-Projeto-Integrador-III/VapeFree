@@ -31,7 +31,8 @@ import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 // Nomes de espelho válidos. Os quatro primeiros são subcoleções de
-// users/{uid}; os quatro últimos são campos do documento users/{uid}.
+// users/{uid}; os cinco últimos são campos do documento users/{uid} (PERFIL
+// espelha os campos nome/displayName/email de uma vez só).
 export const ESPELHOS = {
   REGISTROS: 'records',
   CONQUISTAS: 'achievements',
@@ -41,6 +42,7 @@ export const ESPELHOS = {
   ECONOMIA: 'economy',
   XP: 'xp',
   ABERTURAS: 'appOpenDays',
+  PERFIL: 'profile',
 };
 
 const PREFIXO_DE_CACHE = '@vapefree_cache_';
