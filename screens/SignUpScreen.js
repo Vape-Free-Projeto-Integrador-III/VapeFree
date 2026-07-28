@@ -51,7 +51,9 @@ export default function SignUpScreen({ navigation }) {
     const [nome, setNome] = useState('');
     const [email, setEmail] = useState('');
     const [senha, setSenha] = useState('');
+    const [senhaConfirmacao, setSenhaConfirmacao] = useState('');
     const [mostrarSenha, setMostrarSenha] = useState(false);
+    const [mostrarSenhaConfirmacao, setMostrarSenhaConfirmacao] = useState(false);
     const [carregando, setCarregando] = useState(false);
     const [escolhaConvidadoVisivel, setEscolhaConvidadoVisivel] = useState(false);
     const [configEscolhaConvidado, setConfigEscolhaConvidado] = useState(null);
@@ -104,7 +106,7 @@ export default function SignUpScreen({ navigation }) {
         const nomeFormatado = nome.trim();
         const emailFormatado = email.trim();
 
-        if (!nomeFormatado || !emailFormatado || !senha) {
+        if (!nomeFormatado || !emailFormatado || !senha || !senhaConfirmacao) {
             Alert.alert('Opa', 'Preencha nome, e-mail e senha pra continuar.');
             return;
         }
@@ -119,6 +121,11 @@ export default function SignUpScreen({ navigation }) {
                 'Opa',
                 'Sua senha precisa ter pelo menos 8 caracteres.'
             );
+            return;
+        }
+
+        if (senha !== senhaConfirmacao) {
+            Alert.alert('Opa', 'As senhas não combinam.');
             return;
         }
 
@@ -265,6 +272,37 @@ export default function SignUpScreen({ navigation }) {
                             >
                                 <Ionicons
                                     name={mostrarSenha ? 'eye-off-outline' : 'eye-outline'}
+                                    size={20}
+                                    color={CORES.inputIconColor}
+                                />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    <View style={styles.fieldGroupLarge}>
+                        <Text style={styles.label}>Confirmar senha</Text>
+                        <View style={styles.inputContainer}>
+                            <Ionicons
+                                name="lock-closed-outline"
+                                size={20}
+                                color={CORES.inputIconColor}
+                                style={styles.inputIconLeft}
+                            />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Confirme sua senha"
+                                placeholderTextColor={CORES.placeholderText}
+                                value={senhaConfirmacao}
+                                onChangeText={setSenhaConfirmacao}
+                                autoCapitalize="none"
+                                secureTextEntry={!mostrarSenhaConfirmacao}
+                            />
+                            <TouchableOpacity
+                                onPress={() => setMostrarSenhaConfirmacao((v) => !v)}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                                <Ionicons
+                                    name={mostrarSenhaConfirmacao ? 'eye-off-outline' : 'eye-outline'}
                                     size={20}
                                     color={CORES.inputIconColor}
                                 />
