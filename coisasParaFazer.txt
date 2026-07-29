@@ -1,33 +1,11 @@
-COISAS PARA FAZER — VapeFree
-(revisão geral do projeto, feita em 28/07/2026)
-
-=========================================================
-BUGS / COISAS QUEBRADAS
-=========================================================
 
 [ ] Arrumar login do google pelo android
-    - screens/LoginScreen.js:146 tem `androidClientId: 'COLOQUE_AQUI_O_ANDROID_CLIENT_ID...'`
+    - screens/LoginScreen.js:142 ainda tem `androidClientId: 'COLOQUE_AQUI_O_ANDROID_CLIENT_ID...'`
       (placeholder literal) — no Android o fluxo nunca vai fechar.
-    - app.json não tem bloco "android" nem `android.package`. Sem package name +
-      SHA-1 no console do Google não existe Android OAuth client. É a causa raiz.
-    - app.json:18 `ios.bundleIdentifier: "com.googleauth.ios"` também é resquício
-      de teste, precisa virar algo como com.vapefree.app.
-    - app.json:4 `slug: "Projeto Integrador III"` tem espaços — slug de EAS não
-      aceita, vai atrapalhar o build.
+    - Falta criar o Android OAuth client no console do Google com package
+      com.vapefree.app + SHA-1 do keystore, e colar o ID ali.
+    - Feito: app.json já tem android.package/ios.bundleIdentifier com.vapefree.app,
+      slug sem espaço, versionCode/buildNumber e adaptiveIcon.
+    - Rodar `npx expo prebuild --clean` antes do próximo build nativo (android/
+      ainda foi gerado com com.googleauth.ios).
 
-=========================================================
-BUILD / DEPLOY
-=========================================================
-
-[ ] Sem eas.json e sem .github/ — build e deploy 100% manual (docs/deployment.md
-    já lista). Criar eas.json com perfis development/preview/production.
-
-[ ] app.json sem `android.package`, `android.versionCode`, `ios.buildNumber` e
-    sem `android.adaptiveIcon`. Nada disso dá pra publicar sem.
-
-[ ] debug.keystore está commitado na raiz do repo. É só de debug, mas não
-    deveria estar versionado — mover pro .gitignore.
-
-[ ] app.json não declara `notification` nem permissões Android
-    (POST_NOTIFICATIONS no Android 13+). Conferir se o pedido de permissão
-    funciona em release, não só no Expo Go.

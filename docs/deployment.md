@@ -20,11 +20,24 @@ Antes de configurar EAS, CI ou variáveis de ambiente, alinhar com o usuário �
 
 ## `app.json`
 
-- `name`: "Vape Free", `slug`: "Projeto Integrador III", `scheme`: "vapefree" (usado no redirect URI do login Google, ver [auth.md](auth.md)).
-- `ios.bundleIdentifier`: `com.googleauth.ios`.
-- Sem `android.package` definido — necessário antes de gerar build Android de produção.
-- Plugins: `expo-web-browser`, `expo-notifications` (ícone/cor de notificação).
+- `name`: "Vape Free", `slug`: "VapeFree", `scheme`: "vapefree" (usado no redirect URI do login Google, ver [auth.md](auth.md) — não mudar sem atualizar o OAuth client).
+- Identificadores nativos: `ios.bundleIdentifier` e `android.package` são `com.vapefree.app` (até 07/2026 eram `com.googleauth.ios`, herdado do exemplo de login Google).
+- Versão nativa vive no `app.json`: `version` "1.0.0", `android.versionCode` 1, `ios.buildNumber` "1". A pasta `android/` é gitignored e regenerada por `expo prebuild`, então `app.json` é a única fonte versionada — subir versão significa editar esses três campos.
+- `android.adaptiveIcon`: `./assets/adaptive-icon.png` sobre `#4CAF50` (mesma cor do plugin de notificação).
+- Plugins: `expo-web-browser`, `expo-notifications` (ícone/cor de notificação), `expo-font`.
+- Não existe campo `notification` nem `android.permissions` no `app.json`, de propósito: `notification` é legado (o plugin `expo-notifications` já cobre ícone/cor) e `POST_NOTIFICATIONS`/`RECEIVE_BOOT_COMPLETED` entram pelo manifest da própria lib, mesclados no build. Declarar de novo é redundante.
+
+## Trocar o package quebra registro externo
+
+`com.vapefree.app` é novo — o OAuth do Google no Android precisa de um client registrado com esse
+package + SHA-1 do keystore. Hoje `screens/LoginScreen.js` ainda tem o placeholder
+`COLOQUE_AQUI_O_ANDROID_CLIENT_ID`, ou seja, login Google no Android já não funcionava antes disso.
+Firebase é usado via JS SDK com config hardcoded (`services/firebase.native.js`), sem
+`google-services.json` — o package não afeta Auth/Firestore.
+
+Depois de mexer nos identificadores, rodar `npx expo prebuild --clean` para regenerar `android/`
+(o `applicationId`/`namespace` do `build.gradle` vêm daí).
 
 ## Assets versionados que merecem atenção
 
-- `debug.keystore` está commitado na raiz do repo — chave de assinatura debug do Android. Baixo risco (é só debug, não release), mas vale saber que está versionado antes de decidir gerar uma nova.
+- `debug.keystore` na raiz do repo **não** está versionado (`.gitignore` cobre `debug.keystore` e `/android`). É sobra local; o build usa `android/app/debug.keystore`, gerado pelo prebuild.
