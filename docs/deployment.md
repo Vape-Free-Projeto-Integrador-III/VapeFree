@@ -29,9 +29,12 @@ Antes de configurar EAS, CI ou variáveis de ambiente, alinhar com o usuário �
 
 ## Trocar o package quebra registro externo
 
-`com.vapefree.app` é novo — o OAuth do Google no Android precisa de um client registrado com esse
-package + SHA-1 do keystore. Hoje `screens/LoginScreen.js` ainda tem o placeholder
-`COLOQUE_AQUI_O_ANDROID_CLIENT_ID`, ou seja, login Google no Android já não funcionava antes disso.
+Os OAuth clients de Android/iOS do Google são amarrados ao `com.vapefree.app` (ver
+[auth.md](auth.md)). Trocar o package de novo obriga a recriar os dois clients e atualizar as
+constantes `CLIENT_ID_*` em `screens/LoginScreen.js`. O client Android também amarra o SHA-1: o
+que está registrado hoje é o do keystore de **debug**; antes de publicar, criar um segundo client
+Android com o SHA-1 do keystore de release (ou o do Play App Signing).
+
 Firebase é usado via JS SDK com config hardcoded (`services/firebase.native.js`), sem
 `google-services.json` — o package não afeta Auth/Firestore.
 

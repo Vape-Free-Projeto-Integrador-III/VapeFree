@@ -3,7 +3,7 @@
     "name": "Vape Free",
     "slug": "VapeFree",
     "version": "1.0.0",
-    "scheme": "vapefree",
+    "scheme": ["vapefree", "com.vapefree.app"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

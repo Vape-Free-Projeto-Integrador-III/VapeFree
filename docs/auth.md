@@ -34,9 +34,18 @@ Ativado por `continuarSemConta()` (botão "Continuar sem conta" no `LoginScreen`
 
 ## Login com Google
 
-Via `expo-auth-session/providers/google` (`Google.useAuthRequest`) em `LoginScreen.js`. **`androidClientId` ainda está com placeholder (`'COLOQUE_AQUI_O_ANDROID_CLIENT_ID.apps.googleusercontent.com'`)** — login Google funciona no fluxo web/Expo Go via `webClientId`, mas não está configurado para build Android nativo. Ao mexer nisso, checar se o placeholder já foi preenchido antes de assumir que está quebrado.
+Via `expo-auth-session/providers/google` (`Google.useAuthRequest`) em `LoginScreen.js`. Um client ID por plataforma, nas constantes `CLIENT_ID_WEB` / `CLIENT_ID_ANDROID` / `CLIENT_ID_IOS` no topo do arquivo — todos do projeto `vapefree-pi` no Google Cloud. O de web é o que o Firebase criou sozinho ao habilitar o provedor Google; os de Android/iOS são criados à mão (Android precisa de package `com.vapefree.app` + SHA-1 do keystore, um client por SHA-1; iOS precisa do bundle ID).
 
-Fluxo: `promptAsync()` abre o browser (`expo-web-browser`, com `WebBrowser.maybeCompleteAuthSession()` chamado no topo do arquivo) → resposta tratada em `useEffect` que escuta `response` → monta `GoogleAuthProvider.credential(idToken, accessToken)` → `signInWithCredential`.
+Fluxo: `promptAsync()` abre o browser (`expo-web-browser`, com `WebBrowser.maybeCompleteAuthSession()` chamado no topo do arquivo) → resposta tratada em `useEffect` que escuta `response` → monta `GoogleAuthProvider.credential(idToken, accessToken)` → `signInWithCredential` → `salvarPerfilDaConta` (nome/e-mail vêm da conta Google; quem entra por aqui não passa pelo `SignUpScreen`, e falha ao salvar não desfaz o login).
+
+Em nativo o provider usa `responseType: code` + PKCE e faz o troca-código sozinho, devolvendo `id_token` em `response.authentication.idToken`. No web vem direto.
+
+### Duas pegadinhas que já quebraram esse fluxo
+
+1. **Não passe `redirectUri` pro `useAuthRequest`.** Só quando ele é `undefined` o provider monta `com.vapefree.app:/oauthredirect` (o `applicationId`), que é o único formato aceito por OAuth client de Android/iOS. Passar `makeRedirectUri({ scheme: 'vapefree' })` dá `redirect_uri_mismatch`.
+2. **`app.json` declara dois schemes**: `["vapefree", "com.vapefree.app"]`. O segundo existe só pra receber esse redirect — `expo-auth-session` não tem config plugin que registre isso sozinho, e sem o intent-filter o browser redireciona pra um scheme que ninguém escuta e o app fica travado esperando.
+
+Quando `response.type` não é `success`, o `useEffect` reseta `escolhaConvidadoGooglePendenteRef` para `'skip'` — senão a escolha sobre dados de convidado ficaria pendurada e seria aplicada, sem perguntar, no próximo login que desse certo. `dismiss` (usuário fechou o browser) não mostra alerta; `error` mostra.
 
 ## Migração de dados de convidado → conta
 

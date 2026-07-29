@@ -25,6 +25,7 @@ import {
     temDadosLocaisDoConvidado,
     limparDadosLocaisDoConvidado,
     migrarDadosDoConvidadoParaConta,
+    salvarPerfilDaConta,
 } from '../utils/storage';
 import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
 
@@ -34,10 +35,21 @@ import React, { useState, useEffect } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 
 import * as Google from 'expo-auth-session/providers/google';
-import * as AuthSession from 'expo-auth-session';
 
 WebBrowser.maybeCompleteAuthSession();
 /*Fim import pro login do google*/
+
+// Client IDs do OAuth (projeto vapefree-pi no Google Cloud), um por plataforma.
+// O de web é o que o Firebase criou sozinho ao habilitar o provedor Google.
+//
+// NÃO passe `redirectUri` pro useAuthRequest: sem ele o provider usa
+// `com.vapefree.app:/oauthredirect` (o applicationId do app.json), que é o
+// único formato que os clients Android/iOS aceitam. Passar um scheme próprio
+// (`vapefree://`) dá redirect_uri_mismatch. Esse scheme precisa estar
+// declarado no `scheme` do app.json, senão a volta do browser não chega aqui.
+const CLIENT_ID_WEB = '445859118404-c0b3j87a7t0ej8s503oal396dfp2pdes.apps.googleusercontent.com';
+const CLIENT_ID_ANDROID = '445859118404-bhlmovclojdicvdugl9umrgve85f37co.apps.googleusercontent.com';
+const CLIENT_ID_IOS = '445859118404-tvijnoie97sqphusvr6sr66f5sm1o2ek.apps.googleusercontent.com';
 
 const CORES = {
     background: '#FFFFFF',
@@ -129,26 +141,31 @@ export default function LoginScreen({ navigation }) {
         }
     }
 
-    const redirectUri = AuthSession.makeRedirectUri({
-        scheme: 'vapefree',
-    });
-
     const [request, response, promptAsync] =
         Google.useAuthRequest({
-
-            webClientId:
-                '445859118404-c0b3j87a7t0ej8s503oal396dfp2pdes.apps.googleusercontent.com',
-
-            androidClientId:
-                'COLOQUE_AQUI_O_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-
-            redirectUri,
-
+            webClientId: CLIENT_ID_WEB,
+            androidClientId: CLIENT_ID_ANDROID,
+            iosClientId: CLIENT_ID_IOS,
+            // Sempre mostrar o seletor de conta em vez de reusar a sessão que
+            // já estiver aberta no browser.
+            selectAccount: true,
         });
 
     useEffect(() => {
         async function autenticarComGoogle() {
-            if (response?.type !== 'success') {
+            if (!response) {
+                return;
+            }
+
+            if (response.type !== 'success') {
+                // Cancelou ou deu erro: a escolha sobre os dados de convidado
+                // não vale mais. Se ficasse pendurada no ref, o próximo login
+                // que desse certo importaria/descartaria sem perguntar.
+                escolhaConvidadoGooglePendenteRef.current = 'skip';
+
+                if (response.type === 'error') {
+                    Alert.alert('Erro', 'Não deu pra entrar com o Google agora.');
+                }
                 return;
             }
 
@@ -167,6 +184,20 @@ export default function LoginScreen({ navigation }) {
                 const credential = GoogleAuthProvider.credential(idToken, accessToken);
 
                 const credencialDoUsuario = await signInWithCredential(auth, credential);
+
+                // Nome/e-mail vêm prontos da conta Google — o login com Google
+                // nunca passa pelo SignUpScreen, então é aqui que o doc
+                // users/{uid} ganha esses campos. Mesmo critério do cadastro:
+                // falhar aqui não desfaz o login, o perfil sobe pela fila
+                // offline depois.
+                const perfilSalvo = await salvarPerfilDaConta(credencialDoUsuario.user.uid, {
+                    nome: credencialDoUsuario.user.displayName ?? '',
+                    email: credencialDoUsuario.user.email ?? '',
+                });
+                if (!perfilSalvo.ok) {
+                    console.log('Não deu pra salvar o perfil:', perfilSalvo.motivo);
+                }
+
                 await finalizarDadosDeConvidado(credencialDoUsuario.user.uid, escolhaConvidadoGooglePendenteRef.current);
                 escolhaConvidadoGooglePendenteRef.current = 'skip';
             } catch (erro) {
