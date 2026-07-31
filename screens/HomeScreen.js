@@ -174,6 +174,11 @@ export default function HomeScreen({ navigation }) {
         return { fundo: cores.borderLight, corDoTexto: cores.textMuted };
     };
 
+    const tooltipDoDiaNoCalendario = (dataStr) => {
+        const puxadas = somarPuxadas(registrosPorData[dataStr] || []);
+        return `${puxadas} ${puxadas === 1 ? 'puxada' : 'puxadas'}`;
+    };
+
     const nivel = obterNivel(xp);
     const dica = DICAS[new Date().getDate() % DICAS.length];
 
@@ -260,6 +265,7 @@ export default function HomeScreen({ navigation }) {
                             bloquearAvanco={estaNoMesAtual}
                             maximo={hoje}
                             estiloDoDia={estiloDoDiaNoCalendario}
+                            tooltipDoDia={tooltipDoDiaNoCalendario}
                         />
 
                         <Text style={[styles.calendarSummary, { color: cores.text }]}>
