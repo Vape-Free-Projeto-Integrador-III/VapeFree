@@ -27,7 +27,10 @@ import {
     salvarPreferenciasDeNotificacao,
 } from '../utils/storage';
 import { metaValida } from '../utils/meta';
-import { aplicarPreferenciasDeNotificacao } from '../utils/notifications';
+import {
+    aplicarPreferenciasDeNotificacao,
+    calcularHorarioDoLembreteDeRisco,
+} from '../utils/notifications';
 import { exportarDados } from '../utils/exportacao';
 import ScreenHeader from '../components/ScreenHeader';
 
@@ -55,6 +58,7 @@ export default function SettingsScreen({ navigation }) {
     const { mostrarAviso, mostrarErro } = usarToast();
 
     const [preferencias, setPreferencias] = useState(null);
+    const [horarioDeRisco, setHorarioDeRisco] = useState(null);
     const [meta, setMeta] = useState(null);
     const [seletorDeHorarioVisivel, setSeletorDeHorarioVisivel] = useState(false);
     const [apagando, setApagando] = useState(false);
@@ -65,8 +69,13 @@ export default function SettingsScreen({ navigation }) {
     useFocusEffect(
         useCallback(() => {
             let montado = true;
-            obterPreferenciasDeNotificacao().then((salvas) => {
-                if (montado) setPreferencias(salvas);
+            obterPreferenciasDeNotificacao().then(async (salvas) => {
+                if (!montado) return;
+                setPreferencias(salvas);
+                // O horário de risco sai das sessões de crise, não da
+                // preferência: aqui só mostramos que horas o lembrete cairia.
+                const risco = await calcularHorarioDoLembreteDeRisco(salvas.hora, salvas.minuto);
+                if (montado) setHorarioDeRisco(risco);
             });
             obterMeta().then((salva) => {
                 if (montado) setMeta(salva);
@@ -90,6 +99,10 @@ export default function SettingsScreen({ navigation }) {
             mostrarErro('Erro', 'Não deu pra salvar essa preferência.');
             return;
         }
+
+        // Mudar o horário do lembrete diário pode empurrar o de risco pra perto
+        // demais dele (aí ele é pulado), então recalcula junto.
+        setHorarioDeRisco(await calcularHorarioDoLembreteDeRisco(salvas.hora, salvas.minuto));
 
         const resultado = await aplicarPreferenciasDeNotificacao();
         if (salvas.ativas && !resultado.permitido) {
@@ -197,6 +210,11 @@ export default function SettingsScreen({ navigation }) {
     const horarioAtual = preferencias
         ? formatarHorario(preferencias.hora, preferencias.minuto)
         : '--:--';
+    // Sem horário calculado o aviso não tem quando tocar: ou faltam crises pra
+    // apontar um período, ou ele cairia colado no lembrete diário.
+    const descricaoDoRisco = horarioDeRisco
+        ? `Toca às ${formatarHorario(horarioDeRisco.hora, horarioDeRisco.minuto)}, antes da vontade bater ${horarioDeRisco.rotulo}`
+        : 'Ainda sem crises suficientes pra saber sua hora difícil';
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
@@ -277,6 +295,21 @@ export default function SettingsScreen({ navigation }) {
                             : undefined,
                         direita: (
                             <Text style={[styles.valor, { color: cores.primaryDark }]}>{horarioAtual}</Text>
+                        ),
+                    })}
+
+                    {divisor}
+
+                    {renderizarLinha({
+                        icone: 'alert-circle-outline',
+                        rotulo: 'Aviso no horário de risco',
+                        descricao: descricaoDoRisco,
+                        direita: (
+                            <Switch
+                                value={!!preferencias?.risco}
+                                onValueChange={(risco) => atualizarPreferencias({ risco })}
+                                disabled={!preferencias || !preferencias.ativas}
+                            />
                         ),
                     })}
                 </View>

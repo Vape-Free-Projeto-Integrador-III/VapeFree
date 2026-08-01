@@ -21,7 +21,9 @@ import {
   dataDeHoje,
   calcularStreak,
   obterPreferenciasDeNotificacao,
+  obterSessoesDeCrise,
 } from './storage';
+import { horarioDeRiscoDeCrise } from './insights';
 
 // Identificador base: um id por dia agendado (ID_NOTIFICACAO_DIARIA-0, -1, ...),
 // assim cancelamos todos antes de criar os próximos (evita duplicar notificações).
@@ -31,6 +33,9 @@ const ID_NOTIFICACAO_DE_STREAK = 'vapefree-streak-warning-daily';
 // é o que garante que quem passa uma semana sem abrir o app continue
 // recebendo lembrete (as notificações DATE acabam e ninguém reagenda).
 const ID_NOTIFICACAO_DE_FALLBACK = 'vapefree-motivational-weekly-fallback';
+// Lembrete no horário de risco: chega ANTES da hora em que a vontade costuma
+// bater (ver horarioDeRiscoDeCrise em utils/insights.js).
+const ID_NOTIFICACAO_DE_RISCO = 'vapefree-risk-window-daily';
 
 // Horário padrão do lembrete motivacional (9h da manhã) e do aviso de
 // streak (20h) — horários diferentes pra não mandar os dois banners juntos
@@ -46,6 +51,22 @@ const MINUTO_PADRAO_STREAK = 0;
 // ("você ainda não registrou hoje") que pode ficar falsa se o app ficar
 // dias sem ser reaberto — um trigger DAILY único faria isso.
 const DIAS_DE_ANTECEDENCIA = 7;
+
+// Quanto antes do horário de risco o lembrete chega. Depois da vontade bater
+// já não serve de nada, então a notificação vem meia hora antes.
+const MINUTOS_ANTES_DO_RISCO = 30;
+// Se o lembrete de risco cair perto demais do lembrete diário, ele é pulado —
+// dois banners quase juntos viram ruído e o usuário desliga tudo.
+const MINUTOS_MINIMOS_ENTRE_LEMBRETES = 60;
+
+// Frases do lembrete de risco: falam do momento ("agora vem sua hora
+// difícil"), não do dia em geral — por isso não reaproveitam DICAS.
+const MENSAGENS_DE_RISCO = [
+  'Sua hora difícil tá chegando. Bebe uma água e respira fundo antes dela bater.',
+  'Daqui a pouco é o horário em que a vontade costuma vir. Já pensa no que vai fazer no lugar.',
+  'Vem aí seu período de risco. Se a vontade apertar, abre o modo crise em vez de ceder.',
+  'Falta pouco pro seu horário complicado. Sai pra andar um pouco, ocupa as mãos.',
+];
 
 // Define como a notificação se comporta quando chega com o app ABERTO
 // (em primeiro plano). Sem isso, no iOS a notificação pode não aparecer
@@ -270,6 +291,90 @@ export async function agendarNotificacaoDeStreak(
   return true;
 }
 
+function subtrairMinutos(hora, minuto, minutos) {
+  // Volta pro dia anterior quando dá negativo (crise às 00h vira lembrete às
+  // 23h30 do dia anterior — como o gatilho é diário, é o mesmo horário).
+  const total = (((hora * 60 + minuto - minutos) % 1440) + 1440) % 1440;
+  return { hora: Math.floor(total / 60), minuto: total % 60 };
+}
+
+// Distância entre dois horários do dia, dando a volta na meia-noite (23h30 e
+// 00h30 estão a 60 minutos, não a 1380).
+function distanciaEmMinutos(a, b) {
+  const bruta = Math.abs(a.hora * 60 + a.minuto - (b.hora * 60 + b.minuto));
+  return Math.min(bruta, 1440 - bruta);
+}
+
+// Horário do lembrete de risco, ou null quando ainda não dá pra dizer nada
+// (poucas crises) ou quando ele cairia colado no lembrete diário.
+export async function calcularHorarioDoLembreteDeRisco(
+  horaDoLembrete = HORA_PADRAO,
+  minutoDoLembrete = MINUTO_PADRAO
+) {
+  const sessoes = await obterSessoesDeCrise();
+  const risco = horarioDeRiscoDeCrise(sessoes);
+  if (!risco) {
+    return null;
+  }
+
+  const horario = subtrairMinutos(risco.hora, 0, MINUTOS_ANTES_DO_RISCO);
+  const perto =
+    distanciaEmMinutos(horario, { hora: horaDoLembrete, minuto: minutoDoLembrete }) <
+    MINUTOS_MINIMOS_ENTRE_LEMBRETES;
+
+  return perto ? null : { ...horario, periodo: risco.periodo, rotulo: risco.rotulo };
+}
+
+// Agenda o lembrete no horário de risco do usuário. Diferente do aviso de
+// streak, o conteúdo não cita nenhum estado que possa envelhecer, então dá pra
+// usar um gatilho DAILY: ele se repete sozinho mesmo com o app fechado por
+// semanas, e a cada abertura reagendamos com o horário recalculado.
+export async function agendarLembreteDeRisco(
+  horaDoLembrete = HORA_PADRAO,
+  minutoDoLembrete = MINUTO_PADRAO
+) {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+
+  const permitido = await pedirPermissaoDeNotificacoes();
+  if (!permitido) {
+    return false;
+  }
+
+  await garantirCanalAndroid();
+  await cancelarLembreteDeRisco();
+
+  const horario = await calcularHorarioDoLembreteDeRisco(horaDoLembrete, minutoDoLembrete);
+  if (!horario) {
+    return true;
+  }
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: ID_NOTIFICACAO_DE_RISCO,
+    content: {
+      title: 'VapeFree 🕒',
+      body: MENSAGENS_DE_RISCO[Math.floor(Math.random() * MENSAGENS_DE_RISCO.length)],
+      sound: true,
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: horario.hora,
+      minute: horario.minuto,
+      channelId: Platform.OS === 'android' ? 'motivational' : undefined,
+    },
+  });
+
+  return true;
+}
+
+export async function cancelarLembreteDeRisco() {
+  if (Platform.OS === 'web') {
+    return;
+  }
+  await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_RISCO).catch(() => {});
+}
+
 // Ponto único de agendamento: lê a preferência do aparelho (liga/desliga +
 // horário do lembrete, ver utils/storage.js) e agenda ou cancela tudo de
 // acordo. É o que a SettingsScreen chama depois de mudar a preferência e o que
@@ -277,18 +382,27 @@ export async function agendarNotificacaoDeStreak(
 //
 // O horário escolhido vale pro lembrete diário. O aviso de streak continua no
 // fim do dia (20h) de propósito — ele só faz sentido perto do fim do dia — mas
-// obedece o liga/desliga junto.
+// obedece o liga/desliga junto. O lembrete de risco tem horário próprio
+// (derivado das crises) e liga/desliga próprio (`risco`), mas também morre
+// junto quando as notificações são desligadas.
 export async function aplicarPreferenciasDeNotificacao() {
   const preferencias = await obterPreferenciasDeNotificacao();
 
   if (!preferencias.ativas) {
     await cancelarNotificacoesMotivacionais();
     await cancelarNotificacaoDeStreak();
+    await cancelarLembreteDeRisco();
     return { ...preferencias, permitido: true };
   }
 
   const agendou = await agendarNotificacoesMotivacionais(preferencias.hora, preferencias.minuto);
   await agendarNotificacaoDeStreak();
+
+  if (preferencias.risco) {
+    await agendarLembreteDeRisco(preferencias.hora, preferencias.minuto);
+  } else {
+    await cancelarLembreteDeRisco();
+  }
 
   return { ...preferencias, permitido: agendou };
 }

@@ -23,7 +23,21 @@ const mockSalvarRegistro = jest.fn();
 const mockAtualizarRegistro = jest.fn();
 const mockSalvarAparelho = jest.fn();
 const mockSalvarMeta = jest.fn();
+const mockAtualizarSessaoDeCrise = jest.fn();
+const mockExcluirSessaoDeCrise = jest.fn();
 const mockSincronizarGamificacao = jest.fn();
+
+// Prefixo "mock" é o que deixa a factory hoisted do jest.mock referenciar isto.
+const mockSessaoDeCrise = {
+  id: 1,
+  date: '2026-03-01',
+  time: '14:20',
+  method: 'timer',
+  durationSec: 300,
+  completed: true,
+  outcome: 'passou',
+  note: null,
+};
 
 jest.mock('../../utils/storage', () => {
   const datas = jest.requireActual('../../utils/datas');
@@ -36,7 +50,10 @@ jest.mock('../../utils/storage', () => {
     atualizarRegistro: (...args) => mockAtualizarRegistro(...args),
     salvarAparelho: (...args) => mockSalvarAparelho(...args),
     salvarMeta: (...args) => mockSalvarMeta(...args),
+    atualizarSessaoDeCrise: (...args) => mockAtualizarSessaoDeCrise(...args),
+    excluirSessaoDeCrise: (...args) => mockExcluirSessaoDeCrise(...args),
     sincronizarGamificacao: (...args) => mockSincronizarGamificacao(...args),
+    obterSessoesDeCrise: jest.fn(() => Promise.resolve([mockSessaoDeCrise])),
     obterRegistros: jest.fn(() => Promise.resolve([])),
     obterAparelho: jest.fn(() => Promise.resolve(null)),
     obterMeta: jest.fn(() => Promise.resolve(null)),
@@ -75,9 +92,16 @@ jest.mock('../../components/ScreenHeader', () => 'ScreenHeader');
 // está instalado neste projeto).
 jest.mock('@expo/vector-icons', () => ({ Ionicons: 'Ionicons' }));
 
+// useFocusEffect existe só na navegação de verdade; aqui vale rodar uma vez.
+jest.mock('@react-navigation/native', () => {
+  const { useEffect } = require('react');
+  return { useFocusEffect: (callback) => useEffect(callback, [callback]) };
+});
+
 const RegisterScreen = require('../../screens/RegisterScreen').default;
 const DeviceScreen = require('../../screens/DeviceScreen').default;
 const GoalScreen = require('../../screens/GoalScreen').default;
+const CrisisHistoryScreen = require('../../screens/CrisisHistoryScreen').default;
 
 const navegacao = { navigate: jest.fn(), goBack: jest.fn() };
 
@@ -165,6 +189,65 @@ describe('DeviceScreen', () => {
     await preencherEnviar();
 
     await waitFor(() => expect(mockMostrarRecompensas).toHaveBeenCalled());
+    expect(mockMostrarErro).not.toHaveBeenCalled();
+  });
+});
+
+describe('CrisisHistoryScreen', () => {
+  const abrirEdicaoESalvar = async () => {
+    await fireEvent.press(await screen.findByLabelText('Editar crise'));
+    await fireEvent.press(screen.getByText('😔 Acabei usando'));
+    await fireEvent.press(screen.getByText('Salvar alterações'));
+  };
+
+  const apagar = async () => {
+    await fireEvent.press(await screen.findByLabelText('Apagar crise'));
+    await fireEvent.press(screen.getByText('Apagar'));
+  };
+
+  it('atualizarSessaoDeCrise falhando não dá XP nem fecha a edição', async () => {
+    mockAtualizarSessaoDeCrise.mockResolvedValue(falhaDeRede);
+    await render(<CrisisHistoryScreen navigation={navegacao} />);
+
+    await abrirEdicaoESalvar();
+
+    await waitFor(() => expect(mockMostrarErro).toHaveBeenCalled());
+    esperarNenhumaPremiacao();
+    // Modal continua aberto — a edição não pode sumir junto com o erro.
+    expect(screen.getByText('Salvar alterações')).toBeTruthy();
+  });
+
+  it('atualizarSessaoDeCrise dando ok reavalia a gamificação', async () => {
+    mockAtualizarSessaoDeCrise.mockResolvedValue(OK);
+    await render(<CrisisHistoryScreen navigation={navegacao} />);
+
+    await abrirEdicaoESalvar();
+
+    await waitFor(() => expect(mockMostrarRecompensas).toHaveBeenCalled());
+    expect(mockAtualizarSessaoDeCrise).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, outcome: 'usei' })
+    );
+    expect(mockMostrarErro).not.toHaveBeenCalled();
+  });
+
+  it('excluirSessaoDeCrise falhando não dá XP', async () => {
+    mockExcluirSessaoDeCrise.mockResolvedValue(falhaDeRede);
+    await render(<CrisisHistoryScreen navigation={navegacao} />);
+
+    await apagar();
+
+    await waitFor(() => expect(mockMostrarErro).toHaveBeenCalled());
+    esperarNenhumaPremiacao();
+  });
+
+  it('excluirSessaoDeCrise dando ok reavalia a gamificação', async () => {
+    mockExcluirSessaoDeCrise.mockResolvedValue(OK);
+    await render(<CrisisHistoryScreen navigation={navegacao} />);
+
+    await apagar();
+
+    await waitFor(() => expect(mockMostrarRecompensas).toHaveBeenCalled());
+    expect(mockExcluirSessaoDeCrise).toHaveBeenCalledWith(1);
     expect(mockMostrarErro).not.toHaveBeenCalled();
   });
 });

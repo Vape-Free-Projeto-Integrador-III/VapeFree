@@ -5,6 +5,7 @@ import {
   limiteDoDia,
   janelaDeDias,
   mediaDiariaNasDatas,
+  comparativoSemanal,
   progressoDaMeta,
 } from '../../utils/meta';
 
@@ -106,6 +107,72 @@ describe('mediaDiariaNasDatas', () => {
 
   it('devolve null quando nenhum dia da janela foi registrado', () => {
     expect(mediaDiariaNasDatas(registros, ['2026-05-01'])).toBeNull();
+  });
+});
+
+describe('comparativoSemanal', () => {
+  // Hoje = 2026-03-14. Semana atual: 03-08..03-14. Anterior: 03-01..03-07.
+  const HOJE = '2026-03-14';
+
+  it('marca queda quando a media diaria cai', () => {
+    const registros = [
+      { date: '2026-03-02', used: true, puffs: 100 },
+      { date: '2026-03-05', used: true, puffs: 100 },
+      { date: '2026-03-10', used: true, puffs: 40 },
+      { date: '2026-03-12', used: true, puffs: 60 },
+    ];
+    const c = comparativoSemanal(registros, HOJE);
+    expect(c.mediaAnterior).toBe(100);
+    expect(c.mediaAtual).toBe(50);
+    expect(c.diferenca).toBe(-50);
+    expect(c.percentual).toBe(-50);
+    expect(c.direcao).toBe('queda');
+    expect(c.diasAtuais).toBe(2);
+    expect(c.diasAnteriores).toBe(2);
+  });
+
+  it('marca alta quando a media diaria sobe', () => {
+    const registros = [
+      { date: '2026-03-03', used: true, puffs: 10 },
+      { date: '2026-03-11', used: true, puffs: 30 },
+    ];
+    expect(comparativoSemanal(registros, HOJE).direcao).toBe('alta');
+  });
+
+  it('trata diferenca menor que meia puxada como estavel', () => {
+    const registros = [
+      { date: '2026-03-03', used: true, puffs: 10 },
+      { date: '2026-03-11', used: true, puffs: 10 },
+    ];
+    expect(comparativoSemanal(registros, HOJE).direcao).toBe('estavel');
+  });
+
+  it('devolve direcao null quando falta registro em alguma semana', () => {
+    const registros = [{ date: '2026-03-11', used: true, puffs: 10 }];
+    const c = comparativoSemanal(registros, HOJE);
+    expect(c.direcao).toBeNull();
+    expect(c.diferenca).toBeNull();
+    expect(c.mediaAnterior).toBeNull();
+    expect(c.diasAnteriores).toBe(0);
+  });
+
+  it('devolve percentual null quando a semana anterior fechou em zero', () => {
+    const registros = [
+      { date: '2026-03-03', used: false, puffs: 0 },
+      { date: '2026-03-11', used: true, puffs: 10 },
+    ];
+    const c = comparativoSemanal(registros, HOJE);
+    expect(c.percentual).toBeNull();
+    expect(c.direcao).toBe('alta');
+  });
+
+  it('conta dia registrado sem uso como zero na media', () => {
+    const registros = [
+      { date: '2026-03-02', used: true, puffs: 100 },
+      { date: '2026-03-10', used: true, puffs: 100 },
+      { date: '2026-03-11', used: false, puffs: 100 }, // puffs antigo ignorado
+    ];
+    expect(comparativoSemanal(registros, HOJE).mediaAtual).toBe(50);
   });
 });
 

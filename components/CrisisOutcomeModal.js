@@ -6,7 +6,7 @@
 //
 // Modal customizado (e não Alert) porque tem escolha de dados + texto livre.
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,9 +19,30 @@ import {
 import { RAIO, SOMBRA } from '../utils/theme';
 import { DESFECHOS_DE_CRISE as DESFECHOS } from '../utils/insights';
 
-export default function CrisisOutcomeModal({ visivel, cores, aoEnviar, aoPular }) {
-  const [desfecho, setDesfecho] = useState(null);
-  const [nota, setNota] = useState('');
+// `valorInicial` ({ outcome, note }) é o que faz este mesmo modal servir pra
+// edição na tela de histórico de crises. Sem ele, é o fim de sessão normal.
+export default function CrisisOutcomeModal({
+  visivel,
+  cores,
+  aoEnviar,
+  aoPular,
+  valorInicial = null,
+  titulo = 'E aí, como foi?',
+  subtitulo = 'Não tem resposta errada. Isso me ajuda a te ajudar melhor na próxima.',
+  rotuloDeSalvar = 'Salvar',
+  rotuloDePular = 'Agora não',
+}) {
+  const [desfecho, setDesfecho] = useState(valorInicial?.outcome ?? null);
+  const [nota, setNota] = useState(valorInicial?.note ?? '');
+
+  // Reabrir o modal tem que mostrar o desfecho da sessão que está sendo
+  // editada, não o que sobrou da anterior.
+  useEffect(() => {
+    if (visivel) {
+      setDesfecho(valorInicial?.outcome ?? null);
+      setNota(valorInicial?.note ?? '');
+    }
+  }, [visivel, valorInicial]);
 
   function finalizar(desfechoEscolhido) {
     const notaLimpa = nota.trim();
@@ -42,10 +63,8 @@ export default function CrisisOutcomeModal({ visivel, cores, aoEnviar, aoPular }
         <View style={styles.backdrop}>
           <TouchableWithoutFeedback>
             <View style={[styles.sheet, { backgroundColor: cores.modalBg }, SOMBRA.media]}>
-              <Text style={[styles.title, { color: cores.text }]}>E aí, como foi?</Text>
-              <Text style={[styles.subtitle, { color: cores.textSecondary }]}>
-                Não tem resposta errada. Isso me ajuda a te ajudar melhor na próxima.
-              </Text>
+              <Text style={[styles.title, { color: cores.text }]}>{titulo}</Text>
+              <Text style={[styles.subtitle, { color: cores.textSecondary }]}>{subtitulo}</Text>
 
               <View style={styles.chips}>
                 {DESFECHOS.map((d) => (
@@ -91,11 +110,11 @@ export default function CrisisOutcomeModal({ visivel, cores, aoEnviar, aoPular }
                 disabled={!desfecho}
                 onPress={() => finalizar(desfecho)}
               >
-                <Text style={styles.saveBtnText}>Salvar</Text>
+                <Text style={styles.saveBtnText}>{rotuloDeSalvar}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.skipBtn} onPress={pular}>
-                <Text style={[styles.skipText, { color: cores.textMuted }]}>Agora não</Text>
+                <Text style={[styles.skipText, { color: cores.textMuted }]}>{rotuloDePular}</Text>
               </TouchableOpacity>
             </View>
           </TouchableWithoutFeedback>

@@ -23,7 +23,8 @@ import {
     registrarAberturaDoApp,
 } from '../utils/storage';
 import { somarPuxadas, excessoDoDia } from '../utils/records';
-import { metaEfetiva, progressoDaMeta, metaValida } from '../utils/meta';
+import { serieDeEconomiaAcumulada, ganhoDaSerie, rotulosEspacados } from '../utils/economia';
+import { metaEfetiva, progressoDaMeta, metaValida, comparativoSemanal } from '../utils/meta';
 import { obterNivel } from '../utils/xp';
 import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 import { DIAS_PARA_ESCUDO } from '../utils/achievements';
@@ -115,6 +116,31 @@ export default function HomeScreen({ navigation }) {
         return soma + somarPuxadas(registros.filter((r) => r.date === d));
     }, 0);
 
+    // Comparativo semanal: média diária de puxadas dos últimos 7 dias contra os
+    // 7 anteriores. Média ignora dia sem registro, por isso a tela também avisa
+    // com quantos dias cada lado foi calculado.
+    const comparativo = comparativoSemanal(registros, hoje);
+    const corDaTendencia =
+        comparativo.direcao === 'queda'
+            ? cores.primary
+            : comparativo.direcao === 'alta'
+              ? cores.danger
+              : cores.textSecondary;
+    const iconeDaTendencia =
+        comparativo.direcao === 'queda'
+            ? 'trending-down'
+            : comparativo.direcao === 'alta'
+              ? 'trending-up'
+              : 'remove';
+    const textoDaTendencia = (() => {
+        if (comparativo.direcao === 'estavel') return 'Praticamente igual à semana passada';
+        const variacao = Math.abs(comparativo.diferenca).toFixed(1).replace('.', ',');
+        const percentual =
+            comparativo.percentual === null ? '' : ` (${Math.abs(Math.round(comparativo.percentual))}%)`;
+        const verbo = comparativo.direcao === 'queda' ? 'a menos' : 'a mais';
+        return `${variacao} puxadas por dia ${verbo}${percentual} que na semana passada`;
+    })();
+
     const rotulosDoGrafico = ultimos7Dias.map((d) => {
         const [, mes, dia] = d.split('-');
         return `${dia}/${mes}`;
@@ -123,6 +149,16 @@ export default function HomeScreen({ navigation }) {
 
     const economiaDeHoje = economia[hoje] || 0;
     const economiaTotal = Object.values(economia).reduce((a, v) => a + v, 0);
+
+    // Economia acumulada: linha sempre crescente do total no bolso nos últimos
+    // 30 dias. Começa do que já havia antes da janela pro último ponto bater
+    // com o "Total no bolso" logo acima.
+    const DIAS_DA_ECONOMIA = 30;
+    const ultimos30Dias = ultimosNDias(DIAS_DA_ECONOMIA);
+    const serieDeEconomia = serieDeEconomiaAcumulada(economia, ultimos30Dias);
+    const dadosDaEconomia = serieDeEconomia.map((ponto) => ponto.acumulado);
+    const ganhoDoPeriodo = ganhoDaSerie(serieDeEconomia);
+    const mostrarGraficoDeEconomia = !!aparelho && economiaTotal > 0;
 
     // Escudo: derivado dos registros, protege um dia com uso registrado.
     const temEscudo = escudos > 0;
@@ -424,11 +460,96 @@ export default function HomeScreen({ navigation }) {
                         )}
                     </View>
 
+                    {mostrarGraficoDeEconomia ? (
+                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                            <Text style={[styles.cardTitle, { color: cores.textMuted }]}>📈 Economia acumulada</Text>
+                            <Text style={[styles.savingsSubtitle, { color: cores.textSecondary }]}>
+                                R$ {ganhoDoPeriodo.toFixed(2)} nos últimos {DIAS_DA_ECONOMIA} dias
+                            </Text>
+                            {larguraDoCardDoGrafico > 0 ? (
+                                <LineChart
+                                    data={{
+                                        labels: rotulosEspacados(ultimos30Dias),
+                                        datasets: [{ data: dadosDaEconomia }],
+                                    }}
+                                    width={Math.max(240, larguraDoCardDoGrafico - 32)}
+                                    height={180}
+                                    fromZero
+                                    withDots={false}
+                                    segments={4}
+                                    chartConfig={{
+                                        backgroundColor: cores.card,
+                                        backgroundGradientFrom: cores.card,
+                                        backgroundGradientTo: cores.card,
+                                        decimalPlaces: 0,
+                                        color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
+                                        labelColor: () => cores.textSecondary,
+                                        propsForBackgroundLines: { stroke: cores.borderLight },
+                                        propsForLabels: { fontFamily: 'Poppins_400Regular' },
+                                        fillShadowGradient: cores.primary,
+                                        fillShadowGradientOpacity: 0.25,
+                                        formatYLabel: (v) => `R$ ${Math.round(Number(v))}`,
+                                    }}
+                                    bezier
+                                    style={styles.chart}
+                                />
+                            ) : null}
+                        </View>
+                    ) : null}
+
+                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                            📊 Esta semana x semana passada
+                        </Text>
+                        {comparativo.direcao === null ? (
+                            <Text style={[styles.emptyChart, { color: cores.textMuted }]}>
+                                Registra pelo menos um dia em cada semana pra comparar 📝
+                            </Text>
+                        ) : (
+                            <>
+                                <View style={styles.weekRow}>
+                                    <View style={[styles.weekBox, { backgroundColor: cores.primaryLight }]}>
+                                        <Text style={[styles.weekVal, { color: cores.primaryDark }]}>
+                                            {comparativo.mediaAtual.toFixed(1).replace('.', ',')}
+                                        </Text>
+                                        <Text style={[styles.weekLabel, { color: cores.textSecondary }]}>
+                                            puxadas/dia esta semana
+                                        </Text>
+                                        <Text style={[styles.weekDays, { color: cores.textMuted }]}>
+                                            {comparativo.diasAtuais} de 7 dias registrados
+                                        </Text>
+                                    </View>
+                                    <View style={[styles.weekBox, { backgroundColor: cores.borderLight }]}>
+                                        <Text style={[styles.weekVal, { color: cores.text }]}>
+                                            {comparativo.mediaAnterior.toFixed(1).replace('.', ',')}
+                                        </Text>
+                                        <Text style={[styles.weekLabel, { color: cores.textSecondary }]}>
+                                            puxadas/dia na semana passada
+                                        </Text>
+                                        <Text style={[styles.weekDays, { color: cores.textMuted }]}>
+                                            {comparativo.diasAnteriores} de 7 dias registrados
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View
+                                    style={[
+                                        styles.trendRow,
+                                        { backgroundColor: corDaTendencia + '22', borderColor: corDaTendencia },
+                                    ]}
+                                >
+                                    <Ionicons name={iconeDaTendencia} size={20} color={corDaTendencia} />
+                                    <Text style={[styles.trendText, { color: corDaTendencia }]}>{textoDaTendencia}</Text>
+                                </View>
+                            </>
+                        )}
+                    </View>
+
                     <View
                         style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}
                         onLayout={(e) => setLarguraDoCardDoGrafico(e.nativeEvent.layout.width)}
                     >
-                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Últimos 7 dias</Text>
+                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Uso nos últimos 7 dias</Text>
                         {registros.length === 0 ? (
                             <Text style={[styles.emptyChart, { color: cores.textMuted }]}>Ainda não tem nada por aqui. Bora começar? 📝</Text>
                         ) : larguraDoCardDoGrafico > 0 ? (
@@ -582,6 +703,22 @@ const styles = StyleSheet.create({
         borderStyle: 'dashed',
     },
     devicePromptText: { flex: 1, fontSize: 13, fontFamily: 'Poppins_500Medium' },
+    weekRow: { flexDirection: 'row', gap: 10 },
+    weekBox: { flex: 1, borderRadius: RAIO.md, padding: 14 },
+    weekVal: { fontSize: 22, fontFamily: 'Poppins_800ExtraBold' },
+    weekLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular', marginTop: 2, lineHeight: 15 },
+    weekDays: { fontSize: 10, fontFamily: 'Poppins_400Regular', marginTop: 4 },
+    trendRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 10,
+        padding: 10,
+        borderRadius: RAIO.md,
+        borderWidth: 1,
+    },
+    trendText: { flex: 1, fontSize: 12, fontFamily: 'Poppins_600SemiBold', lineHeight: 16 },
+    savingsSubtitle: { fontSize: 13, fontFamily: 'Poppins_600SemiBold', marginTop: -8, marginBottom: 6 },
     chart: { borderRadius: RAIO.md, marginTop: 4 },
     emptyChart: { fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', padding: 20 },
     tipCard: {

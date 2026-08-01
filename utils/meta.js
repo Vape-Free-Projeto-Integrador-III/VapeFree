@@ -95,6 +95,52 @@ export function mediaDiariaNasDatas(registros, datas) {
   return total / diasComRegistro.length;
 }
 
+// Quantos dias da janela têm registro. A média ignora dia sem registro, então
+// quem compara duas janelas precisa saber com quantos dias cada média foi
+// feita — comparar 7 dias com 1 dia isolado dá um número enganoso.
+function diasRegistradosNasDatas(registros, datas) {
+  const alvo = new Set(datas || []);
+  return new Set(
+    (Array.isArray(registros) ? registros : [])
+      .filter((registro) => alvo.has(registro.date))
+      .map((registro) => registro.date)
+  ).size;
+}
+
+// Diferença de média diária considerada empate. Menos de meia puxada por dia
+// não é tendência — é ruído de arredondamento do próprio registro.
+const TOLERANCIA_DE_EMPATE = 0.5;
+
+// Comparativo "esta semana x semana passada" da média diária de puxadas.
+// `direcao` é null quando falta registro em alguma das janelas — aí não há
+// comparação a fazer e a UI mostra o convite pra registrar. `percentual` é
+// null quando a semana anterior fechou em zero (queda/alta de 0 não tem %).
+export function comparativoSemanal(registros, hoje) {
+  const datasAtuais = janelaDeDias(hoje, 7);
+  const datasAnteriores = janelaDeDias(deslocarData(hoje, -7), 7);
+  const mediaAtual = mediaDiariaNasDatas(registros, datasAtuais);
+  const mediaAnterior = mediaDiariaNasDatas(registros, datasAnteriores);
+  const base = {
+    mediaAtual,
+    mediaAnterior,
+    diasAtuais: diasRegistradosNasDatas(registros, datasAtuais),
+    diasAnteriores: diasRegistradosNasDatas(registros, datasAnteriores),
+  };
+  if (mediaAtual === null || mediaAnterior === null) {
+    return { ...base, diferenca: null, percentual: null, direcao: null };
+  }
+  const diferenca = mediaAtual - mediaAnterior;
+  let direcao = 'estavel';
+  if (diferenca <= -TOLERANCIA_DE_EMPATE) direcao = 'queda';
+  if (diferenca >= TOLERANCIA_DE_EMPATE) direcao = 'alta';
+  return {
+    ...base,
+    diferenca,
+    percentual: mediaAnterior > 0 ? (diferenca / mediaAnterior) * 100 : null,
+    direcao,
+  };
+}
+
 // Tudo o que o card da Home precisa numa chamada só.
 export function progressoDaMeta(meta, registros, hoje) {
   if (!metaValida(meta)) return null;

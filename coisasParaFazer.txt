@@ -15,11 +15,6 @@ SEGURANÇA
      Está na raiz do repositório. O .gitignore ignora *.jks mas não
      debug.keystore. Tirar do versionamento (git rm --cached).
 
-[17] Sem App Check / reCAPTCHA
-     (mesmo item do topo) Sem App Check a API do Firestore/Auth aceita
-     chamada de qualquer cliente com a config pública. Vale ligar App
-     Check junto com o reCAPTCHA do login.
-
 ===========================================================================
 QUALIDADE / INFRA (o que falta no projeto)
 ===========================================================================
@@ -27,17 +22,3 @@ QUALIDADE / INFRA (o que falta no projeto)
 [22] app.json com version "1.0.0", buildNumber "1" e versionCode 1
      fixos — vai travar a segunda submissão nas lojas.
 
-===========================================================================
-FEATURES / IDEIAS (backlog)
-===========================================================================
-
-- Importar backup JSON (a exportação já existe, falta o par).
-- Editar/apagar sessão de crise (hoje só dá pra criar e ver).
-- Gráfico de economia acumulada ao longo do tempo.
-- Comparativo "esta semana x semana passada" na Home (a conta já existe
-  em mediaDiariaNasDatas, só falta a UI).
-- Lembrete agendado no horário de risco do usuário (periodoDasCrises já
-  calcula o período em que a vontade mais bate).
-- Permitir escolher a data final da meta no calendário, em vez de só
-  30/60/90 dias.
-- Widget / notificação com ação rápida "registrei hoje".

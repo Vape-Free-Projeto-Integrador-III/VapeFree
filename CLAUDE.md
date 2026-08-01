@@ -30,7 +30,7 @@ screens/             # uma tela por arquivo, PascalCase
 components/          # componentes reutilizáveis entre telas
 context/             # AuthContext, ThemeContext, ConnectionContext (React Context API)
 services/            # firebase.native.js / firebase.web.js
-utils/               # storage.js (dados), offline.js (espelho+fila), datas.js (data local, módulo folha), achievements.js, missions.js, records.js, meta.js, notifications.js, theme.js, responsivo.js (breakpoints/largura)
+utils/               # storage.js (dados), offline.js (espelho+fila), datas.js (data local, módulo folha), achievements.js, missions.js, records.js, economia.js (série acumulada p/ gráfico), meta.js, notifications.js, theme.js, responsivo.js (breakpoints/largura)
 assets/              # ícones/splash do app.json
 docs/                # documentação detalhada por assunto (este índice)
 coisasParaFazer.txt  # backlog/roadmap do projeto — ver antes de propor features novas

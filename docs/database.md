@@ -49,9 +49,9 @@ Por que fila própria e não `enablePersistence()`: o `persistentLocalCache` do 
 
 Escritas **iniciadas pelo usuário** devolvem `{ ok: true }` ou `{ ok: false, motivo }`:
 
-`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `salvarMeta`, `definirEconomia`, `salvarSessaoDeCrise`.
+`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `salvarMeta`, `definirEconomia`, `salvarSessaoDeCrise`, `atualizarSessaoDeCrise`, `excluirSessaoDeCrise`.
 
-Motivos: `'rede'` (falha de AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToast()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou.
+Motivos: `'rede'` (falha de AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`/`atualizarSessaoDeCrise`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToast()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou.
 
 Com o offline-first, `'rede'` praticamente sumiu do modo conta: a escrita é aceita no espelho e sobe depois. O contrato continua o mesmo pras telas (nada muda nelas), e `'rede'` segue possível no modo convidado.
 
@@ -99,7 +99,7 @@ Firestore: campo `goal` no doc `users/{uid}`. Convidado: `@vapefree_goal`. Espel
 
 **XP** (snapshot): `{ xp, level, levelName, updatedAt }`. Firestore: campo `xp` no doc `users/{uid}`. Convidado: `@vapefree_xp`. **Não é a fonte da verdade** — o XP é sempre *derivado* de registros + conquistas + missões + melhor streak por `calcularXp` (`utils/xp.js`); esse snapshot é só cache do último cálculo, gravado por `atualizarXp(records, achievements, missions)` (chamado sempre via `sincronizarGamificacao` — ver `docs/missions.md`, nunca direto pela tela). Regras: +10 XP por registro, +30 por dia registrado sem uso, +100 por cada 7 dias seguidos sem uso (melhor streak histórico), + o campo `xp` de cada conquista desbloqueada, + o `xp` gravado em cada missão concluída. `atualizarXp` também devolve `ganho` (diferença pro snapshot anterior) — é o que alimenta o toast de XP. Níveis em `NIVEIS`: Iniciante 0, Resistente 200, Guerreiro 500, Campeão 1000, Lendário 2000+.
 
-**CrisisSession** (modo crise): `{ id, date, time, method, durationSec, completed, outcome, note }`. `id` = `Date.now()`, `method` ∈ `'respiracao' | 'timer' | 'distracao' | null`, `outcome` ∈ `'passou' | 'diminuiu' | 'usei' | null` (null = usuário pulou o feedback). Firestore: subcoleção `users/{uid}/crisisSessions`. Convidado: array em `@vapefree_crisis`. Salva sempre que o usuário encerra a `CrisisScreen`, mesmo sem responder o feedback — ter pedido ajuda já é dado. Lido por `metodoDeCriseRecomendado` (`utils/insights.js`) para sugerir na próxima crise o método que já funcionou.
+**CrisisSession** (modo crise): `{ id, date, time, method, durationSec, completed, outcome, note }`. `id` = `Date.now()`, `method` ∈ `'respiracao' | 'timer' | 'distracao' | null`, `outcome` ∈ `'passou' | 'diminuiu' | 'usei' | null` (null = usuário pulou o feedback). Firestore: subcoleção `users/{uid}/crisisSessions`. Convidado: array em `@vapefree_crisis`. Salva sempre que o usuário encerra a `CrisisScreen`, mesmo sem responder o feedback — ter pedido ajuda já é dado. Lido por `metodoDeCriseRecomendado` (`utils/insights.js`) para sugerir na próxima crise o método que já funcionou. Editável (`atualizarSessaoDeCrise`) e apagável (`excluirSessaoDeCrise`) pela `CrisisHistoryScreen` — a edição só troca `outcome`/`note`; `date`, `time`, `method` e `durationSec` são medidos pelo app, não digitados.
 
 ## Meta do dia
 
@@ -119,7 +119,7 @@ Fora do intervalo ela gruda nas pontas (antes do `startDate` vale o `baseline`, 
 
 O cálculo da economia usa a variante `limiteDoDia(meta, aparelho, data)`, que é `metaEfetiva` valendo só do `startDate` em diante — ver [Cálculo de economia](#cálculo-de-economia).
 
-Também moram lá: `mediaDiariaNasDatas(registros, datas)` (média por dia contando só dias com registro), `janelaDeDias(ateData, n)` / `deslocarData` / `diferencaEmDias` (janela móvel usada pelas conquistas de redução) e `progressoDaMeta(meta, registros, hoje)`, que devolve de uma vez o que o card de meta da Home mostra.
+Também moram lá: `mediaDiariaNasDatas(registros, datas)` (média por dia contando só dias com registro), `janelaDeDias(ateData, n)` / `deslocarData` / `diferencaEmDias` (janela móvel usada pelas conquistas de redução) e `progressoDaMeta(meta, registros, hoje)`, que devolve de uma vez o que o card de meta da Home mostra. `comparativoSemanal(registros, hoje)` põe as duas janelas de 7 dias lado a lado (`{ mediaAtual, mediaAnterior, diasAtuais, diasAnteriores, diferenca, percentual, direcao }`) para o card "📊 Esta semana x semana passada" da Home: `direcao` é `'queda' | 'alta' | 'estavel'` (empate = diferença menor que meia puxada/dia) e vira `null` — junto com `diferenca` — quando alguma das semanas não tem nenhum dia registrado; `percentual` é `null` quando a semana anterior fechou em zero.
 
 ## Cálculo de economia
 
@@ -130,6 +130,8 @@ As duas contas derivadas do aparelho ficam em `utils/records.js`, puras: `custoP
 O limite de cada dia vem de `limiteDoDia(meta, aparelho, data)` (`utils/meta.js`): é o `metaEfetiva` do dia, **mas só a partir do `startDate` da meta** — dias anteriores continuam valendo pela `metaDiaria(aparelho)`. Motivo: fora do intervalo `metaDoDia` gruda no `baseline` (o consumo atual, quase sempre maior que a meta do aparelho), e usar isso no passado inflaria retroativamente a economia já registrada quando o usuário cria uma meta.
 
 O `max(0, ...)` trunca o excesso: dia acima do limite vira economia `0` e o quanto passou não é persistido em lugar nenhum. Quem precisa desse número usa `excessoDoDia(registrosDoDia, device, metaDoDia)` (`utils/records.js`), que devolve `{ puxadasAMais, custoAMais }` derivado na hora do render — o terceiro argumento vem de `metaEfetiva`, e `custoAMais` é `null` quando existe meta mas não existe aparelho pra precificar.
+
+Leitura do mapa de economia para gráfico fica em `utils/economia.js` (puro, módulo folha): `serieDeEconomiaAcumulada(economia, dias)` devolve `[{ data, acumulado }]` — o acumulado começa em `economiaAcumuladaAte(economia, dias[0])`, ou seja, inclui tudo que veio **antes** da janela, pro último ponto bater com o "Total no bolso". Complementos: `ganhoDaSerie(serie)` (quanto foi economizado dentro da janela) e `rotulosEspacados(dias, maximo)` (rótulos `DD/MM` espaçados a partir do último dia, o resto string vazia — 30 rótulos escritos se sobrepõem no chart-kit). Usados pelo card "📈 Economia acumulada" da `HomeScreen` (últimos 30 dias, só aparece com aparelho cadastrado e economia > 0).
 
 ## Migração convidado → conta
 

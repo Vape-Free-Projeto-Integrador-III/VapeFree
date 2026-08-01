@@ -15,6 +15,7 @@ import {
     TouchableOpacity,
     TextInput,
     Animated,
+    Modal,
 } from 'react-native';
 import Alert from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,6 +41,8 @@ import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
+import CalendarioMensal from '../components/CalendarioMensal';
+import { mesDeData, formatarDataCompleta } from '../utils/calendario';
 
 export const PRAZOS = [30, 60, 90];
 
@@ -70,6 +73,11 @@ export default function GoalScreen({ navigation }) {
     const [temMetaSalva, setTemMetaSalva] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [sucessoVisivel, setSucessoVisivel] = useState(false);
+    // Seletor de data final no calendário: alternativa aos chips de prazo. O
+    // prazo continua sendo a fonte única (em dias) — a data escolhida vira
+    // diferença em dias contando do início da rampa.
+    const [modalDeDataAberto, setModalDeDataAberto] = useState(false);
+    const [mesDoSeletor, setMesDoSeletor] = useState(() => mesDeData(dataDeHoje()));
     const animacaoDeFade = useState(new Animated.Value(0))[0];
 
     useEffect(() => {
@@ -119,6 +127,24 @@ export default function GoalScreen({ navigation }) {
             startDate: partida,
             endDate: deslocarData(partida, prazo),
         };
+    };
+
+    // Data final mínima: amanhã. Antes disso a rampa nasceria vencida — é a
+    // mesma regra que `salvar` checa com diferencaEmDias(hoje, endDate) > 0.
+    const dataFinalMinima = deslocarData(dataDeHoje(), 1);
+
+    const abrirSeletorDeData = () => {
+        // Meta antiga com prazo curto pode ter fim no passado — aí abre já no
+        // mês da primeira data escolhível, não num mês todo apagado.
+        const fim = metaDoFormulario().endDate;
+        setMesDoSeletor(mesDeData(fim < dataFinalMinima ? dataFinalMinima : fim));
+        setModalDeDataAberto(true);
+    };
+
+    const escolherDataFinal = (dataStr) => {
+        const partida = inicio || dataDeHoje();
+        setPrazo(diferencaEmDias(partida, dataStr));
+        setModalDeDataAberto(false);
     };
 
     const salvar = async () => {
@@ -260,6 +286,17 @@ export default function GoalScreen({ navigation }) {
                     })}
                 </View>
 
+                <TouchableOpacity
+                    style={[styles.dateBtn, { borderColor: cores.border, backgroundColor: cores.inputBg }]}
+                    onPress={abrirSeletorDeData}
+                >
+                    <Ionicons name="calendar-outline" size={18} color={cores.primary} />
+                    <Text style={[styles.dateBtnLabel, { color: cores.textSecondary }]}>Terminar em</Text>
+                    <Text style={[styles.dateBtnValue, { color: cores.text }]}>
+                        {formatarData(rascunho.endDate)}
+                    </Text>
+                </TouchableOpacity>
+
                 {metaDeHoje !== null && (
                     <View style={[styles.previewBox, { backgroundColor: cores.primaryLight }]}>
                         <Text style={[styles.previewTitle, { color: cores.primaryDark }]}>Prévia</Text>
@@ -324,6 +361,45 @@ export default function GoalScreen({ navigation }) {
 
             <View style={{ height: 40 }} />
         </ScrollView>
+
+        {/* Data final no calendário — alternativa aos chips de 30/60/90 dias */}
+        <Modal visible={modalDeDataAberto} transparent animationType="slide" onRequestClose={() => setModalDeDataAberto(false)}>
+            <View style={styles.modalOverlay}>
+                <View style={[styles.modalContent, { backgroundColor: cores.modalBg }]}>
+                    <View style={[styles.modalHeader, { borderBottomColor: cores.border }]}>
+                        <Text style={[styles.modalTitle, { color: cores.text }]}>Data final da meta</Text>
+                        <TouchableOpacity onPress={() => setModalDeDataAberto(false)}>
+                            <Ionicons name="close" size={24} color={cores.textMuted} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.modalBody}>
+                        <CalendarioMensal
+                            ano={mesDoSeletor.ano}
+                            mes={mesDoSeletor.mes}
+                            cores={cores}
+                            aoMudarMes={setMesDoSeletor}
+                            bloquearVolta={
+                                mesDoSeletor.ano === mesDeData(dataFinalMinima).ano &&
+                                mesDoSeletor.mes === mesDeData(dataFinalMinima).mes
+                            }
+                            minimo={dataFinalMinima}
+                            estiloDoDia={(dataStr) =>
+                                dataStr === rascunho.endDate
+                                    ? { fundo: cores.primary, corDoTexto: '#fff' }
+                                    : {}
+                            }
+                            aoTocarDia={escolherDataFinal}
+                        />
+
+                        <Text style={[styles.modalHint, { color: cores.textSecondary }]}>
+                            Chega no alvo em {formatarDataCompleta(rascunho.endDate)} —{' '}
+                            {prazo} {prazo === 1 ? 'dia' : 'dias'} de rampa.
+                        </Text>
+                    </View>
+                </View>
+            </View>
+        </Modal>
         </View>
     );
 }
@@ -337,6 +413,15 @@ const styles = StyleSheet.create({
     chipRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
     chip: { flex: 1, borderWidth: 1.5, borderRadius: RAIO.md, paddingVertical: 12, alignItems: 'center' },
     chipText: { fontSize: 14, fontFamily: 'Poppins_700Bold' },
+    dateBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: RAIO.md, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 16 },
+    dateBtnLabel: { fontSize: 14, fontFamily: 'Poppins_400Regular', flex: 1 },
+    dateBtnValue: { fontSize: 14, fontFamily: 'Poppins_700Bold' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    modalContent: { borderTopLeftRadius: RAIO.lg, borderTopRightRadius: RAIO.lg, paddingBottom: 24 },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1 },
+    modalTitle: { fontSize: 17, fontFamily: 'Poppins_700Bold' },
+    modalBody: { padding: 18 },
+    modalHint: { fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 14, lineHeight: 18 },
     previewBox: { borderRadius: RAIO.md, padding: 14, marginBottom: 16 },
     previewTitle: { fontSize: 12, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
     previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },

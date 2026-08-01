@@ -54,18 +54,19 @@ Com `aoVerCrises` e pelo menos uma sessão de crise salva, o card ganha no rodap
 
 ## `CalendarioMensal` (`components/CalendarioMensal.js`)
 
-Grade mensal de 7 colunas (semana começando na segunda), apresentação pura. Props: `ano`, `mes` (0-11), `cores`, `aoMudarMes({ ano, mes })`, `bloquearAvanco`, `maximo` (data `YYYY-MM-DD` — dias depois dela ficam apagados e sem toque), `estiloDoDia(dataStr) => { fundo, corDoTexto, borda }`, `aoTocarDia(dataStr)` (opcional — sem ele as células não são tocáveis).
+Grade mensal de 7 colunas (semana começando na segunda), apresentação pura. Props: `ano`, `mes` (0-11), `cores`, `aoMudarMes({ ano, mes })`, `bloquearAvanco`, `bloquearVolta`, `maximo` / `minimo` (datas `YYYY-MM-DD` — dias fora do intervalo ficam apagados e sem toque), `estiloDoDia(dataStr) => { fundo, corDoTexto, borda }`, `aoTocarDia(dataStr)` (opcional — sem ele as células não são tocáveis).
 
 O componente **não sabe o que as cores significam**: quem decide é o `estiloDoDia` de quem usa. Dois usos hoje:
 
 - **`HomeScreen`** — heatmap "Seu mês": verde = dia limpo, claro = dentro do limite, vermelho = acima, cinza = sem registro. Sem toque nos dias.
 - **`HistoryScreen`** — seleção do intervalo do filtro "Período": 1º toque define o início, 2º o fim (inverte se for anterior), o 3º recomeça.
+- **`GoalScreen`** — escolha da data final da meta (`minimo` = amanhã, `bloquearVolta` no mês da data mínima). O toque converte a data em prazo: `prazo = diferencaEmDias(inicio, data)` — o prazo em dias continua sendo a fonte única do formulário, os chips 30/60/90 são só atalhos.
 
 Toda a matemática de data mora em `utils/calendario.js` (`gradeDoMes`, `estadoDoDia`, `resumoDoMes`, `datasNoIntervalo`, `diasNoIntervalo`, `estaNoIntervalo`), funções puras no mesmo estilo de `utils/records.js`. `estadoDoDia` recebe a meta do dia já resolvida — quem chama `metaEfetiva(meta, aparelho, data)` é a tela, nunca `metaDiaria()` direto.
 
 ## `CrisisOutcomeModal` (`components/CrisisOutcomeModal.js`)
 
-Modal central usado só pela `CrisisScreen`, ao encerrar uma sessão de modo crise. Pergunta "E aí, como foi?" com três chips (Passou / Diminuiu / Acabei usando) + nota opcional. Props: `visivel`, `cores`, `aoEnviar(desfecho, nota)`, `aoPular`.
+Modal central usado ao encerrar uma sessão de modo crise (`CrisisScreen`) e ao editar uma sessão já salva (`CrisisHistoryScreen`). Pergunta "E aí, como foi?" com três chips (Passou / Diminuiu / Acabei usando) + nota opcional. Props: `visivel`, `cores`, `aoEnviar(desfecho, nota)`, `aoPular` e, para o modo edição, `valorInicial` (`{ outcome, note }` da sessão), `titulo`, `subtitulo`, `rotuloDeSalvar`, `rotuloDePular`. `valorInicial` é reaplicado toda vez que o modal abre — senão a edição mostraria o que sobrou da sessão anterior.
 
 Os três desfechos vêm de `DESFECHOS_DE_CRISE` (`utils/insights.js`), fonte única compartilhada com a `CrisisHistoryScreen`, que exibe o mesmo rótulo/emoji no badge de cada sessão.
 

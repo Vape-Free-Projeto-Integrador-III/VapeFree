@@ -23,6 +23,7 @@ import {
   aplicarPreferenciasDeNotificacao,
   cancelarNotificacoesMotivacionais,
   cancelarNotificacaoDeStreak,
+  cancelarLembreteDeRisco,
 } from '../utils/notifications';
 
 const CHAVE_MODO_CONVIDADO = '@vapefree_guest_mode';
@@ -114,6 +115,9 @@ export function AuthProvider({ children }) {
       );
       cancelarNotificacaoDeStreak().catch((erro) =>
         console.log('Erro ao cancelar notificação de streak:', erro)
+      );
+      cancelarLembreteDeRisco().catch((erro) =>
+        console.log('Erro ao cancelar lembrete de risco:', erro)
       );
     }
   }, [usuario, ehConvidado, inicializando]);

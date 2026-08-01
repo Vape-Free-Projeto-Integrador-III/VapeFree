@@ -226,9 +226,18 @@ const PERIODOS_DO_DIA = [
   { id: 'noite', rotulo: 'à noite', de: 18, ate: 23 },
 ];
 
+// Hora cheia de um `time` de sessão de crise ('HH:MM'). Exige os dois dígitos:
+// `Number('')` é 0, então sem essa checagem sessão sem hora viraria meia-noite
+// (e contaria como madrugada).
+function horaDe(horaStr) {
+  const texto = String(horaStr || '');
+  if (!/^\d{2}/.test(texto)) return null;
+  return Number(texto.slice(0, 2));
+}
+
 function periodoDe(horaStr) {
-  const hora = Number(String(horaStr || '').slice(0, 2));
-  if (Number.isNaN(hora)) return null;
+  const hora = horaDe(horaStr);
+  if (hora === null) return null;
   return PERIODOS_DO_DIA.find((p) => hora >= p.de && hora <= p.ate) || null;
 }
 
@@ -273,7 +282,20 @@ function taxaDeSucessoNasCrises(sessoes) {
   };
 }
 
-function periodoDasCrises(sessoes) {
+// Menos de 3 crises no mesmo período é coincidência, não horário de risco.
+export const MIN_CRISES_PARA_HORARIO_DE_RISCO = 3;
+
+// O período do dia em que a vontade mais bate, já convertido num horário
+// concreto: a MEDIANA das horas das crises daquele período. Mediana e não
+// média porque uma crise perdida na ponta do período (ex.: 23h num monte de
+// crises às 18h) não deve arrastar o horário.
+//
+// É o que alimenta tanto o insight `crise_horario` (texto) quanto o lembrete
+// agendado no horário de risco (utils/notifications.js) — os dois olham o
+// mesmo dado, então nunca divergem.
+export function horarioDeRiscoDeCrise(sessoesDeCrise) {
+  const sessoes = Array.isArray(sessoesDeCrise) ? sessoesDeCrise : [];
+
   const contagens = {};
   sessoes.forEach((sessao) => {
     const periodo = periodoDe(sessao.time);
@@ -281,15 +303,33 @@ function periodoDasCrises(sessoes) {
   });
 
   const topo = maiorContagem(contagens);
-  // Menos de 3 crises no mesmo período é coincidência, não horário de risco.
-  if (!topo || topo.contagem < 3) return null;
+  if (!topo || topo.contagem < MIN_CRISES_PARA_HORARIO_DE_RISCO) return null;
 
   const periodo = PERIODOS_DO_DIA.find((p) => p.id === topo.rotulo);
+  const horas = sessoes
+    .map((sessao) => horaDe(sessao.time))
+    .filter((hora) => hora !== null && hora >= periodo.de && hora <= periodo.ate)
+    .sort((a, b) => a - b);
+
+  return {
+    periodo: periodo.id,
+    rotulo: periodo.rotulo,
+    contagem: topo.contagem,
+    // Índice de baixo no empate par: prefere a hora mais cedo, e o lembrete
+    // chegar cedo demais atrapalha menos que chegar depois da crise.
+    hora: horas[Math.floor((horas.length - 1) / 2)],
+  };
+}
+
+function periodoDasCrises(sessoes) {
+  const risco = horarioDeRiscoDeCrise(sessoes);
+  if (!risco) return null;
+
   return {
     id: 'crise_horario',
     icone: '🕒',
-    titulo: `Sua vontade bate mais ${periodo.rotulo}`,
-    detalhe: `${topo.contagem} das suas crises começaram nesse período. Vale se preparar antes dessa hora.`,
+    titulo: `Sua vontade bate mais ${risco.rotulo}`,
+    detalhe: `${risco.contagem} das suas crises começaram nesse período. Vale se preparar antes dessa hora.`,
   };
 }
 

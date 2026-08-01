@@ -1,20 +1,36 @@
 //
-// Lista as sessões do modo crise. Só leitura: o dado já era salvo por
-// salvarSessaoDeCrise (utils/storage.js) e alimentava insights, conquistas e
-// missões, mas o usuário nunca conseguia ver crise por crise.
+// Lista as sessões do modo crise, e deixa corrigir ou apagar o que foi
+// registrado: o desfecho é respondido na hora da vontade, então errar o clique
+// (ou querer completar a nota depois) é comum. Data, método e duração não são
+// editáveis — são medidos pelo app, não digitados.
 
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+    View,
+    Text,
+    ScrollView,
+    StyleSheet,
+    TouchableOpacity,
+    Modal,
+    TouchableWithoutFeedback,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import GradeDeCards from '../components/GradeDeCards';
-import { obterSessoesDeCrise } from '../utils/storage';
+import CrisisOutcomeModal from '../components/CrisisOutcomeModal';
+import {
+    obterSessoesDeCrise,
+    atualizarSessaoDeCrise,
+    excluirSessaoDeCrise,
+    sincronizarGamificacao,
+} from '../utils/storage';
 import { METODOS_DE_CRISE, desfechoDeCrise, resumoDeCrises } from '../utils/insights';
 import { formatarDiaMes } from '../utils/calendario';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
+import { usarToast } from '../context/ToastContext';
 
 function formatarDuracao(segundos) {
     const total = Number(segundos);
@@ -29,13 +45,53 @@ function formatarDuracao(segundos) {
 export default function CrisisHistoryScreen({ navigation }) {
     const { cores } = usarTema();
     const { colunas } = usarLayoutResponsivo();
+    const { mostrarErro, mostrarRecompensas } = usarToast();
     const [sessoes, setSessoes] = useState([]);
+    const [sessaoEmEdicao, setSessaoEmEdicao] = useState(null);
+    const [idParaExcluirConfirmacao, setIdParaExcluirConfirmacao] = useState(null);
 
     const carregar = async () => {
         setSessoes(await obterSessoesDeCrise());
     };
 
     useFocusEffect(useCallback(() => { carregar(); }, []));
+
+    // Mudar/apagar desfecho mexe em missão e conquista de crise (superar a
+    // vontade), então relê e reavalia a gamificação — mesmo fluxo do History.
+    const recarregarEConceder = async () => {
+        const atualizadas = await obterSessoesDeCrise();
+        setSessoes(atualizadas);
+        const { recompensas } = await sincronizarGamificacao({ sessoesDeCrise: atualizadas });
+        mostrarRecompensas(recompensas);
+    };
+
+    const salvarEdicao = async (desfecho, nota) => {
+        if (!sessaoEmEdicao) return;
+        const resultado = await atualizarSessaoDeCrise({
+            ...sessaoEmEdicao,
+            outcome: desfecho ?? null,
+            note: nota ?? null,
+        });
+        // Não fecha o modal se não gravou — senão o usuário perde a edição.
+        if (!resultado.ok) {
+            mostrarErro('Não deu pra salvar a edição', 'Verifique sua conexão e tente de novo.');
+            return;
+        }
+        setSessaoEmEdicao(null);
+        await recarregarEConceder();
+    };
+
+    const excluir = async () => {
+        if (idParaExcluirConfirmacao === null) return;
+        const resultado = await excluirSessaoDeCrise(idParaExcluirConfirmacao);
+        if (!resultado.ok) {
+            mostrarErro('Não deu pra apagar', 'Verifique sua conexão e tente de novo.');
+            setIdParaExcluirConfirmacao(null);
+            return;
+        }
+        setIdParaExcluirConfirmacao(null);
+        await recarregarEConceder();
+    };
 
     const resumo = resumoDeCrises(sessoes);
     const emOrdem = [...sessoes].sort((a, b) => {
@@ -106,6 +162,20 @@ export default function CrisisHistoryScreen({ navigation }) {
                                                 {desfecho ? `${desfecho.emoji} ${desfecho.rotulo}` : 'Não respondeu'}
                                             </Text>
                                         </View>
+                                        <TouchableOpacity
+                                            style={styles.acaoBtn}
+                                            accessibilityLabel="Editar crise"
+                                            onPress={() => setSessaoEmEdicao({ ...sessao })}
+                                        >
+                                            <Ionicons name="pencil" size={16} color={cores.primary} />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={styles.acaoBtn}
+                                            accessibilityLabel="Apagar crise"
+                                            onPress={() => setIdParaExcluirConfirmacao(sessao.id)}
+                                        >
+                                            <Ionicons name="trash-outline" size={16} color={cores.danger} />
+                                        </TouchableOpacity>
                                     </View>
 
                                     <Text style={[styles.itemMethod, { color: cores.textSecondary }]}>
@@ -141,6 +211,52 @@ export default function CrisisHistoryScreen({ navigation }) {
                     <View style={{ height: 24 }} />
                 </View>
             </ScrollView>
+
+            <CrisisOutcomeModal
+                visivel={sessaoEmEdicao !== null}
+                cores={cores}
+                valorInicial={sessaoEmEdicao}
+                titulo="Editar crise"
+                subtitulo="Corrigir o desfecho ou completar a nota depois vale — o que conta é o registro ficar fiel."
+                rotuloDeSalvar="Salvar alterações"
+                rotuloDePular="Cancelar"
+                aoEnviar={salvarEdicao}
+                aoPular={() => setSessaoEmEdicao(null)}
+            />
+
+            <Modal
+                visible={idParaExcluirConfirmacao !== null}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIdParaExcluirConfirmacao(null)}
+            >
+                <TouchableWithoutFeedback onPress={() => setIdParaExcluirConfirmacao(null)}>
+                    <View style={styles.confirmOverlay}>
+                        <TouchableWithoutFeedback>
+                            <View style={[styles.confirmModal, { backgroundColor: cores.card }]}>
+                                <Text style={[styles.confirmTitle, { color: cores.text }]}>Apagar essa crise?</Text>
+                                <Text style={[styles.confirmText, { color: cores.textSecondary }]}>
+                                    Ela sai das suas estatísticas. Isso não pode ser desfeito.
+                                </Text>
+                                <View style={styles.confirmButtons}>
+                                    <TouchableOpacity
+                                        style={[styles.confirmCancelBtn, { backgroundColor: cores.borderLight }]}
+                                        onPress={() => setIdParaExcluirConfirmacao(null)}
+                                    >
+                                        <Text style={[styles.confirmCancelText, { color: cores.textSecondary }]}>Cancelar</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.confirmDeleteBtn, { backgroundColor: cores.danger }]}
+                                        onPress={excluir}
+                                    >
+                                        <Text style={styles.confirmDeleteText}>Apagar</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </TouchableWithoutFeedback>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
         </View>
     );
 }
@@ -156,6 +272,7 @@ const styles = StyleSheet.create({
     item: { borderRadius: RAIO.md, padding: 14, marginHorizontal: 16, marginTop: 10 },
     itemTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     itemDate: { flex: 1, fontSize: 13, fontFamily: 'Poppins_700Bold' },
+    acaoBtn: { padding: 4 },
     badge: { borderRadius: RAIO.full, borderWidth: 1, paddingVertical: 3, paddingHorizontal: 10 },
     badgeText: { fontSize: 11, fontFamily: 'Poppins_600SemiBold' },
     itemMethod: { fontSize: 12, fontFamily: 'Poppins_500Medium', marginTop: 6 },
@@ -164,4 +281,13 @@ const styles = StyleSheet.create({
     emptyText: { fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', lineHeight: 19 },
     emptyBtn: { borderRadius: RAIO.md, paddingVertical: 12, paddingHorizontal: 24, marginTop: 4 },
     emptyBtnText: { fontSize: 14, fontFamily: 'Poppins_700Bold', color: '#fff' },
+    confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    confirmModal: { borderRadius: RAIO.lg, padding: 20, width: '80%', maxWidth: 300 },
+    confirmTitle: { fontSize: 18, fontFamily: 'Poppins_700Bold', marginBottom: 8, textAlign: 'center' },
+    confirmText: { fontSize: 14, fontFamily: 'Poppins_400Regular', marginBottom: 20, textAlign: 'center' },
+    confirmButtons: { flexDirection: 'row', gap: 12 },
+    confirmCancelBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: RAIO.md },
+    confirmCancelText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
+    confirmDeleteBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: RAIO.md },
+    confirmDeleteText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold', color: '#fff' },
 });

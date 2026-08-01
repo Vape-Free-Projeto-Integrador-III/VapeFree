@@ -79,6 +79,16 @@ jest.mock('../../services/firebase', () => ({ auth: mockAuth, db: {} }));
 const UID = 'uid1';
 
 const APARELHO = { price: 50, totalPuffs: 5000, days: 10 };
+const SESSAO_DE_CRISE = {
+  id: 1,
+  date: '2026-03-01',
+  time: '14:20',
+  method: 'timer',
+  durationSec: 300,
+  completed: true,
+  outcome: 'passou',
+  note: null,
+};
 
 const chaveDoEspelho = (nome) => `@vapefree_cache_${UID}_${nome}`;
 const filaSalva = () => JSON.parse(mockArmazenamento[`@vapefree_queue_${UID}`] || '[]');
@@ -210,6 +220,29 @@ describe('modo convidado (sem uid)', () => {
     expect(registros[0].id).toBe(2);
   });
 
+  it('sessão de crise edita desfecho e nota, e apagar tira só o id pedido', async () => {
+    await storage.salvarSessaoDeCrise({ ...SESSAO_DE_CRISE, id: 1 });
+    await storage.salvarSessaoDeCrise({ ...SESSAO_DE_CRISE, id: 2 });
+
+    expect(
+      await storage.atualizarSessaoDeCrise({ ...SESSAO_DE_CRISE, id: 1, outcome: 'usei', note: 'oi' })
+    ).toEqual({ ok: true });
+    expect(await storage.obterSessoesDeCrise()).toMatchObject([
+      { id: 1, outcome: 'usei', note: 'oi' },
+      { id: 2, outcome: 'passou' },
+    ]);
+
+    expect(await storage.excluirSessaoDeCrise(1)).toEqual({ ok: true });
+    expect((await storage.obterSessoesDeCrise()).map((s) => s.id)).toEqual([2]);
+  });
+
+  it('atualizarSessaoDeCrise de id inexistente devolve nao_encontrado', async () => {
+    expect(await storage.atualizarSessaoDeCrise({ ...SESSAO_DE_CRISE, id: 999 })).toEqual({
+      ok: false,
+      motivo: 'nao_encontrado',
+    });
+  });
+
   it('aparelho e meta vão pro AsyncStorage; salvarMeta(null) remove', async () => {
     expect(await storage.salvarAparelho(APARELHO)).toEqual({ ok: true });
     expect(await storage.obterAparelho()).toEqual(APARELHO);
@@ -302,6 +335,28 @@ describe('modo conta — escrita', () => {
 
     expect(espelhoSalvo('records')).toEqual([]);
     expect(filaSalva().at(-1)).toMatchObject({ tipo: 'delete', docId: '1' });
+  });
+
+  it('editar e apagar sessão de crise mexem no espelho e sobem quando a rede volta', async () => {
+    mockOnline = false;
+    await storage.salvarSessaoDeCrise({ ...SESSAO_DE_CRISE, id: 1 });
+    await storage.salvarSessaoDeCrise({ ...SESSAO_DE_CRISE, id: 2 });
+
+    await storage.atualizarSessaoDeCrise({ ...SESSAO_DE_CRISE, id: 1, outcome: 'usei' });
+    expect(espelhoSalvo('crisisSessions')).toMatchObject([{ id: 2 }, { id: 1, outcome: 'usei' }]);
+
+    expect(await storage.excluirSessaoDeCrise(2)).toEqual({ ok: true });
+    expect(espelhoSalvo('crisisSessions').map((s) => s.id)).toEqual([1]);
+    expect(filaSalva().at(-1)).toMatchObject({
+      tipo: 'delete',
+      colecao: 'crisisSessions',
+      docId: '2',
+    });
+
+    await religarRedeEDrenar();
+
+    expect(mockRemoto[`users/${UID}/crisisSessions/2`]).toBeUndefined();
+    expect(mockRemoto[`users/${UID}/crisisSessions/1`]).toMatchObject({ outcome: 'usei' });
   });
 
   it('aparelho vai como merge no doc do usuário', async () => {
@@ -515,6 +570,7 @@ describe('preferências locais', () => {
       ativas: true,
       hora: 21,
       minuto: 0,
+      risco: true,
     });
   });
 

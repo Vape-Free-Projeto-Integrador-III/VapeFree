@@ -25,7 +25,9 @@ export default function CalendarioMensal({
     cores,
     aoMudarMes,
     bloquearAvanco = false,
+    bloquearVolta = false,
     maximo = null, // 'YYYY-MM-DD': dias depois disso ficam apagados e sem toque
+    minimo = null, // 'YYYY-MM-DD': dias antes disso ficam apagados e sem toque
     estiloDoDia,
     aoTocarDia,
     tooltipDoDia, // web/desktop: (dataStr) => string|null — texto do popup ao passar o mouse em cima do dia
@@ -47,9 +49,14 @@ export default function CalendarioMensal({
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.navBtn}
+                    disabled={bloquearVolta}
                     onPress={() => aoMudarMes(mesAnterior({ ano, mes }))}
                 >
-                    <Ionicons name="chevron-back" size={20} color={cores.primary} />
+                    <Ionicons
+                        name="chevron-back"
+                        size={20}
+                        color={bloquearVolta ? cores.borderLight : cores.primary}
+                    />
                 </TouchableOpacity>
 
                 <Text style={[styles.headerTitle, { color: cores.text }]}>
@@ -82,7 +89,9 @@ export default function CalendarioMensal({
                     {grade.map((dataStr, indice) => {
                         if (!dataStr) return <View key={`vazio-${indice}`} style={styles.cell} />;
 
-                        const foraDoLimite = maximo !== null && dataStr > maximo;
+                        const foraDoLimite =
+                            (maximo !== null && dataStr > maximo) ||
+                            (minimo !== null && dataStr < minimo);
                         const estilo = foraDoLimite ? {} : estiloDoDia(dataStr) || {};
                         const podeTocar = !!aoTocarDia && !foraDoLimite;
                         const podeReceberMouse = podeTocar || (!foraDoLimite && !!tooltipDoDia);

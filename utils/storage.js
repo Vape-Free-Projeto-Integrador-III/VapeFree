@@ -257,7 +257,16 @@ export async function reiniciarOnboarding() {
 // Sempre local, como o tutorial: o agendamento é feito pelo próprio aparelho
 // (expo-notifications), então não faz sentido guardar isso na conta.
 
-export const PREFERENCIAS_DE_NOTIFICACAO_PADRAO = { ativas: true, hora: 9, minuto: 0 };
+// `risco`: lembrete extra agendado no horário em que as crises do usuário mais
+// batem (ver horarioDeRiscoDeCrise em utils/insights.js). Só sai do papel
+// quando existe crise suficiente pra apontar um período — então liga por
+// padrão sem incomodar quem nunca usou o modo crise.
+export const PREFERENCIAS_DE_NOTIFICACAO_PADRAO = {
+  ativas: true,
+  hora: 9,
+  minuto: 0,
+  risco: true,
+};
 
 export async function obterPreferenciasDeNotificacao() {
   const salvo = await lerJson(CHAVE_NOTIFICACOES, null);
@@ -268,6 +277,7 @@ export async function obterPreferenciasDeNotificacao() {
     ativas: salvo.ativas !== false,
     hora: Number.isInteger(salvo.hora) ? salvo.hora : PREFERENCIAS_DE_NOTIFICACAO_PADRAO.hora,
     minuto: Number.isInteger(salvo.minuto) ? salvo.minuto : PREFERENCIAS_DE_NOTIFICACAO_PADRAO.minuto,
+    risco: salvo.risco !== false,
   };
 }
 
@@ -1003,6 +1013,54 @@ export async function salvarSessaoDeCrise(sessao) {
     const sessoes = await obterSessoesDeCrise();
     sessoes.push(sessao);
     await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(sessoes));
+    return OK;
+  } catch {
+    return falha('rede');
+  }
+}
+
+// Edição pela tela de histórico de crises: o usuário só muda desfecho e nota
+// (o resto — data, método, duração — é medido pelo app, não digitado).
+export async function atualizarSessaoDeCrise(sessao) {
+  const uid = obterUid();
+  try {
+    if (uid) {
+      const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
+      await escreverNaConta(
+        uid,
+        ESPELHOS.SESSOES_DE_CRISE,
+        [...sessoes.filter((s) => s.id !== sessao.id), sessao],
+        { tipo: 'set', colecao: 'crisisSessions', docId: String(sessao.id), dados: sessao }
+      );
+      return OK;
+    }
+    const sessoes = await obterSessoesDeCrise();
+    if (!sessoes.some((s) => s.id === sessao.id)) {
+      return falha('nao_encontrado');
+    }
+    const atualizadas = sessoes.map((s) => (s.id === sessao.id ? sessao : s));
+    await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(atualizadas));
+    return OK;
+  } catch {
+    return falha('rede');
+  }
+}
+
+export async function excluirSessaoDeCrise(id) {
+  const uid = obterUid();
+  try {
+    if (uid) {
+      const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
+      await escreverNaConta(
+        uid,
+        ESPELHOS.SESSOES_DE_CRISE,
+        sessoes.filter((s) => s.id !== id),
+        { tipo: 'delete', colecao: 'crisisSessions', docId: String(id) }
+      );
+      return OK;
+    }
+    const sessoes = await obterSessoesDeCrise();
+    await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(sessoes.filter((s) => s.id !== id)));
     return OK;
   } catch {
     return falha('rede');
