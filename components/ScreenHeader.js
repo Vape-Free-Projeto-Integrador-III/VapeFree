@@ -36,7 +36,10 @@ export default function ScreenHeader({
 
             <View style={styles.actions}>
                 {mostrarConfiguracoes ? (
-                    <TouchableOpacity onPress={aoPressionarConfiguracoes} style={styles.settingsBtn}>
+                    <TouchableOpacity
+                        onPress={aoPressionarConfiguracoes}
+                        style={styles.settingsBtn}
+                    >
                         <Ionicons name="settings-outline" size={22} color="#fff" />
                     </TouchableOpacity>
                 ) : (
@@ -77,7 +80,8 @@ const styles = StyleSheet.create({
         letterSpacing: -0.5,
     },
     subtitle: {
-        fontSize: 12, fontFamily: 'Poppins_400Regular',
+        fontSize: 12,
+        fontFamily: 'Poppins_400Regular',
         color: 'rgba(255,255,255,0.85)',
         marginTop: 2,
     },

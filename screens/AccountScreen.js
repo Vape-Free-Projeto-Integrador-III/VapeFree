@@ -214,7 +214,10 @@ export default function AccountScreen({ navigation }) {
             return;
         }
         if (!validarSenhaForte(novaSenha)) {
-            mostrarErro('Opa', 'A nova senha precisa ter pelo menos 8 caracteres, com letra e número.');
+            mostrarErro(
+                'Opa',
+                'A nova senha precisa ter pelo menos 8 caracteres, com letra e número.'
+            );
             return;
         }
         if (novaSenha !== confirmacaoDaSenha) {
@@ -274,7 +277,12 @@ export default function AccountScreen({ navigation }) {
         return (
             <View style={styles.campo}>
                 <Text style={[styles.label, { color: cores.textSecondary }]}>{rotulo}</Text>
-                <View style={[styles.inputWrap, { backgroundColor: cores.inputBg, borderColor: cores.border }]}>
+                <View
+                    style={[
+                        styles.inputWrap,
+                        { backgroundColor: cores.inputBg, borderColor: cores.border },
+                    ]}
+                >
                     <Ionicons name={icone} size={18} color={cores.textMuted} />
                     <TextInput
                         style={[styles.input, { color: cores.text }]}
@@ -336,14 +344,31 @@ export default function AccountScreen({ navigation }) {
 
                 {usaSenha ? (
                     <>
-                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}>
-                            <Text style={[styles.cardTitulo, { color: cores.text }]}>Senha atual</Text>
+                        <View
+                            style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}
+                        >
+                            <Text style={[styles.cardTitulo, { color: cores.text }]}>
+                                Senha atual
+                            </Text>
                             <Text style={[styles.cardTexto, { color: cores.textSecondary }]}>
-                                Trocar e-mail, trocar senha ou excluir a conta precisa da sua senha atual.
+                                Trocar e-mail, trocar senha ou excluir a conta precisa da sua senha
+                                atual.
                             </Text>
                             <View style={styles.campo}>
-                                <View style={[styles.inputWrap, { backgroundColor: cores.inputBg, borderColor: cores.border }]}>
-                                    <Ionicons name="lock-closed-outline" size={18} color={cores.textMuted} />
+                                <View
+                                    style={[
+                                        styles.inputWrap,
+                                        {
+                                            backgroundColor: cores.inputBg,
+                                            borderColor: cores.border,
+                                        },
+                                    ]}
+                                >
+                                    <Ionicons
+                                        name="lock-closed-outline"
+                                        size={18}
+                                        color={cores.textMuted}
+                                    />
                                     <TextInput
                                         style={[styles.input, { color: cores.text }]}
                                         placeholder="Sua senha atual"
@@ -364,7 +389,9 @@ export default function AccountScreen({ navigation }) {
                             </View>
                         </View>
 
-                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+                        <View
+                            style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}
+                        >
                             <Text style={[styles.cardTitulo, { color: cores.text }]}>E-mail</Text>
                             {renderizarCampo({
                                 rotulo: 'E-mail da conta',
@@ -378,8 +405,12 @@ export default function AccountScreen({ navigation }) {
                             {renderizarBotao('Trocar e-mail', handleTrocarEmail, 'email')}
                         </View>
 
-                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}>
-                            <Text style={[styles.cardTitulo, { color: cores.text }]}>Trocar senha</Text>
+                        <View
+                            style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}
+                        >
+                            <Text style={[styles.cardTitulo, { color: cores.text }]}>
+                                Trocar senha
+                            </Text>
                             {renderizarCampo({
                                 rotulo: 'Nova senha',
                                 icone: 'key-outline',
@@ -403,10 +434,12 @@ export default function AccountScreen({ navigation }) {
                     </>
                 ) : (
                     <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}>
-                        <Text style={[styles.cardTitulo, { color: cores.text }]}>E-mail e senha</Text>
+                        <Text style={[styles.cardTitulo, { color: cores.text }]}>
+                            E-mail e senha
+                        </Text>
                         <Text style={[styles.cardTexto, { color: cores.textSecondary }]}>
-                            Você entrou com o Google, então o e-mail e a senha são gerenciados por lá — dá pra
-                            trocar na sua conta Google.
+                            Você entrou com o Google, então o e-mail e a senha são gerenciados por
+                            lá — dá pra trocar na sua conta Google.
                         </Text>
                     </View>
                 )}

@@ -85,7 +85,10 @@ export default function CalendarioMensal({
             </View>
 
             <View style={styles.gridWrap}>
-                <View style={styles.grid} onLayout={(e) => setLarguraGrade(e.nativeEvent.layout.width)}>
+                <View
+                    style={styles.grid}
+                    onLayout={(e) => setLarguraGrade(e.nativeEvent.layout.width)}
+                >
                     {grade.map((dataStr, indice) => {
                         if (!dataStr) return <View key={`vazio-${indice}`} style={styles.cell} />;
 
@@ -100,11 +103,18 @@ export default function CalendarioMensal({
                         return (
                             <Pressable
                                 key={dataStr}
-                                style={({ pressed }) => [styles.cell, pressed && podeTocar ? { opacity: 0.7 } : null]}
+                                style={({ pressed }) => [
+                                    styles.cell,
+                                    pressed && podeTocar ? { opacity: 0.7 } : null,
+                                ]}
                                 disabled={!podeReceberMouse}
                                 onPress={podeTocar ? () => aoTocarDia(dataStr) : undefined}
-                                onHoverIn={podeReceberMouse ? () => setIndiceEmFoco(indice) : undefined}
-                                onHoverOut={podeReceberMouse ? () => setIndiceEmFoco(null) : undefined}
+                                onHoverIn={
+                                    podeReceberMouse ? () => setIndiceEmFoco(indice) : undefined
+                                }
+                                onHoverOut={
+                                    podeReceberMouse ? () => setIndiceEmFoco(null) : undefined
+                                }
                             >
                                 <View
                                     style={[
@@ -119,7 +129,11 @@ export default function CalendarioMensal({
                                     <Text
                                         style={[
                                             styles.cellText,
-                                            { color: foraDoLimite ? cores.borderLight : estilo.corDoTexto || cores.textSecondary },
+                                            {
+                                                color: foraDoLimite
+                                                    ? cores.borderLight
+                                                    : estilo.corDoTexto || cores.textSecondary,
+                                            },
                                         ]}
                                     >
                                         {dia}
@@ -143,7 +157,10 @@ export default function CalendarioMensal({
                             },
                         ]}
                     >
-                        <Text numberOfLines={1} style={[styles.tooltipText, { color: cores.background }]}>
+                        <Text
+                            numberOfLines={1}
+                            style={[styles.tooltipText, { color: cores.background }]}
+                        >
                             {textoDoTooltip}
                         </Text>
                     </View>
@@ -155,7 +172,12 @@ export default function CalendarioMensal({
 
 const styles = StyleSheet.create({
     container: { width: '100%', maxWidth: 340, alignSelf: 'center' },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
     headerTitle: { fontSize: 14, fontFamily: 'Poppins_700Bold' },
     navBtn: { padding: 6 },
     weekRow: { flexDirection: 'row' },

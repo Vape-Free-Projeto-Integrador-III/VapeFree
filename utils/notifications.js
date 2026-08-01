@@ -17,11 +17,11 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { DICAS } from './theme';
 import {
-  obterRegistros,
-  dataDeHoje,
-  calcularStreak,
-  obterPreferenciasDeNotificacao,
-  obterSessoesDeCrise,
+    obterRegistros,
+    dataDeHoje,
+    calcularStreak,
+    obterPreferenciasDeNotificacao,
+    obterSessoesDeCrise,
 } from './storage';
 import { horarioDeRiscoDeCrise } from './insights';
 
@@ -62,90 +62,90 @@ const MINUTOS_MINIMOS_ENTRE_LEMBRETES = 60;
 // Frases do lembrete de risco: falam do momento ("agora vem sua hora
 // difícil"), não do dia em geral — por isso não reaproveitam DICAS.
 const MENSAGENS_DE_RISCO = [
-  'Sua hora difícil tá chegando. Bebe uma água e respira fundo antes dela bater.',
-  'Daqui a pouco é o horário em que a vontade costuma vir. Já pensa no que vai fazer no lugar.',
-  'Vem aí seu período de risco. Se a vontade apertar, abre o modo crise em vez de ceder.',
-  'Falta pouco pro seu horário complicado. Sai pra andar um pouco, ocupa as mãos.',
+    'Sua hora difícil tá chegando. Bebe uma água e respira fundo antes dela bater.',
+    'Daqui a pouco é o horário em que a vontade costuma vir. Já pensa no que vai fazer no lugar.',
+    'Vem aí seu período de risco. Se a vontade apertar, abre o modo crise em vez de ceder.',
+    'Falta pouco pro seu horário complicado. Sai pra andar um pouco, ocupa as mãos.',
 ];
 
 // Define como a notificação se comporta quando chega com o app ABERTO
 // (em primeiro plano). Sem isso, no iOS a notificação pode não aparecer
 // se o usuário estiver com o app em uso.
 export function configurarHandlerDeNotificacoes() {
-  if (Platform.OS === 'web') {
-    // expo-notifications não tem suporte a notificações locais na web.
-    return;
-  }
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
+    if (Platform.OS === 'web') {
+        // expo-notifications não tem suporte a notificações locais na web.
+        return;
+    }
+    Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+        }),
+    });
 }
 
 // Pede permissão ao usuário para mostrar notificações.
 // Retorna true se o usuário permitiu, false caso contrário.
 export async function pedirPermissaoDeNotificacoes() {
-  // Notificações não são suportadas em emuladores/simuladores em alguns
-  // casos, mas o requestPermissionsAsync já lida bem com isso; aqui só
-  // evitamos rodar em web, onde expo-notifications não tem suporte.
-  if (Platform.OS === 'web') {
-    return false;
-  }
+    // Notificações não são suportadas em emuladores/simuladores em alguns
+    // casos, mas o requestPermissionsAsync já lida bem com isso; aqui só
+    // evitamos rodar em web, onde expo-notifications não tem suporte.
+    if (Platform.OS === 'web') {
+        return false;
+    }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
 
-  if (existingStatus === 'granted') {
-    return true;
-  }
+    if (existingStatus === 'granted') {
+        return true;
+    }
 
-  const { status } = await Notifications.requestPermissionsAsync();
-  return status === 'granted';
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === 'granted';
 }
 
 // Sorteia uma frase do array DICAS (utils/theme.js).
 function sortearDica() {
-  const indice = Math.floor(Math.random() * DICAS.length);
-  return DICAS[indice];
+    const indice = Math.floor(Math.random() * DICAS.length);
+    return DICAS[indice];
 }
 
 async function garantirCanalAndroid() {
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('motivational', {
-      name: 'Mensagens motivadoras',
-      importance: Notifications.AndroidImportance.DEFAULT,
-    });
-  }
+    if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('motivational', {
+            name: 'Mensagens motivadoras',
+            importance: Notifications.AndroidImportance.DEFAULT,
+        });
+    }
 }
 
 async function conteudoDoLembreteDiario() {
-  const registros = await obterRegistros();
-  const temRegistroHoje = registros.some((registro) => registro.date === dataDeHoje());
+    const registros = await obterRegistros();
+    const temRegistroHoje = registros.some((registro) => registro.date === dataDeHoje());
 
-  if (!temRegistroHoje) {
+    if (!temRegistroHoje) {
+        return {
+            title: 'VapeFree 💚',
+            body: 'Você ainda não registrou hoje. Abra o app e registre seu dia para manter o controle.',
+        };
+    }
+
     return {
-      title: 'VapeFree 💚',
-      body: 'Você ainda não registrou hoje. Abra o app e registre seu dia para manter o controle.',
+        title: 'VapeFree 💚',
+        body: sortearDica(),
     };
-  }
-
-  return {
-    title: 'VapeFree 💚',
-    body: sortearDica(),
-  };
 }
 
 // Conteúdo genérico pros dias futuros (dia > 0): não dá pra saber se o
 // usuário vai ter registrado ou não naquele dia, então usamos só uma dica
 // motivacional em vez de afirmar um estado que pode estar errado.
 function conteudoGenericoDoLembrete() {
-  return {
-    title: 'VapeFree 💚',
-    body: sortearDica(),
-  };
+    return {
+        title: 'VapeFree 💚',
+        body: sortearDica(),
+    };
 }
 
 // Calcula a data/hora do gatilho pro N-ésimo dia à frente (0 = hoje),
@@ -153,176 +153,173 @@ function conteudoGenericoDoLembrete() {
 // horário de hoje já passou) — quem chama é obrigado a checar isso e
 // pular o dia, ver horarioDeHojeJaPassou.
 function dataDoGatilho(diasAFrente, hora, minuto) {
-  const data = new Date();
-  data.setDate(data.getDate() + diasAFrente);
-  data.setHours(hora, minuto, 0, 0);
-  return data;
+    const data = new Date();
+    data.setDate(data.getDate() + diasAFrente);
+    data.setHours(hora, minuto, 0, 0);
+    return data;
 }
 
 function horarioDeHojeJaPassou(hora, minuto) {
-  return dataDoGatilho(0, hora, minuto).getTime() <= Date.now();
+    return dataDoGatilho(0, hora, minuto).getTime() <= Date.now();
 }
 
 // expo-notifications usa weekday 1 = domingo ... 7 = sábado; Date.getDay()
 // usa 0 = domingo.
 function diaDaSemanaDoGatilho(diasAFrente, hora, minuto) {
-  return dataDoGatilho(diasAFrente, hora, minuto).getDay() + 1;
+    return dataDoGatilho(diasAFrente, hora, minuto).getDay() + 1;
 }
 
 async function conteudoDoAvisoDeStreak() {
-  const registros = await obterRegistros();
-  const hoje = dataDeHoje();
-  const temRegistroHoje = registros.some((registro) => registro.date === hoje);
-  const streak = calcularStreak(registros);
+    const registros = await obterRegistros();
+    const hoje = dataDeHoje();
+    const temRegistroHoje = registros.some((registro) => registro.date === hoje);
+    const streak = calcularStreak(registros);
 
-  if (temRegistroHoje || streak <= 0) {
-    return null;
-  }
+    if (temRegistroHoje || streak <= 0) {
+        return null;
+    }
 
-  return {
-    title: 'VapeFree 🔥',
-    body: `Você já está a ${streak} dias sem perder o ritmo. Não deixe a sequência acabar agora, registre seu progresso de hoje!`,
-  };
+    return {
+        title: 'VapeFree 🔥',
+        body: `Você já está a ${streak} dias sem perder o ritmo. Não deixe a sequência acabar agora, registre seu progresso de hoje!`,
+    };
 }
 
 // Agenda (ou reagenda) a notificação motivadora diária.
 // Chamar isso sempre que o usuário estiver autenticado (ex.: no login,
 // ou ao abrir o app já logado).
-export async function agendarNotificacoesMotivacionais(
-  hora = HORA_PADRAO,
-  minuto = MINUTO_PADRAO
-) {
-  if (Platform.OS === 'web') {
-    // expo-notifications não tem suporte a notificações locais na web.
-    return false;
-  }
-
-  const permitido = await pedirPermissaoDeNotificacoes();
-  if (!permitido) {
-    return false;
-  }
-
-  await garantirCanalAndroid();
-
-  const conteudoDeHoje = await conteudoDoLembreteDiario();
-  const jaPassou = horarioDeHojeJaPassou(hora, minuto);
-
-  // Cancela as notificações diárias anteriores (se existirem) para não duplicar.
-  await cancelarNotificacoesMotivacionais();
-
-  // Onde a janela de datas fixas acaba e o fallback semanal assume. O
-  // fallback é ancorado no dia da semana desse dia, então a primeira
-  // repetição dele cai exatamente aí — sem sobrepor nenhum dia DATE.
-  // Se o horário de hoje ainda não passou, o dia 0 conta na janela e o
-  // fallback só poderia cair daqui a 6 dias (weekday de ontem): o dia 6
-  // então sai da janela DATE e quem cobre ele é o próprio fallback.
-  const primeiroDiaDoFallback = jaPassou ? DIAS_DE_ANTECEDENCIA : DIAS_DE_ANTECEDENCIA - 1;
-
-  for (let dia = 0; dia < primeiroDiaDoFallback; dia++) {
-    // Dia 0 só entra se o horário de hoje ainda não passou — senão o
-    // gatilho seria uma data no passado (dispararia na hora).
-    if (dia === 0 && jaPassou) {
-      continue;
+export async function agendarNotificacoesMotivacionais(hora = HORA_PADRAO, minuto = MINUTO_PADRAO) {
+    if (Platform.OS === 'web') {
+        // expo-notifications não tem suporte a notificações locais na web.
+        return false;
     }
-    const conteudo = dia === 0 ? conteudoDeHoje : conteudoGenericoDoLembrete();
+
+    const permitido = await pedirPermissaoDeNotificacoes();
+    if (!permitido) {
+        return false;
+    }
+
+    await garantirCanalAndroid();
+
+    const conteudoDeHoje = await conteudoDoLembreteDiario();
+    const jaPassou = horarioDeHojeJaPassou(hora, minuto);
+
+    // Cancela as notificações diárias anteriores (se existirem) para não duplicar.
+    await cancelarNotificacoesMotivacionais();
+
+    // Onde a janela de datas fixas acaba e o fallback semanal assume. O
+    // fallback é ancorado no dia da semana desse dia, então a primeira
+    // repetição dele cai exatamente aí — sem sobrepor nenhum dia DATE.
+    // Se o horário de hoje ainda não passou, o dia 0 conta na janela e o
+    // fallback só poderia cair daqui a 6 dias (weekday de ontem): o dia 6
+    // então sai da janela DATE e quem cobre ele é o próprio fallback.
+    const primeiroDiaDoFallback = jaPassou ? DIAS_DE_ANTECEDENCIA : DIAS_DE_ANTECEDENCIA - 1;
+
+    for (let dia = 0; dia < primeiroDiaDoFallback; dia++) {
+        // Dia 0 só entra se o horário de hoje ainda não passou — senão o
+        // gatilho seria uma data no passado (dispararia na hora).
+        if (dia === 0 && jaPassou) {
+            continue;
+        }
+        const conteudo = dia === 0 ? conteudoDeHoje : conteudoGenericoDoLembrete();
+        await Notifications.scheduleNotificationAsync({
+            identifier: `${ID_NOTIFICACAO_DIARIA}-${dia}`,
+            content: { ...conteudo, sound: true },
+            trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: dataDoGatilho(dia, hora, minuto),
+                channelId: Platform.OS === 'android' ? 'motivational' : undefined,
+            },
+        });
+    }
+
     await Notifications.scheduleNotificationAsync({
-      identifier: `${ID_NOTIFICACAO_DIARIA}-${dia}`,
-      content: { ...conteudo, sound: true },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: dataDoGatilho(dia, hora, minuto),
-        channelId: Platform.OS === 'android' ? 'motivational' : undefined,
-      },
+        identifier: ID_NOTIFICACAO_DE_FALLBACK,
+        content: { ...conteudoGenericoDoLembrete(), sound: true },
+        trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            weekday: diaDaSemanaDoGatilho(primeiroDiaDoFallback, hora, minuto),
+            hour: hora,
+            minute: minuto,
+            channelId: Platform.OS === 'android' ? 'motivational' : undefined,
+        },
     });
-  }
 
-  await Notifications.scheduleNotificationAsync({
-    identifier: ID_NOTIFICACAO_DE_FALLBACK,
-    content: { ...conteudoGenericoDoLembrete(), sound: true },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-      weekday: diaDaSemanaDoGatilho(primeiroDiaDoFallback, hora, minuto),
-      hour: hora,
-      minute: minuto,
-      channelId: Platform.OS === 'android' ? 'motivational' : undefined,
-    },
-  });
-
-  return true;
+    return true;
 }
 
 export async function agendarNotificacaoDeStreak(
-  hora = HORA_PADRAO_STREAK,
-  minuto = MINUTO_PADRAO_STREAK
+    hora = HORA_PADRAO_STREAK,
+    minuto = MINUTO_PADRAO_STREAK
 ) {
-  if (Platform.OS === 'web') {
-    return false;
-  }
+    if (Platform.OS === 'web') {
+        return false;
+    }
 
-  const permitido = await pedirPermissaoDeNotificacoes();
-  if (!permitido) {
-    return false;
-  }
+    const permitido = await pedirPermissaoDeNotificacoes();
+    if (!permitido) {
+        return false;
+    }
 
-  await garantirCanalAndroid();
+    await garantirCanalAndroid();
 
-  const conteudo = await conteudoDoAvisoDeStreak();
+    const conteudo = await conteudoDoAvisoDeStreak();
 
-  await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_STREAK).catch(() => {});
+    await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_STREAK).catch(() => {});
 
-  // Sem streak ativo / já registrou hoje, ou o horário do aviso já passou:
-  // nada a agendar. O texto cita o número de dias da sequência, então ele
-  // só vale pro dia de hoje — um trigger DAILY repetiria um número
-  // congelado (e uma frase que pode já ter ficado falsa) todo dia.
-  if (!conteudo || horarioDeHojeJaPassou(hora, minuto)) {
+    // Sem streak ativo / já registrou hoje, ou o horário do aviso já passou:
+    // nada a agendar. O texto cita o número de dias da sequência, então ele
+    // só vale pro dia de hoje — um trigger DAILY repetiria um número
+    // congelado (e uma frase que pode já ter ficado falsa) todo dia.
+    if (!conteudo || horarioDeHojeJaPassou(hora, minuto)) {
+        return true;
+    }
+
+    await Notifications.scheduleNotificationAsync({
+        identifier: ID_NOTIFICACAO_DE_STREAK,
+        content: { ...conteudo, sound: true },
+        trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: dataDoGatilho(0, hora, minuto),
+            channelId: Platform.OS === 'android' ? 'motivational' : undefined,
+        },
+    });
+
     return true;
-  }
-
-  await Notifications.scheduleNotificationAsync({
-    identifier: ID_NOTIFICACAO_DE_STREAK,
-    content: { ...conteudo, sound: true },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: dataDoGatilho(0, hora, minuto),
-      channelId: Platform.OS === 'android' ? 'motivational' : undefined,
-    },
-  });
-
-  return true;
 }
 
 function subtrairMinutos(hora, minuto, minutos) {
-  // Volta pro dia anterior quando dá negativo (crise às 00h vira lembrete às
-  // 23h30 do dia anterior — como o gatilho é diário, é o mesmo horário).
-  const total = (((hora * 60 + minuto - minutos) % 1440) + 1440) % 1440;
-  return { hora: Math.floor(total / 60), minuto: total % 60 };
+    // Volta pro dia anterior quando dá negativo (crise às 00h vira lembrete às
+    // 23h30 do dia anterior — como o gatilho é diário, é o mesmo horário).
+    const total = (((hora * 60 + minuto - minutos) % 1440) + 1440) % 1440;
+    return { hora: Math.floor(total / 60), minuto: total % 60 };
 }
 
 // Distância entre dois horários do dia, dando a volta na meia-noite (23h30 e
 // 00h30 estão a 60 minutos, não a 1380).
 function distanciaEmMinutos(a, b) {
-  const bruta = Math.abs(a.hora * 60 + a.minuto - (b.hora * 60 + b.minuto));
-  return Math.min(bruta, 1440 - bruta);
+    const bruta = Math.abs(a.hora * 60 + a.minuto - (b.hora * 60 + b.minuto));
+    return Math.min(bruta, 1440 - bruta);
 }
 
 // Horário do lembrete de risco, ou null quando ainda não dá pra dizer nada
 // (poucas crises) ou quando ele cairia colado no lembrete diário.
 export async function calcularHorarioDoLembreteDeRisco(
-  horaDoLembrete = HORA_PADRAO,
-  minutoDoLembrete = MINUTO_PADRAO
+    horaDoLembrete = HORA_PADRAO,
+    minutoDoLembrete = MINUTO_PADRAO
 ) {
-  const sessoes = await obterSessoesDeCrise();
-  const risco = horarioDeRiscoDeCrise(sessoes);
-  if (!risco) {
-    return null;
-  }
+    const sessoes = await obterSessoesDeCrise();
+    const risco = horarioDeRiscoDeCrise(sessoes);
+    if (!risco) {
+        return null;
+    }
 
-  const horario = subtrairMinutos(risco.hora, 0, MINUTOS_ANTES_DO_RISCO);
-  const perto =
-    distanciaEmMinutos(horario, { hora: horaDoLembrete, minuto: minutoDoLembrete }) <
-    MINUTOS_MINIMOS_ENTRE_LEMBRETES;
+    const horario = subtrairMinutos(risco.hora, 0, MINUTOS_ANTES_DO_RISCO);
+    const perto =
+        distanciaEmMinutos(horario, { hora: horaDoLembrete, minuto: minutoDoLembrete }) <
+        MINUTOS_MINIMOS_ENTRE_LEMBRETES;
 
-  return perto ? null : { ...horario, periodo: risco.periodo, rotulo: risco.rotulo };
+    return perto ? null : { ...horario, periodo: risco.periodo, rotulo: risco.rotulo };
 }
 
 // Agenda o lembrete no horário de risco do usuário. Diferente do aviso de
@@ -330,49 +327,49 @@ export async function calcularHorarioDoLembreteDeRisco(
 // usar um gatilho DAILY: ele se repete sozinho mesmo com o app fechado por
 // semanas, e a cada abertura reagendamos com o horário recalculado.
 export async function agendarLembreteDeRisco(
-  horaDoLembrete = HORA_PADRAO,
-  minutoDoLembrete = MINUTO_PADRAO
+    horaDoLembrete = HORA_PADRAO,
+    minutoDoLembrete = MINUTO_PADRAO
 ) {
-  if (Platform.OS === 'web') {
-    return false;
-  }
+    if (Platform.OS === 'web') {
+        return false;
+    }
 
-  const permitido = await pedirPermissaoDeNotificacoes();
-  if (!permitido) {
-    return false;
-  }
+    const permitido = await pedirPermissaoDeNotificacoes();
+    if (!permitido) {
+        return false;
+    }
 
-  await garantirCanalAndroid();
-  await cancelarLembreteDeRisco();
+    await garantirCanalAndroid();
+    await cancelarLembreteDeRisco();
 
-  const horario = await calcularHorarioDoLembreteDeRisco(horaDoLembrete, minutoDoLembrete);
-  if (!horario) {
+    const horario = await calcularHorarioDoLembreteDeRisco(horaDoLembrete, minutoDoLembrete);
+    if (!horario) {
+        return true;
+    }
+
+    await Notifications.scheduleNotificationAsync({
+        identifier: ID_NOTIFICACAO_DE_RISCO,
+        content: {
+            title: 'VapeFree 🕒',
+            body: MENSAGENS_DE_RISCO[Math.floor(Math.random() * MENSAGENS_DE_RISCO.length)],
+            sound: true,
+        },
+        trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: horario.hora,
+            minute: horario.minuto,
+            channelId: Platform.OS === 'android' ? 'motivational' : undefined,
+        },
+    });
+
     return true;
-  }
-
-  await Notifications.scheduleNotificationAsync({
-    identifier: ID_NOTIFICACAO_DE_RISCO,
-    content: {
-      title: 'VapeFree 🕒',
-      body: MENSAGENS_DE_RISCO[Math.floor(Math.random() * MENSAGENS_DE_RISCO.length)],
-      sound: true,
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: horario.hora,
-      minute: horario.minuto,
-      channelId: Platform.OS === 'android' ? 'motivational' : undefined,
-    },
-  });
-
-  return true;
 }
 
 export async function cancelarLembreteDeRisco() {
-  if (Platform.OS === 'web') {
-    return;
-  }
-  await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_RISCO).catch(() => {});
+    if (Platform.OS === 'web') {
+        return;
+    }
+    await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_RISCO).catch(() => {});
 }
 
 // Ponto único de agendamento: lê a preferência do aparelho (liga/desliga +
@@ -386,44 +383,46 @@ export async function cancelarLembreteDeRisco() {
 // (derivado das crises) e liga/desliga próprio (`risco`), mas também morre
 // junto quando as notificações são desligadas.
 export async function aplicarPreferenciasDeNotificacao() {
-  const preferencias = await obterPreferenciasDeNotificacao();
+    const preferencias = await obterPreferenciasDeNotificacao();
 
-  if (!preferencias.ativas) {
-    await cancelarNotificacoesMotivacionais();
-    await cancelarNotificacaoDeStreak();
-    await cancelarLembreteDeRisco();
-    return { ...preferencias, permitido: true };
-  }
+    if (!preferencias.ativas) {
+        await cancelarNotificacoesMotivacionais();
+        await cancelarNotificacaoDeStreak();
+        await cancelarLembreteDeRisco();
+        return { ...preferencias, permitido: true };
+    }
 
-  const agendou = await agendarNotificacoesMotivacionais(preferencias.hora, preferencias.minuto);
-  await agendarNotificacaoDeStreak();
+    const agendou = await agendarNotificacoesMotivacionais(preferencias.hora, preferencias.minuto);
+    await agendarNotificacaoDeStreak();
 
-  if (preferencias.risco) {
-    await agendarLembreteDeRisco(preferencias.hora, preferencias.minuto);
-  } else {
-    await cancelarLembreteDeRisco();
-  }
+    if (preferencias.risco) {
+        await agendarLembreteDeRisco(preferencias.hora, preferencias.minuto);
+    } else {
+        await cancelarLembreteDeRisco();
+    }
 
-  return { ...preferencias, permitido: agendou };
+    return { ...preferencias, permitido: agendou };
 }
 
 // Cancela a notificação motivadora diária (chamar no logout, por exemplo,
 // para não notificar quem não está mais usando a conta).
 export async function cancelarNotificacoesMotivacionais() {
-  if (Platform.OS === 'web') {
-    return;
-  }
-  await Promise.all([
-    ...Array.from({ length: DIAS_DE_ANTECEDENCIA }, (_, dia) =>
-      Notifications.cancelScheduledNotificationAsync(`${ID_NOTIFICACAO_DIARIA}-${dia}`).catch(() => {})
-    ),
-    Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_FALLBACK).catch(() => {}),
-  ]);
+    if (Platform.OS === 'web') {
+        return;
+    }
+    await Promise.all([
+        ...Array.from({ length: DIAS_DE_ANTECEDENCIA }, (_, dia) =>
+            Notifications.cancelScheduledNotificationAsync(`${ID_NOTIFICACAO_DIARIA}-${dia}`).catch(
+                () => {}
+            )
+        ),
+        Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_FALLBACK).catch(() => {}),
+    ]);
 }
 
 export async function cancelarNotificacaoDeStreak() {
-  if (Platform.OS === 'web') {
-    return;
-  }
-  await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_STREAK).catch(() => {});
+    if (Platform.OS === 'web') {
+        return;
+    }
+    await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_STREAK).catch(() => {});
 }

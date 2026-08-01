@@ -1,43 +1,43 @@
 {
-  "expo": {
-    "name": "Vape Free",
-    "slug": "VapeFree",
-    "version": "1.0.0",
-    "scheme": ["vapefree", "com.vapefree.app"],
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "bundleIdentifier": "com.vapefree.app",
-      "buildNumber": "1"
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-web-browser",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#4CAF50"
+    "expo": {
+        "name": "Vape Free",
+        "slug": "VapeFree",
+        "version": "1.0.0",
+        "scheme": ["vapefree", "com.vapefree.app"],
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "userInterfaceStyle": "automatic",
+        "newArchEnabled": true,
+        "splash": {
+            "image": "./assets/splash-icon.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#ffffff"
+        },
+        "ios": {
+            "bundleIdentifier": "com.vapefree.app",
+            "buildNumber": "1"
+        },
+        "web": {
+            "favicon": "./assets/favicon.png"
+        },
+        "plugins": [
+            "expo-web-browser",
+            [
+                "expo-notifications",
+                {
+                    "icon": "./assets/icon.png",
+                    "color": "#4CAF50"
+                }
+            ],
+            "expo-font"
+        ],
+        "android": {
+            "package": "com.vapefree.app",
+            "versionCode": 1,
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#4CAF50"
+            }
         }
-      ],
-      "expo-font"
-    ],
-    "android": {
-      "package": "com.vapefree.app",
-      "versionCode": 1,
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#4CAF50"
-      }
     }
-  }
 }

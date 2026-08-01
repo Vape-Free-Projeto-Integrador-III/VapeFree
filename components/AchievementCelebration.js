@@ -3,7 +3,15 @@
 // Quem dispara é o ToastProvider (context/ToastContext.js), uma conquista
 // por vez — o botão "Arrasou!" chama aoFechar e o provider mostra a próxima.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import {
+    View,
+    Text,
+    StyleSheet,
+    Modal,
+    TouchableOpacity,
+    Animated,
+    Dimensions,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
@@ -48,10 +56,23 @@ function Confete({ animacao }) {
                             left: p.x,
                             top: -40,
                             fontSize: p.tamanho,
-                            opacity: progresso.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] }),
+                            opacity: progresso.interpolate({
+                                inputRange: [0, 0.7, 1],
+                                outputRange: [1, 1, 0],
+                            }),
                             transform: [
-                                { translateY: progresso.interpolate({ inputRange: [0, 1], outputRange: [0, 640] }) },
-                                { rotate: progresso.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${p.giro * 360}deg`] }) },
+                                {
+                                    translateY: progresso.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [0, 640],
+                                    }),
+                                },
+                                {
+                                    rotate: progresso.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: ['0deg', `${p.giro * 360}deg`],
+                                    }),
+                                },
                             ],
                         }}
                     >
@@ -123,7 +144,12 @@ export default function AchievementCelebration({ conquista, aoFechar }) {
 
         entrada.setValue(0);
         confete.setValue(0);
-        Animated.spring(entrada, { toValue: 1, useNativeDriver: true, friction: 6, tension: 80 }).start();
+        Animated.spring(entrada, {
+            toValue: 1,
+            useNativeDriver: true,
+            friction: 6,
+            tension: 80,
+        }).start();
         Animated.timing(confete, { toValue: 1, duration: 1600, useNativeDriver: true }).start();
 
         const laco = Animated.loop(
@@ -140,7 +166,13 @@ export default function AchievementCelebration({ conquista, aoFechar }) {
     if (!conquista) return null;
 
     return (
-        <Modal visible transparent animationType="fade" onRequestClose={aoFechar} statusBarTranslucent>
+        <Modal
+            visible
+            transparent
+            animationType="fade"
+            onRequestClose={aoFechar}
+            statusBarTranslucent
+        >
             <View style={styles.overlay}>
                 <Confete animacao={confete} />
                 <Animated.View
@@ -151,20 +183,35 @@ export default function AchievementCelebration({ conquista, aoFechar }) {
                         {
                             opacity: entrada,
                             transform: [
-                                { scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) },
+                                {
+                                    scale: entrada.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [0.7, 1],
+                                    }),
+                                },
                             ],
                         },
                     ]}
                 >
-                    <Text style={[styles.rotulo, { color: cores.primary }]}>CONQUISTA DESBLOQUEADA</Text>
+                    <Text style={[styles.rotulo, { color: cores.primary }]}>
+                        CONQUISTA DESBLOQUEADA
+                    </Text>
 
-                    <Animated.View style={[styles.circulo, { backgroundColor: cores.primaryLight }, { transform: [{ scale: pulso }] }]}>
+                    <Animated.View
+                        style={[
+                            styles.circulo,
+                            { backgroundColor: cores.primaryLight },
+                            { transform: [{ scale: pulso }] },
+                        ]}
+                    >
                         <Text style={styles.emoji}>{conquista.icone || '🏆'}</Text>
                     </Animated.View>
 
                     <Text style={[styles.titulo, { color: cores.text }]}>{conquista.titulo}</Text>
                     {!!conquista.descricao && (
-                        <Text style={[styles.descricao, { color: cores.textSecondary }]}>{conquista.descricao}</Text>
+                        <Text style={[styles.descricao, { color: cores.textSecondary }]}>
+                            {conquista.descricao}
+                        </Text>
                     )}
                     {conquista.xp > 0 && (
                         <View style={[styles.xpBadge, { backgroundColor: cores.primary }]}>
@@ -172,7 +219,11 @@ export default function AchievementCelebration({ conquista, aoFechar }) {
                         </View>
                     )}
 
-                    <TouchableOpacity style={[styles.botao, { backgroundColor: cores.primary }]} onPress={aoFechar} activeOpacity={0.85}>
+                    <TouchableOpacity
+                        style={[styles.botao, { backgroundColor: cores.primary }]}
+                        onPress={aoFechar}
+                        activeOpacity={0.85}
+                    >
                         <Text style={styles.botaoTexto}>Arrasou!</Text>
                     </TouchableOpacity>
 
@@ -216,7 +267,12 @@ const styles = StyleSheet.create({
         padding: 28,
         alignItems: 'center',
     },
-    rotulo: { fontSize: 12, fontFamily: 'Poppins_800ExtraBold', letterSpacing: 1.5, marginBottom: 16 },
+    rotulo: {
+        fontSize: 12,
+        fontFamily: 'Poppins_800ExtraBold',
+        letterSpacing: 1.5,
+        marginBottom: 16,
+    },
     circulo: {
         width: 120,
         height: 120,
@@ -225,9 +281,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 20,
     },
-    emoji: { fontSize: 64 , fontFamily: 'Poppins_400Regular'},
+    emoji: { fontSize: 64, fontFamily: 'Poppins_400Regular' },
     titulo: { fontSize: 22, fontFamily: 'Poppins_800ExtraBold', textAlign: 'center' },
-    descricao: { fontSize: 14, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 8, lineHeight: 20 },
+    descricao: {
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
+        textAlign: 'center',
+        marginTop: 8,
+        lineHeight: 20,
+    },
     xpBadge: { marginTop: 16, paddingHorizontal: 16, paddingVertical: 6, borderRadius: RAIO.full },
     xpTexto: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },
     botao: {

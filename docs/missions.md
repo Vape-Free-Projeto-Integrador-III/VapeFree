@@ -27,18 +27,18 @@ O id da entrada salva é `` `${missionId}_${periodKey}` `` — é isso que faz a
 
 ## Missões atuais
 
-| id | período | XP | condição |
-|---|---|---|---|
-| `daily_record` | diária | 15 | existe registro de hoje |
-| `daily_clean` | diária | 25 | registro de hoje com `used === false` |
-| `daily_crisis_win` | diária | 20 | sessão de crise hoje com `outcome` ≠ `'usei'` |
-| `weekly_clean_5` | semanal | 80 | 5 dias limpos na semana (não precisa ser seguido) |
-| `weekly_records_7` | semanal | 60 | registro nos 7 dias da semana |
-| `weekly_economy_10` | semanal | 50 | soma de `economy[date]` da semana ≥ R$ 10 |
-| `daily_under_goal` | diária | 20 | dia registrado e dentro da meta do dia (`metaEfetiva`) — só aparece com meta efetiva |
-| `weekly_under_goal_5` | semanal | 70 | 5 dias da semana dentro da meta do respectivo dia — só aparece com meta efetiva |
-| `weekly_crisis_over_vape` | semanal | 60 | 3 sessões de crise na semana com `outcome` ≠ `'usei'` |
-| `weekly_streak_3` | semanal | 40 | 3 dias consecutivos com registro dentro da semana |
+| id                        | período | XP  | condição                                                                             |
+| ------------------------- | ------- | --- | ------------------------------------------------------------------------------------ |
+| `daily_record`            | diária  | 15  | existe registro de hoje                                                              |
+| `daily_clean`             | diária  | 25  | registro de hoje com `used === false`                                                |
+| `daily_crisis_win`        | diária  | 20  | sessão de crise hoje com `outcome` ≠ `'usei'`                                        |
+| `weekly_clean_5`          | semanal | 80  | 5 dias limpos na semana (não precisa ser seguido)                                    |
+| `weekly_records_7`        | semanal | 60  | registro nos 7 dias da semana                                                        |
+| `weekly_economy_10`       | semanal | 50  | soma de `economy[date]` da semana ≥ R$ 10                                            |
+| `daily_under_goal`        | diária  | 20  | dia registrado e dentro da meta do dia (`metaEfetiva`) — só aparece com meta efetiva |
+| `weekly_under_goal_5`     | semanal | 70  | 5 dias da semana dentro da meta do respectivo dia — só aparece com meta efetiva      |
+| `weekly_crisis_over_vape` | semanal | 60  | 3 sessões de crise na semana com `outcome` ≠ `'usei'`                                |
+| `weekly_streak_3`         | semanal | 40  | 3 dias consecutivos com registro dentro da semana                                    |
 
 A "meta do dia" das duas primeiras vem de `metaEfetiva(meta, aparelho, data)` (`utils/meta.js`): a meta de redução declarada pelo usuário ganha da derivada do aparelho. Ver [database.md](database.md).
 

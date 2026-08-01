@@ -2,7 +2,14 @@ import React from 'react';
 import { LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from '@expo-google-fonts/poppins';
+import {
+    useFonts,
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    Poppins_800ExtraBold,
+} from '@expo-google-fonts/poppins';
 import AppNavigator from './navigation/AppNavigator';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
@@ -12,9 +19,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { configurarHandlerDeNotificacoes } from './utils/notifications';
 import './services/firebase';
 
-LogBox.ignoreLogs([
-    'expo-notifications: Android Push notifications (remote notifications)',
-]);
+LogBox.ignoreLogs(['expo-notifications: Android Push notifications (remote notifications)']);
 
 configurarHandlerDeNotificacoes();
 

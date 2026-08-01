@@ -8,7 +8,7 @@ Cada função pública de `storage.js` decide a fonte olhando `auth.currentUser`
 
 ```js
 function getUid() {
-  return auth.currentUser ? auth.currentUser.uid : null;
+    return auth.currentUser ? auth.currentUser.uid : null;
 }
 ```
 
@@ -62,11 +62,20 @@ Escritas **de fundo** continuam retornando boolean silencioso: `salvarConquista`
 ## Modelo de dados
 
 **Record** (um por `salvarRegistro`, id = `Date.now()`):
+
 ```js
-{ id, date /* 'YYYY-MM-DD' */, time /* 'HH:MM' */,
-  used /* bool */, puffs /* number */, triggers /* string[] label */,
-  helps /* string[] label */, intensity /* 0-10 */ }
+{
+    (id,
+        date /* 'YYYY-MM-DD' */,
+        time /* 'HH:MM' */,
+        used /* bool */,
+        puffs /* number */,
+        triggers /* string[] label */,
+        helps /* string[] label */,
+        intensity); /* 0-10 */
+}
 ```
+
 Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Convidado: array em `@vapefree_records`.
 
 `salvarRegistro`/`atualizarRegistro` passam o registro por `normalizarRegistro` (`utils/records.js`) antes de gravar: com `used: false`, `puffs` vira `0` e `triggers` vira `[]`. Para somar puxadas em qualquer lugar (gráficos, totais, economia, insights) use `puxadasDoRegistro(record)` / `somarPuxadas(records)` do mesmo arquivo — nunca `record.puffs` direto, porque registros salvos antes dessa normalização podem ter `puffs > 0` com `used: false` (foi editado de "usei" para "não usei").
@@ -76,15 +85,21 @@ Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Con
 **Um registro por dia**: `salvarRegistro` substitui qualquer registro já existente com o mesmo `date` (nos dois modos). A regra vive no storage, não na tela — a confirmação de "sobrescrever" da RegisterScreen é só UX. Sem isso, registro duplicado inflava XP (`registros.length * 10`) e dobrava o total de puxadas do dia. No modo conta, o doc antigo (id diferente, gerado por `Date.now()`) ganha um `delete` próprio na fila antes do `set` do novo. `atualizarRegistro` aplica a mesma regra: editar a data de um registro pra um dia que já tem outro substitui o outro. Efeito colateral no modo convidado: o registro editado vai pro fim do array (todo consumidor ordena antes de usar, então não muda nada na tela).
 
 **Device** (um por usuário):
+
 ```js
-{ name, price, totalPuffs, days }
+{
+    (name, price, totalPuffs, days);
+}
 ```
+
 Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 
 **Goal** (meta de redução, uma por usuário):
+
 ```js
 { baseline, target, startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }
 ```
+
 Firestore: campo `goal` no doc `users/{uid}`. Convidado: `@vapefree_goal`. Espelho `goal`. `null` = sem meta, e `salvarMeta(null)` é o "remover meta". É dado **de entrada** (o usuário declara o objetivo), então segue `salvarAparelho` e **não** passa por `podeEscreverDerivado` como a economia. Escrito pela `GoalScreen`, pelo passo 7 do tutorial (ver [navigation.md](navigation.md)) e por nada mais.
 
 **Profile** (só modo conta): `{ nome, displayName, email }`, campos do doc `users/{uid}`, gravados uma vez no cadastro por `salvarPerfilDaConta(uid, { nome, email })`. Espelho `profile`. Convidado não tem perfil. Nenhuma tela lê esses campos hoje — quem exibe o nome usa `auth.currentUser.displayName`.
@@ -97,7 +112,7 @@ Firestore: campo `goal` no doc `users/{uid}`. Convidado: `@vapefree_goal`. Espel
 
 **Mission (concluída)**: `{ id, missionId, period, periodKey, xp, completedAt }`. `id` = `` `${missionId}_${periodKey}` `` (ex: `daily_clean_2026-07-22`), o que torna a gravação idempotente dentro do período. `period` ∈ `'daily' | 'weekly'`; `periodKey` é a data do dia (diária) ou da segunda-feira da semana (semanal). Firestore: subcoleção `users/{uid}/missions`, doc id = o próprio `id`. Convidado: array em `@vapefree_missions`. Só missões **concluídas** são gravadas — a lista de missões possíveis é código, em `utils/missions.js`. Ver [missions.md](missions.md).
 
-**XP** (snapshot): `{ xp, level, levelName, updatedAt }`. Firestore: campo `xp` no doc `users/{uid}`. Convidado: `@vapefree_xp`. **Não é a fonte da verdade** — o XP é sempre *derivado* de registros + conquistas + missões + melhor streak por `calcularXp` (`utils/xp.js`); esse snapshot é só cache do último cálculo, gravado por `atualizarXp(records, achievements, missions)` (chamado sempre via `sincronizarGamificacao` — ver `docs/missions.md`, nunca direto pela tela). Regras: +10 XP por registro, +30 por dia registrado sem uso, +100 por cada 7 dias seguidos sem uso (melhor streak histórico), + o campo `xp` de cada conquista desbloqueada, + o `xp` gravado em cada missão concluída. `atualizarXp` também devolve `ganho` (diferença pro snapshot anterior) — é o que alimenta o toast de XP. Níveis em `NIVEIS`: Iniciante 0, Resistente 200, Guerreiro 500, Campeão 1000, Lendário 2000+.
+**XP** (snapshot): `{ xp, level, levelName, updatedAt }`. Firestore: campo `xp` no doc `users/{uid}`. Convidado: `@vapefree_xp`. **Não é a fonte da verdade** — o XP é sempre _derivado_ de registros + conquistas + missões + melhor streak por `calcularXp` (`utils/xp.js`); esse snapshot é só cache do último cálculo, gravado por `atualizarXp(records, achievements, missions)` (chamado sempre via `sincronizarGamificacao` — ver `docs/missions.md`, nunca direto pela tela). Regras: +10 XP por registro, +30 por dia registrado sem uso, +100 por cada 7 dias seguidos sem uso (melhor streak histórico), + o campo `xp` de cada conquista desbloqueada, + o `xp` gravado em cada missão concluída. `atualizarXp` também devolve `ganho` (diferença pro snapshot anterior) — é o que alimenta o toast de XP. Níveis em `NIVEIS`: Iniciante 0, Resistente 200, Guerreiro 500, Campeão 1000, Lendário 2000+.
 
 **CrisisSession** (modo crise): `{ id, date, time, method, durationSec, completed, outcome, note }`. `id` = `Date.now()`, `method` ∈ `'respiracao' | 'timer' | 'distracao' | null`, `outcome` ∈ `'passou' | 'diminuiu' | 'usei' | null` (null = usuário pulou o feedback). Firestore: subcoleção `users/{uid}/crisisSessions`. Convidado: array em `@vapefree_crisis`. Salva sempre que o usuário encerra a `CrisisScreen`, mesmo sem responder o feedback — ter pedido ajuda já é dado. Lido por `metodoDeCriseRecomendado` (`utils/insights.js`) para sugerir na próxima crise o método que já funcionou. Editável (`atualizarSessaoDeCrise`) e apagável (`excluirSessaoDeCrise`) pela `CrisisHistoryScreen` — a edição só troca `outcome`/`note`; `date`, `time`, `method` e `durationSec` são medidos pelo app, não digitados.
 
@@ -162,15 +177,15 @@ Como a migração, **exige internet** (devolve `{ ok: false, motivo: 'rede' }` o
 
 **Toda** string de dia de calendário `'YYYY-MM-DD'` — campo `date` do registro, chave do mapa de economia, `periodKey` de missão, célula do heatmap, `startDate`/`endDate` da meta — sai deste módulo, e sempre em **horário local**.
 
-| Função | O que faz |
-|---|---|
-| `chaveDeData(ano, mes, dia)` | monta a string (`mes` 0-11, igual `Date.getMonth()`) |
-| `chaveDeDataLocal(data)` | `Date` → `'YYYY-MM-DD'` pelos getters locais — primitivo de todo o resto |
-| `converterDataLocal(dataStr)` | `'YYYY-MM-DD'` → `Date` ao meio-dia local (evita off-by-one do parse UTC) |
-| `dataDeHoje()` | hoje, no fuso do aparelho |
-| `ultimosNDias/ultimasNSemanas/ultimosNMeses(n)` | janelas dos gráficos |
-| `deslocarData(dataStr, dias)` / `diferencaEmDias(a, b)` | aritmética de dias |
-| `inicioDaSemana(dataStr)` / `diasDaSemana(dataStr)` | segunda-feira da semana / as 7 datas dela |
+| Função                                                  | O que faz                                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `chaveDeData(ano, mes, dia)`                            | monta a string (`mes` 0-11, igual `Date.getMonth()`)                      |
+| `chaveDeDataLocal(data)`                                | `Date` → `'YYYY-MM-DD'` pelos getters locais — primitivo de todo o resto  |
+| `converterDataLocal(dataStr)`                           | `'YYYY-MM-DD'` → `Date` ao meio-dia local (evita off-by-one do parse UTC) |
+| `dataDeHoje()`                                          | hoje, no fuso do aparelho                                                 |
+| `ultimosNDias/ultimasNSemanas/ultimosNMeses(n)`         | janelas dos gráficos                                                      |
+| `deslocarData(dataStr, dias)` / `diferencaEmDias(a, b)` | aritmética de dias                                                        |
+| `inicioDaSemana(dataStr)` / `diasDaSemana(dataStr)`     | segunda-feira da semana / as 7 datas dela                                 |
 
 `storage.js`, `meta.js`, `insights.js`, `calendario.js` e `missions.js` **reexportam** o que historicamente morava neles, então os imports antigos continuam valendo — mas em código novo importe direto de `utils/datas.js`.
 

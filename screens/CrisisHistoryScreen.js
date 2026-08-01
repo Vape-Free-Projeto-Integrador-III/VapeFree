@@ -54,7 +54,11 @@ export default function CrisisHistoryScreen({ navigation }) {
         setSessoes(await obterSessoesDeCrise());
     };
 
-    useFocusEffect(useCallback(() => { carregar(); }, []));
+    useFocusEffect(
+        useCallback(() => {
+            carregar();
+        }, [])
+    );
 
     // Mudar/apagar desfecho mexe em missão e conquista de crise (superar a
     // vontade), então relê e reavalia a gamificação — mesmo fluxo do History.
@@ -125,19 +129,50 @@ export default function CrisisHistoryScreen({ navigation }) {
                     {sessoes.length > 0 ? (
                         <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
                             <View style={styles.statRow}>
-                                <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
-                                    <Text style={[styles.statNum, { color: cores.primaryDark }]}>{resumo.total}</Text>
-                                    <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Crises{'\n'}enfrentadas</Text>
+                                <View
+                                    style={[
+                                        styles.statBox,
+                                        { backgroundColor: cores.primaryLight },
+                                    ]}
+                                >
+                                    <Text style={[styles.statNum, { color: cores.primaryDark }]}>
+                                        {resumo.total}
+                                    </Text>
+                                    <Text
+                                        style={[styles.statLabel, { color: cores.textSecondary }]}
+                                    >
+                                        Crises{'\n'}enfrentadas
+                                    </Text>
                                 </View>
-                                <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
-                                    <Text style={[styles.statNum, { color: cores.primaryDark }]}>{resumo.superadas}</Text>
-                                    <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Superadas{'\n'}sem usar</Text>
+                                <View
+                                    style={[
+                                        styles.statBox,
+                                        { backgroundColor: cores.primaryLight },
+                                    ]}
+                                >
+                                    <Text style={[styles.statNum, { color: cores.primaryDark }]}>
+                                        {resumo.superadas}
+                                    </Text>
+                                    <Text
+                                        style={[styles.statLabel, { color: cores.textSecondary }]}
+                                    >
+                                        Superadas{'\n'}sem usar
+                                    </Text>
                                 </View>
-                                <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
+                                <View
+                                    style={[
+                                        styles.statBox,
+                                        { backgroundColor: cores.primaryLight },
+                                    ]}
+                                >
                                     <Text style={[styles.statNum, { color: cores.primaryDark }]}>
                                         {resumo.taxa === null ? '—' : `${resumo.taxa}%`}
                                     </Text>
-                                    <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Taxa de{'\n'}sucesso</Text>
+                                    <Text
+                                        style={[styles.statLabel, { color: cores.textSecondary }]}
+                                    >
+                                        Taxa de{'\n'}sucesso
+                                    </Text>
                                 </View>
                             </View>
                         </View>
@@ -151,15 +186,29 @@ export default function CrisisHistoryScreen({ navigation }) {
                             const cor = corDoDesfecho(sessao.outcome);
 
                             return (
-                                <View key={sessao.id} style={[styles.item, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+                                <View
+                                    key={sessao.id}
+                                    style={[
+                                        styles.item,
+                                        { backgroundColor: cores.card },
+                                        SOMBRA.pequena,
+                                    ]}
+                                >
                                     <View style={styles.itemTop}>
                                         <Text style={[styles.itemDate, { color: cores.text }]}>
                                             {formatarDiaMes(sessao.date)}
                                             {sessao.time ? ` · ${sessao.time}` : ''}
                                         </Text>
-                                        <View style={[styles.badge, { backgroundColor: cor + '22', borderColor: cor }]}>
+                                        <View
+                                            style={[
+                                                styles.badge,
+                                                { backgroundColor: cor + '22', borderColor: cor },
+                                            ]}
+                                        >
                                             <Text style={[styles.badgeText, { color: cor }]}>
-                                                {desfecho ? `${desfecho.emoji} ${desfecho.rotulo}` : 'Não respondeu'}
+                                                {desfecho
+                                                    ? `${desfecho.emoji} ${desfecho.rotulo}`
+                                                    : 'Não respondeu'}
                                             </Text>
                                         </View>
                                         <TouchableOpacity
@@ -167,25 +216,39 @@ export default function CrisisHistoryScreen({ navigation }) {
                                             accessibilityLabel="Editar crise"
                                             onPress={() => setSessaoEmEdicao({ ...sessao })}
                                         >
-                                            <Ionicons name="pencil" size={16} color={cores.primary} />
+                                            <Ionicons
+                                                name="pencil"
+                                                size={16}
+                                                color={cores.primary}
+                                            />
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={styles.acaoBtn}
                                             accessibilityLabel="Apagar crise"
                                             onPress={() => setIdParaExcluirConfirmacao(sessao.id)}
                                         >
-                                            <Ionicons name="trash-outline" size={16} color={cores.danger} />
+                                            <Ionicons
+                                                name="trash-outline"
+                                                size={16}
+                                                color={cores.danger}
+                                            />
                                         </TouchableOpacity>
                                     </View>
 
-                                    <Text style={[styles.itemMethod, { color: cores.textSecondary }]}>
-                                        {metodo ? `${metodo.emoji} ${metodo.rotulo}` : '🤍 Sem método'}
+                                    <Text
+                                        style={[styles.itemMethod, { color: cores.textSecondary }]}
+                                    >
+                                        {metodo
+                                            ? `${metodo.emoji} ${metodo.rotulo}`
+                                            : '🤍 Sem método'}
                                         {duracao ? ` · ${duracao}` : ''}
                                         {sessao.completed ? ' · concluiu ✓' : ''}
                                     </Text>
 
                                     {sessao.note ? (
-                                        <Text style={[styles.itemNote, { color: cores.textMuted }]}>“{sessao.note}”</Text>
+                                        <Text style={[styles.itemNote, { color: cores.textMuted }]}>
+                                            “{sessao.note}”
+                                        </Text>
                                     ) : null}
                                 </View>
                             );
@@ -193,11 +256,18 @@ export default function CrisisHistoryScreen({ navigation }) {
                     </GradeDeCards>
 
                     {sessoes.length === 0 ? (
-                        <View style={[styles.card, styles.emptyCard, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+                        <View
+                            style={[
+                                styles.card,
+                                styles.emptyCard,
+                                { backgroundColor: cores.card },
+                                SOMBRA.pequena,
+                            ]}
+                        >
                             <Ionicons name="hand-left-outline" size={32} color={cores.border} />
                             <Text style={[styles.emptyText, { color: cores.textMuted }]}>
-                                Você ainda não usou o modo crise. Da próxima vez que a vontade bater, abre ele — a gente
-                                passa por isso junto.
+                                Você ainda não usou o modo crise. Da próxima vez que a vontade
+                                bater, abre ele — a gente passa por isso junto.
                             </Text>
                             <TouchableOpacity
                                 style={[styles.emptyBtn, { backgroundColor: cores.primary }]}
@@ -234,19 +304,34 @@ export default function CrisisHistoryScreen({ navigation }) {
                     <View style={styles.confirmOverlay}>
                         <TouchableWithoutFeedback>
                             <View style={[styles.confirmModal, { backgroundColor: cores.card }]}>
-                                <Text style={[styles.confirmTitle, { color: cores.text }]}>Apagar essa crise?</Text>
+                                <Text style={[styles.confirmTitle, { color: cores.text }]}>
+                                    Apagar essa crise?
+                                </Text>
                                 <Text style={[styles.confirmText, { color: cores.textSecondary }]}>
                                     Ela sai das suas estatísticas. Isso não pode ser desfeito.
                                 </Text>
                                 <View style={styles.confirmButtons}>
                                     <TouchableOpacity
-                                        style={[styles.confirmCancelBtn, { backgroundColor: cores.borderLight }]}
+                                        style={[
+                                            styles.confirmCancelBtn,
+                                            { backgroundColor: cores.borderLight },
+                                        ]}
                                         onPress={() => setIdParaExcluirConfirmacao(null)}
                                     >
-                                        <Text style={[styles.confirmCancelText, { color: cores.textSecondary }]}>Cancelar</Text>
+                                        <Text
+                                            style={[
+                                                styles.confirmCancelText,
+                                                { color: cores.textSecondary },
+                                            ]}
+                                        >
+                                            Cancelar
+                                        </Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        style={[styles.confirmDeleteBtn, { backgroundColor: cores.danger }]}
+                                        style={[
+                                            styles.confirmDeleteBtn,
+                                            { backgroundColor: cores.danger },
+                                        ]}
                                         onPress={excluir}
                                     >
                                         <Text style={styles.confirmDeleteText}>Apagar</Text>
@@ -268,9 +353,20 @@ const styles = StyleSheet.create({
     statRow: { flexDirection: 'row', gap: 8 },
     statBox: { flex: 1, borderRadius: RAIO.md, padding: 12, alignItems: 'center' },
     statNum: { fontSize: 24, fontFamily: 'Poppins_800ExtraBold' },
-    statLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 2, lineHeight: 14 },
+    statLabel: {
+        fontSize: 11,
+        fontFamily: 'Poppins_400Regular',
+        textAlign: 'center',
+        marginTop: 2,
+        lineHeight: 14,
+    },
     item: { borderRadius: RAIO.md, padding: 14, marginHorizontal: 16, marginTop: 10 },
-    itemTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    itemTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+    },
     itemDate: { flex: 1, fontSize: 13, fontFamily: 'Poppins_700Bold' },
     acaoBtn: { padding: 4 },
     badge: { borderRadius: RAIO.full, borderWidth: 1, paddingVertical: 3, paddingHorizontal: 10 },
@@ -278,13 +374,33 @@ const styles = StyleSheet.create({
     itemMethod: { fontSize: 12, fontFamily: 'Poppins_500Medium', marginTop: 6 },
     itemNote: { fontSize: 12, fontFamily: 'Poppins_400Regular', fontStyle: 'italic', marginTop: 6 },
     emptyCard: { alignItems: 'center', gap: 12, paddingVertical: 28 },
-    emptyText: { fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', lineHeight: 19 },
+    emptyText: {
+        fontSize: 13,
+        fontFamily: 'Poppins_400Regular',
+        textAlign: 'center',
+        lineHeight: 19,
+    },
     emptyBtn: { borderRadius: RAIO.md, paddingVertical: 12, paddingHorizontal: 24, marginTop: 4 },
     emptyBtnText: { fontSize: 14, fontFamily: 'Poppins_700Bold', color: '#fff' },
-    confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    confirmOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     confirmModal: { borderRadius: RAIO.lg, padding: 20, width: '80%', maxWidth: 300 },
-    confirmTitle: { fontSize: 18, fontFamily: 'Poppins_700Bold', marginBottom: 8, textAlign: 'center' },
-    confirmText: { fontSize: 14, fontFamily: 'Poppins_400Regular', marginBottom: 20, textAlign: 'center' },
+    confirmTitle: {
+        fontSize: 18,
+        fontFamily: 'Poppins_700Bold',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    confirmText: {
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
     confirmButtons: { flexDirection: 'row', gap: 12 },
     confirmCancelBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: RAIO.md },
     confirmCancelText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },

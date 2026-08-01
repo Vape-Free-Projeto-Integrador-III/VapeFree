@@ -20,149 +20,149 @@ import { auth } from '../services/firebase';
 import { contarPendencias, sincronizar } from '../utils/offline';
 import { descartarEspelhoDaConta } from '../utils/storage';
 import {
-  aplicarPreferenciasDeNotificacao,
-  cancelarNotificacoesMotivacionais,
-  cancelarNotificacaoDeStreak,
-  cancelarLembreteDeRisco,
+    aplicarPreferenciasDeNotificacao,
+    cancelarNotificacoesMotivacionais,
+    cancelarNotificacaoDeStreak,
+    cancelarLembreteDeRisco,
 } from '../utils/notifications';
 
 const CHAVE_MODO_CONVIDADO = '@vapefree_guest_mode';
 
 const AuthContext = createContext({
-  usuario: null,
-  ehConvidado: false,
-  telaDeAuth: 'Login',
-  inicializando: true,
-  continuarSemConta: async () => {},
-  sair: async () => {},
+    usuario: null,
+    ehConvidado: false,
+    telaDeAuth: 'Login',
+    inicializando: true,
+    continuarSemConta: async () => {},
+    sair: async () => {},
 });
 
 export function AuthProvider({ children }) {
-  const [usuario, setUsuario] = useState(null);
-  const [ehConvidado, setEhConvidado] = useState(false);
-  const [telaDeAuth, setTelaDeAuth] = useState('Login');
-  // "inicializando" controla a checagem inicial da sessão ao abrir o app.
-  // Enquanto o Firebase não responder se existe (ou não) um usuário
-  // autenticado, não decidimos a tela inicial (Main ou Login).
-  const [inicializando, setInicializando] = useState(true);
+    const [usuario, setUsuario] = useState(null);
+    const [ehConvidado, setEhConvidado] = useState(false);
+    const [telaDeAuth, setTelaDeAuth] = useState('Login');
+    // "inicializando" controla a checagem inicial da sessão ao abrir o app.
+    // Enquanto o Firebase não responder se existe (ou não) um usuário
+    // autenticado, não decidimos a tela inicial (Main ou Login).
+    const [inicializando, setInicializando] = useState(true);
 
-  useEffect(() => {
-    let montado = true;
+    useEffect(() => {
+        let montado = true;
 
-    // Lê, em paralelo com a checagem do Firebase, se o usuário já tinha
-    // escolhido "continuar sem conta" numa sessão anterior.
-    AsyncStorage.getItem(CHAVE_MODO_CONVIDADO)
-      .then((valor) => {
-        if (montado && valor === 'true') {
-          setEhConvidado(true);
+        // Lê, em paralelo com a checagem do Firebase, se o usuário já tinha
+        // escolhido "continuar sem conta" numa sessão anterior.
+        AsyncStorage.getItem(CHAVE_MODO_CONVIDADO)
+            .then((valor) => {
+                if (montado && valor === 'true') {
+                    setEhConvidado(true);
+                }
+            })
+            .catch(() => {});
+
+        // onAuthStateChanged é chamado automaticamente:
+        // - assim que o app abre (com o usuário restaurado da sessão, se houver)
+        // - sempre que o usuário faz login
+        // - sempre que o usuário faz logout
+        const cancelarInscricao = onAuthStateChanged(
+            auth,
+            (usuarioDoFirebase) => {
+                setUsuario(usuarioDoFirebase);
+                // Sempre que o callback disparar pela primeira vez (login existente,
+                // ou null caso não haja sessão), a checagem inicial terminou.
+                setInicializando(false);
+
+                // Se um usuário REAL acabou de logar, não faz sentido continuar
+                // marcado como convidado ao mesmo tempo.
+                if (usuarioDoFirebase) {
+                    setEhConvidado(false);
+                    setTelaDeAuth('Login');
+                    AsyncStorage.removeItem(CHAVE_MODO_CONVIDADO).catch(() => {});
+                }
+            },
+            (erro) => {
+                // Se o listener falhar por algum motivo (ex.: erro interno de
+                // persistência), não deixamos a tela presa em loading: tratamos
+                // como "sem usuário autenticado" e mostramos a tela de Login.
+                console.log('Erro no onAuthStateChanged:', erro);
+                setUsuario(null);
+                setInicializando(false);
+            }
+        );
+
+        return () => {
+            montado = false;
+            cancelarInscricao();
+        };
+    }, []);
+
+    // Agenda/cancela as notificações motivadoras conforme o usuário está
+    // "dentro do app" (logado OU em modo convidado) ou não (tela de Login).
+    // Separado do listener do Firebase acima para também reagir a mudanças
+    // de modo convidado, que não passam pelo onAuthStateChanged.
+    useEffect(() => {
+        if (inicializando) return;
+
+        const estaDentroDoApp = !!usuario || ehConvidado;
+
+        if (estaDentroDoApp) {
+            // Respeita o liga/desliga e o horário escolhidos nas Configurações.
+            aplicarPreferenciasDeNotificacao().catch((erro) =>
+                console.log('Erro ao aplicar as preferências de notificação:', erro)
+            );
+        } else {
+            cancelarNotificacoesMotivacionais().catch((erro) =>
+                console.log('Erro ao cancelar notificações motivadoras:', erro)
+            );
+            cancelarNotificacaoDeStreak().catch((erro) =>
+                console.log('Erro ao cancelar notificação de streak:', erro)
+            );
+            cancelarLembreteDeRisco().catch((erro) =>
+                console.log('Erro ao cancelar lembrete de risco:', erro)
+            );
         }
-      })
-      .catch(() => {});
+    }, [usuario, ehConvidado, inicializando]);
 
-    // onAuthStateChanged é chamado automaticamente:
-    // - assim que o app abre (com o usuário restaurado da sessão, se houver)
-    // - sempre que o usuário faz login
-    // - sempre que o usuário faz logout
-    const cancelarInscricao = onAuthStateChanged(
-      auth,
-      (usuarioDoFirebase) => {
-        setUsuario(usuarioDoFirebase);
-        // Sempre que o callback disparar pela primeira vez (login existente,
-        // ou null caso não haja sessão), a checagem inicial terminou.
-        setInicializando(false);
+    // Chamado pelo botão "Continuar sem conta" na tela de Login.
+    async function continuarSemConta() {
+        await AsyncStorage.setItem(CHAVE_MODO_CONVIDADO, 'true');
+        setEhConvidado(true);
+        setTelaDeAuth('Login');
+    }
 
-        // Se um usuário REAL acabou de logar, não faz sentido continuar
-        // marcado como convidado ao mesmo tempo.
-        if (usuarioDoFirebase) {
-          setEhConvidado(false);
-          setTelaDeAuth('Login');
-          AsyncStorage.removeItem(CHAVE_MODO_CONVIDADO).catch(() => {});
+    // Usado tanto para sair de uma conta real quanto para sair do modo
+    // convidado — em ambos os casos o usuário volta para a tela de Login
+    // e precisa escolher de novo (login ou "continuar sem conta") da
+    // próxima vez.
+    async function sair(proximaTelaDeAuth = 'Login') {
+        try {
+            const uid = auth.currentUser?.uid ?? null;
+            if (uid) {
+                // Tenta subir o que ficou na fila antes de sair. Se ainda sobrar algo
+                // (sem internet), o espelho e a fila FICAM salvos — ao logar de novo
+                // nesse aparelho o dado sobe. Só descartamos com a fila zerada.
+                const { pendentes } = await sincronizar(uid);
+                if (pendentes === 0 && (await contarPendencias(uid)) === 0) {
+                    await descartarEspelhoDaConta(uid);
+                }
+                await signOut(auth);
+            }
+        } finally {
+            await AsyncStorage.removeItem(CHAVE_MODO_CONVIDADO).catch(() => {});
+            setEhConvidado(false);
+            setTelaDeAuth(proximaTelaDeAuth);
         }
-      },
-      (erro) => {
-        // Se o listener falhar por algum motivo (ex.: erro interno de
-        // persistência), não deixamos a tela presa em loading: tratamos
-        // como "sem usuário autenticado" e mostramos a tela de Login.
-        console.log('Erro no onAuthStateChanged:', erro);
-        setUsuario(null);
-        setInicializando(false);
-      }
+    }
+
+    return (
+        <AuthContext.Provider
+            value={{ usuario, ehConvidado, telaDeAuth, inicializando, continuarSemConta, sair }}
+        >
+            {children}
+        </AuthContext.Provider>
     );
-
-    return () => {
-      montado = false;
-      cancelarInscricao();
-    };
-  }, []);
-
-  // Agenda/cancela as notificações motivadoras conforme o usuário está
-  // "dentro do app" (logado OU em modo convidado) ou não (tela de Login).
-  // Separado do listener do Firebase acima para também reagir a mudanças
-  // de modo convidado, que não passam pelo onAuthStateChanged.
-  useEffect(() => {
-    if (inicializando) return;
-
-    const estaDentroDoApp = !!usuario || ehConvidado;
-
-    if (estaDentroDoApp) {
-      // Respeita o liga/desliga e o horário escolhidos nas Configurações.
-      aplicarPreferenciasDeNotificacao().catch((erro) =>
-        console.log('Erro ao aplicar as preferências de notificação:', erro)
-      );
-    } else {
-      cancelarNotificacoesMotivacionais().catch((erro) =>
-        console.log('Erro ao cancelar notificações motivadoras:', erro)
-      );
-      cancelarNotificacaoDeStreak().catch((erro) =>
-        console.log('Erro ao cancelar notificação de streak:', erro)
-      );
-      cancelarLembreteDeRisco().catch((erro) =>
-        console.log('Erro ao cancelar lembrete de risco:', erro)
-      );
-    }
-  }, [usuario, ehConvidado, inicializando]);
-
-  // Chamado pelo botão "Continuar sem conta" na tela de Login.
-  async function continuarSemConta() {
-    await AsyncStorage.setItem(CHAVE_MODO_CONVIDADO, 'true');
-    setEhConvidado(true);
-    setTelaDeAuth('Login');
-  }
-
-  // Usado tanto para sair de uma conta real quanto para sair do modo
-  // convidado — em ambos os casos o usuário volta para a tela de Login
-  // e precisa escolher de novo (login ou "continuar sem conta") da
-  // próxima vez.
-  async function sair(proximaTelaDeAuth = 'Login') {
-    try {
-      const uid = auth.currentUser?.uid ?? null;
-      if (uid) {
-        // Tenta subir o que ficou na fila antes de sair. Se ainda sobrar algo
-        // (sem internet), o espelho e a fila FICAM salvos — ao logar de novo
-        // nesse aparelho o dado sobe. Só descartamos com a fila zerada.
-        const { pendentes } = await sincronizar(uid);
-        if (pendentes === 0 && (await contarPendencias(uid)) === 0) {
-          await descartarEspelhoDaConta(uid);
-        }
-        await signOut(auth);
-      }
-    } finally {
-      await AsyncStorage.removeItem(CHAVE_MODO_CONVIDADO).catch(() => {});
-      setEhConvidado(false);
-      setTelaDeAuth(proximaTelaDeAuth);
-    }
-  }
-
-  return (
-    <AuthContext.Provider
-      value={{ usuario, ehConvidado, telaDeAuth, inicializando, continuarSemConta, sair }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
 }
 
 export function usarAuth() {
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- hook custom em português (`usar*`), o lint só reconhece `use*`
-  return useContext(AuthContext);
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- hook custom em português (`usar*`), o lint só reconhece `use*`
+    return useContext(AuthContext);
 }

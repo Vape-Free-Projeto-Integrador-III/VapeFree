@@ -32,16 +32,20 @@ export default function Toast({ toast, aoEsconder }) {
         let timeoutParaEsconder;
         let cancelado = false;
 
-        Animated.timing(animacao, { toValue: 1, duration: 220, useNativeDriver: true }).start(() => {
-            if (cancelado) return;
-            timeoutParaEsconder = setTimeout(() => {
-                Animated.timing(animacao, { toValue: 0, duration: 220, useNativeDriver: true }).start(
-                    ({ finished }) => {
+        Animated.timing(animacao, { toValue: 1, duration: 220, useNativeDriver: true }).start(
+            () => {
+                if (cancelado) return;
+                timeoutParaEsconder = setTimeout(() => {
+                    Animated.timing(animacao, {
+                        toValue: 0,
+                        duration: 220,
+                        useNativeDriver: true,
+                    }).start(({ finished }) => {
                         if (finished && !cancelado) aoEsconder();
-                    }
-                );
-            }, toast.duracao ?? DURACAO_DO_TOAST);
-        });
+                    });
+                }, toast.duracao ?? DURACAO_DO_TOAST);
+            }
+        );
 
         return () => {
             cancelado = true;
@@ -52,11 +56,12 @@ export default function Toast({ toast, aoEsconder }) {
     if (!toast) return null;
 
     const ehXp = toast.variante === 'xp';
-    const corDaBorda = {
-        erro: cores.danger,
-        aviso: cores.warning,
-        sucesso: cores.primary,
-    }[toast.variante] || cores.primary;
+    const corDaBorda =
+        {
+            erro: cores.danger,
+            aviso: cores.warning,
+            sucesso: cores.primary,
+        }[toast.variante] || cores.primary;
 
     return (
         <Animated.View
@@ -67,7 +72,12 @@ export default function Toast({ toast, aoEsconder }) {
                 {
                     opacity: animacao,
                     transform: [
-                        { translateY: animacao.interpolate({ inputRange: [0, 1], outputRange: [-24, 0] }) },
+                        {
+                            translateY: animacao.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [-24, 0],
+                            }),
+                        },
                     ],
                 },
             ]}
@@ -114,7 +124,7 @@ const styles = StyleSheet.create({
         borderRadius: RAIO.lg,
         borderLeftWidth: 4,
     },
-    icon: { fontSize: 22 , fontFamily: 'Poppins_400Regular'},
+    icon: { fontSize: 22, fontFamily: 'Poppins_400Regular' },
     title: { fontSize: 14, fontFamily: 'Poppins_800ExtraBold' },
     subtitle: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 1 },
     xp: { fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },

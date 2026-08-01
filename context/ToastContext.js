@@ -125,7 +125,14 @@ export function ToastProvider({ children }) {
     }, []);
 
     const valor = useMemo(
-        () => ({ mostrarXp, mostrarGanhoDeXp, mostrarRecompensas, mostrarErro, mostrarAviso, confirmar }),
+        () => ({
+            mostrarXp,
+            mostrarGanhoDeXp,
+            mostrarRecompensas,
+            mostrarErro,
+            mostrarAviso,
+            confirmar,
+        }),
         [mostrarXp, mostrarGanhoDeXp, mostrarRecompensas, mostrarErro, mostrarAviso, confirmar]
     );
 

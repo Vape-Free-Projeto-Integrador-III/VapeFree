@@ -25,25 +25,18 @@
 // em inglês de propósito — já existe dado salvo com eles.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  doc,
-  getDoc,
-  setDoc,
-  collection,
-  getDocs,
-  deleteDoc,
-} from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import {
-  ESPELHOS,
-  comTempoLimite,
-  enfileirar,
-  escreverCache,
-  estaOnline,
-  lerCache,
-  limparCacheEFila,
-  sincronizar,
-  temEspelho,
+    ESPELHOS,
+    comTempoLimite,
+    enfileirar,
+    escreverCache,
+    estaOnline,
+    lerCache,
+    limparCacheEFila,
+    sincronizar,
+    temEspelho,
 } from './offline';
 import { verificarConquistas, calcularStreak, calcularEstadoDeStreak } from './achievements';
 import { montarContextoDeMissoes, verificarMissoes } from './missions';
@@ -55,15 +48,15 @@ import { dataDeHoje, ultimosNDias, converterDataLocal, inicioDaSemana } from './
 export { calcularStreak, calcularEstadoDeStreak };
 
 const CHAVES = {
-  REGISTROS: '@vapefree_records',
-  APARELHO: '@vapefree_device',
-  META: '@vapefree_goal',
-  ECONOMIA: '@vapefree_economy',
-  CONQUISTAS: '@vapefree_achievements',
-  CRISE: '@vapefree_crisis',
-  MISSOES: '@vapefree_missions',
-  XP: '@vapefree_xp',
-  ABERTURAS: '@vapefree_app_opens',
+    REGISTROS: '@vapefree_records',
+    APARELHO: '@vapefree_device',
+    META: '@vapefree_goal',
+    ECONOMIA: '@vapefree_economy',
+    CONQUISTAS: '@vapefree_achievements',
+    CRISE: '@vapefree_crisis',
+    MISSOES: '@vapefree_missions',
+    XP: '@vapefree_xp',
+    ABERTURAS: '@vapefree_app_opens',
 };
 
 // Flag do tutorial de boas-vindas. Fica FORA de CHAVES de propósito: é
@@ -91,17 +84,17 @@ const OK = { ok: true };
 const falha = (motivo) => ({ ok: false, motivo });
 
 async function lerJson(chave, padrao) {
-  try {
-    const bruto = await AsyncStorage.getItem(chave);
-    return bruto ? JSON.parse(bruto) : padrao;
-  } catch {
-    return padrao;
-  }
+    try {
+        const bruto = await AsyncStorage.getItem(chave);
+        return bruto ? JSON.parse(bruto) : padrao;
+    } catch {
+        return padrao;
+    }
 }
 
 // Retorna o uid do usuário logado, ou null se estiver em modo convidado.
 function obterUid() {
-  return auth.currentUser ? auth.currentUser.uid : null;
+    return auth.currentUser ? auth.currentUser.uid : null;
 }
 
 // ─── Modo conta: leitura e escrita via espelho ───────────────────────────────
@@ -111,25 +104,25 @@ function obterUid() {
 // escrever offline. Com fila pendente, ou com o servidor fora do ar, serve o
 // espelho local.
 async function lerDaConta(uid, nome, buscarNoServidor, padrao) {
-  const { pendentes } = await sincronizar(uid);
-  if (pendentes > 0) {
-    return lerCache(uid, nome, padrao);
-  }
-  try {
-    const remoto = await comTempoLimite(buscarNoServidor());
-    await escreverCache(uid, nome, remoto);
-    return remoto;
-  } catch {
-    return lerCache(uid, nome, padrao);
-  }
+    const { pendentes } = await sincronizar(uid);
+    if (pendentes > 0) {
+        return lerCache(uid, nome, padrao);
+    }
+    try {
+        const remoto = await comTempoLimite(buscarNoServidor());
+        await escreverCache(uid, nome, remoto);
+        return remoto;
+    } catch {
+        return lerCache(uid, nome, padrao);
+    }
 }
 
 // Escrita do usuário logado: espelho na hora, fila depois, sincronização em
 // segundo plano (sem await de propósito — a tela não pode esperar a rede).
 async function escreverNaConta(uid, nome, valorNoEspelho, mutacao) {
-  await escreverCache(uid, nome, valorNoEspelho);
-  await enfileirar(uid, mutacao);
-  sincronizar(uid);
+    await escreverCache(uid, nome, valorNoEspelho);
+    await enfileirar(uid, mutacao);
+    sincronizar(uid);
 }
 
 // Economia, XP e dias de abertura são valores DERIVADOS que sobem inteiros
@@ -138,85 +131,85 @@ async function escreverNaConta(uid, nome, valorNoEspelho, mutacao) {
 // e apagaria o que está na conta — nesse caso é melhor não escrever nada e
 // deixar a próxima leitura online refazer a conta.
 async function podeEscreverDerivado(uid, nomeDeOrigem) {
-  if (await temEspelho(uid, nomeDeOrigem)) return true;
-  return estaOnline();
+    if (await temEspelho(uid, nomeDeOrigem)) return true;
+    return estaOnline();
 }
 
 // Aquece o espelho logo depois do login/reconexão, pra que o app já funcione
 // se o usuário ficar offline antes de abrir cada tela. Ver ConnectionContext.
 export async function precarregarEspelho() {
-  const uid = obterUid();
-  if (!uid || !(await estaOnline())) return false;
-  await Promise.all([
-    obterRegistros(),
-    obterConquistas(),
-    obterSessoesDeCrise(),
-    obterMissoes(),
-    obterAparelho(),
-    obterMeta(),
-    obterEconomia(),
-    obterEstadoDeXp(),
-    obterDiasDeAbertura(),
-  ]);
-  return true;
+    const uid = obterUid();
+    if (!uid || !(await estaOnline())) return false;
+    await Promise.all([
+        obterRegistros(),
+        obterConquistas(),
+        obterSessoesDeCrise(),
+        obterMissoes(),
+        obterAparelho(),
+        obterMeta(),
+        obterEconomia(),
+        obterEstadoDeXp(),
+        obterDiasDeAbertura(),
+    ]);
+    return true;
 }
 
 // Chamada no logout: só descarta o espelho se não sobrou nada pra subir.
 export async function descartarEspelhoDaConta(uid) {
-  await limparCacheEFila(uid);
+    await limparCacheEFila(uid);
 }
 
 export async function obterDadosLocaisDoConvidado() {
-  const [
-    registros,
-    aparelho,
-    meta,
-    economia,
-    conquistas,
-    sessoesDeCrise,
-    missoes,
-    xp,
-    diasDeAbertura,
-  ] = await Promise.all([
-    lerJson(CHAVES.REGISTROS, []),
-    lerJson(CHAVES.APARELHO, null),
-    lerJson(CHAVES.META, null),
-    lerJson(CHAVES.ECONOMIA, {}),
-    lerJson(CHAVES.CONQUISTAS, []),
-    lerJson(CHAVES.CRISE, []),
-    lerJson(CHAVES.MISSOES, []),
-    lerJson(CHAVES.XP, null),
-    lerJson(CHAVES.ABERTURAS, []),
-  ]);
+    const [
+        registros,
+        aparelho,
+        meta,
+        economia,
+        conquistas,
+        sessoesDeCrise,
+        missoes,
+        xp,
+        diasDeAbertura,
+    ] = await Promise.all([
+        lerJson(CHAVES.REGISTROS, []),
+        lerJson(CHAVES.APARELHO, null),
+        lerJson(CHAVES.META, null),
+        lerJson(CHAVES.ECONOMIA, {}),
+        lerJson(CHAVES.CONQUISTAS, []),
+        lerJson(CHAVES.CRISE, []),
+        lerJson(CHAVES.MISSOES, []),
+        lerJson(CHAVES.XP, null),
+        lerJson(CHAVES.ABERTURAS, []),
+    ]);
 
-  return {
-    registros: Array.isArray(registros) ? registros : [],
-    aparelho: aparelho ?? null,
-    meta: meta && typeof meta === 'object' ? meta : null,
-    economia: economia && typeof economia === 'object' ? economia : {},
-    conquistas: Array.isArray(conquistas) ? conquistas : [],
-    sessoesDeCrise: Array.isArray(sessoesDeCrise) ? sessoesDeCrise : [],
-    missoes: Array.isArray(missoes) ? missoes : [],
-    xp: xp && typeof xp === 'object' ? xp : null,
-    diasDeAbertura: Array.isArray(diasDeAbertura) ? diasDeAbertura : [],
-  };
+    return {
+        registros: Array.isArray(registros) ? registros : [],
+        aparelho: aparelho ?? null,
+        meta: meta && typeof meta === 'object' ? meta : null,
+        economia: economia && typeof economia === 'object' ? economia : {},
+        conquistas: Array.isArray(conquistas) ? conquistas : [],
+        sessoesDeCrise: Array.isArray(sessoesDeCrise) ? sessoesDeCrise : [],
+        missoes: Array.isArray(missoes) ? missoes : [],
+        xp: xp && typeof xp === 'object' ? xp : null,
+        diasDeAbertura: Array.isArray(diasDeAbertura) ? diasDeAbertura : [],
+    };
 }
 
 export async function temDadosLocaisDoConvidado() {
-  const dados = await obterDadosLocaisDoConvidado();
-  return (
-    dados.registros.length > 0 ||
-    dados.aparelho !== null ||
-    dados.meta !== null ||
-    Object.keys(dados.economia).length > 0 ||
-    dados.conquistas.length > 0 ||
-    dados.sessoesDeCrise.length > 0 ||
-    dados.missoes.length > 0
-  );
+    const dados = await obterDadosLocaisDoConvidado();
+    return (
+        dados.registros.length > 0 ||
+        dados.aparelho !== null ||
+        dados.meta !== null ||
+        Object.keys(dados.economia).length > 0 ||
+        dados.conquistas.length > 0 ||
+        dados.sessoesDeCrise.length > 0 ||
+        dados.missoes.length > 0
+    );
 }
 
 export async function limparDadosLocaisDoConvidado() {
-  await Promise.all(Object.values(CHAVES).map((chave) => AsyncStorage.removeItem(chave)));
+    await Promise.all(Object.values(CHAVES).map((chave) => AsyncStorage.removeItem(chave)));
 }
 
 // ─── Tutorial de boas-vindas ────────────────────────────────────────────────
@@ -224,33 +217,33 @@ export async function limparDadosLocaisDoConvidado() {
 // precisa ser lida antes de existir usuário logado.
 
 export async function onboardingFoiConcluido() {
-  try {
-    return (await AsyncStorage.getItem(CHAVE_ONBOARDING)) === 'true';
-  } catch {
-    // Na dúvida, não mostra o tutorial de novo pra quem já usa o app.
-    return true;
-  }
+    try {
+        return (await AsyncStorage.getItem(CHAVE_ONBOARDING)) === 'true';
+    } catch {
+        // Na dúvida, não mostra o tutorial de novo pra quem já usa o app.
+        return true;
+    }
 }
 
 export async function concluirOnboarding() {
-  try {
-    await AsyncStorage.setItem(CHAVE_ONBOARDING, 'true');
-    return true;
-  } catch {
-    return false;
-  }
+    try {
+        await AsyncStorage.setItem(CHAVE_ONBOARDING, 'true');
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 // Usado pelo "ver o tutorial de novo" das Configurações. A tela de tutorial é
 // aberta pela navegação; apagar a flag aqui é só pra ele voltar a aparecer na
 // próxima abertura do app caso o usuário feche no meio.
 export async function reiniciarOnboarding() {
-  try {
-    await AsyncStorage.removeItem(CHAVE_ONBOARDING);
-    return true;
-  } catch {
-    return false;
-  }
+    try {
+        await AsyncStorage.removeItem(CHAVE_ONBOARDING);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 // ─── Preferência de notificação ─────────────────────────────────────────────
@@ -262,50 +255,52 @@ export async function reiniciarOnboarding() {
 // quando existe crise suficiente pra apontar um período — então liga por
 // padrão sem incomodar quem nunca usou o modo crise.
 export const PREFERENCIAS_DE_NOTIFICACAO_PADRAO = {
-  ativas: true,
-  hora: 9,
-  minuto: 0,
-  risco: true,
+    ativas: true,
+    hora: 9,
+    minuto: 0,
+    risco: true,
 };
 
 export async function obterPreferenciasDeNotificacao() {
-  const salvo = await lerJson(CHAVE_NOTIFICACOES, null);
-  if (!salvo || typeof salvo !== 'object') {
-    return { ...PREFERENCIAS_DE_NOTIFICACAO_PADRAO };
-  }
-  return {
-    ativas: salvo.ativas !== false,
-    hora: Number.isInteger(salvo.hora) ? salvo.hora : PREFERENCIAS_DE_NOTIFICACAO_PADRAO.hora,
-    minuto: Number.isInteger(salvo.minuto) ? salvo.minuto : PREFERENCIAS_DE_NOTIFICACAO_PADRAO.minuto,
-    risco: salvo.risco !== false,
-  };
+    const salvo = await lerJson(CHAVE_NOTIFICACOES, null);
+    if (!salvo || typeof salvo !== 'object') {
+        return { ...PREFERENCIAS_DE_NOTIFICACAO_PADRAO };
+    }
+    return {
+        ativas: salvo.ativas !== false,
+        hora: Number.isInteger(salvo.hora) ? salvo.hora : PREFERENCIAS_DE_NOTIFICACAO_PADRAO.hora,
+        minuto: Number.isInteger(salvo.minuto)
+            ? salvo.minuto
+            : PREFERENCIAS_DE_NOTIFICACAO_PADRAO.minuto,
+        risco: salvo.risco !== false,
+    };
 }
 
 export async function salvarPreferenciasDeNotificacao(preferencias) {
-  try {
-    const atuais = await obterPreferenciasDeNotificacao();
-    const novas = { ...atuais, ...preferencias };
-    await AsyncStorage.setItem(CHAVE_NOTIFICACOES, JSON.stringify(novas));
-    return novas;
-  } catch {
-    return null;
-  }
+    try {
+        const atuais = await obterPreferenciasDeNotificacao();
+        const novas = { ...atuais, ...preferencias };
+        await AsyncStorage.setItem(CHAVE_NOTIFICACOES, JSON.stringify(novas));
+        return novas;
+    } catch {
+        return null;
+    }
 }
 
 async function substituirDocsDaColecao(uid, subcolecao, entradas) {
-  const snap = await getDocs(collection(db, 'users', uid, subcolecao));
+    const snap = await getDocs(collection(db, 'users', uid, subcolecao));
 
-  await Promise.all(snap.docs.map((item) => deleteDoc(item.ref)));
+    await Promise.all(snap.docs.map((item) => deleteDoc(item.ref)));
 
-  if (!Array.isArray(entradas) || entradas.length === 0) {
-    return;
-  }
+    if (!Array.isArray(entradas) || entradas.length === 0) {
+        return;
+    }
 
-  await Promise.all(
-    entradas.map((entrada) =>
-      setDoc(doc(db, 'users', uid, subcolecao, String(entrada.id)), entrada)
-    )
-  );
+    await Promise.all(
+        entradas.map((entrada) =>
+            setDoc(doc(db, 'users', uid, subcolecao, String(entrada.id)), entrada)
+        )
+    );
 }
 
 // Migração é a única operação que NÃO funciona offline: ela apaga os
@@ -313,52 +308,52 @@ async function substituirDocsDaColecao(uid, subcolecao, entradas) {
 // parar no meio disso deixaria a conta pela metade. Por isso exige rede e só
 // limpa os dados locais depois que tudo subiu.
 export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
-  if (!uid || !(await estaOnline())) {
-    return false;
-  }
+    if (!uid || !(await estaOnline())) {
+        return false;
+    }
 
-  const dados = await obterDadosLocaisDoConvidado();
+    const dados = await obterDadosLocaisDoConvidado();
 
-  try {
-    await setDoc(
-      doc(db, 'users', uid),
-      {
-        device: dados.aparelho ?? null,
-        goal: dados.meta ?? null,
-        economy: dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
-        xp: dados.xp ?? null,
-        appOpenDays: dados.diasDeAbertura,
-      },
-      { merge: true }
-    );
+    try {
+        await setDoc(
+            doc(db, 'users', uid),
+            {
+                device: dados.aparelho ?? null,
+                goal: dados.meta ?? null,
+                economy: dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
+                xp: dados.xp ?? null,
+                appOpenDays: dados.diasDeAbertura,
+            },
+            { merge: true }
+        );
 
-    await substituirDocsDaColecao(uid, 'records', dados.registros);
-    await substituirDocsDaColecao(uid, 'achievements', dados.conquistas);
-    await substituirDocsDaColecao(uid, 'crisisSessions', dados.sessoesDeCrise);
-    await substituirDocsDaColecao(uid, 'missions', dados.missoes);
-  } catch (e) {
-    // Os dados locais ficam intactos de propósito: o usuário pode tentar
-    // importar de novo com internet.
-    console.log('Erro ao migrar dados de convidado:', e);
-    return false;
-  }
+        await substituirDocsDaColecao(uid, 'records', dados.registros);
+        await substituirDocsDaColecao(uid, 'achievements', dados.conquistas);
+        await substituirDocsDaColecao(uid, 'crisisSessions', dados.sessoesDeCrise);
+        await substituirDocsDaColecao(uid, 'missions', dados.missoes);
+    } catch (e) {
+        // Os dados locais ficam intactos de propósito: o usuário pode tentar
+        // importar de novo com internet.
+        console.log('Erro ao migrar dados de convidado:', e);
+        return false;
+    }
 
-  // Já aquece o espelho com o que acabou de subir, pra conta nova funcionar
-  // offline sem precisar de uma leitura remota antes.
-  await Promise.all([
-    escreverCache(uid, ESPELHOS.REGISTROS, dados.registros),
-    escreverCache(uid, ESPELHOS.CONQUISTAS, dados.conquistas),
-    escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, dados.sessoesDeCrise),
-    escreverCache(uid, ESPELHOS.MISSOES, dados.missoes),
-    escreverCache(uid, ESPELHOS.APARELHO, dados.aparelho ?? null),
-    escreverCache(uid, ESPELHOS.META, dados.meta ?? null),
-    escreverCache(uid, ESPELHOS.ECONOMIA, dados.economia),
-    escreverCache(uid, ESPELHOS.XP, dados.xp ?? null),
-    escreverCache(uid, ESPELHOS.ABERTURAS, dados.diasDeAbertura),
-  ]);
+    // Já aquece o espelho com o que acabou de subir, pra conta nova funcionar
+    // offline sem precisar de uma leitura remota antes.
+    await Promise.all([
+        escreverCache(uid, ESPELHOS.REGISTROS, dados.registros),
+        escreverCache(uid, ESPELHOS.CONQUISTAS, dados.conquistas),
+        escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, dados.sessoesDeCrise),
+        escreverCache(uid, ESPELHOS.MISSOES, dados.missoes),
+        escreverCache(uid, ESPELHOS.APARELHO, dados.aparelho ?? null),
+        escreverCache(uid, ESPELHOS.META, dados.meta ?? null),
+        escreverCache(uid, ESPELHOS.ECONOMIA, dados.economia),
+        escreverCache(uid, ESPELHOS.XP, dados.xp ?? null),
+        escreverCache(uid, ESPELHOS.ABERTURAS, dados.diasDeAbertura),
+    ]);
 
-  await limparDadosLocaisDoConvidado();
-  return true;
+    await limparDadosLocaisDoConvidado();
+    return true;
 }
 
 // ─── Apagar tudo ────────────────────────────────────────────────────────────
@@ -372,83 +367,83 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
 const SUBCOLECOES = ['records', 'achievements', 'crisisSessions', 'missions'];
 
 async function apagarDocsDaColecao(uid, subcolecao) {
-  const snap = await comTempoLimite(getDocs(collection(db, 'users', uid, subcolecao)));
-  await Promise.all(snap.docs.map((item) => comTempoLimite(deleteDoc(item.ref))));
+    const snap = await comTempoLimite(getDocs(collection(db, 'users', uid, subcolecao)));
+    await Promise.all(snap.docs.map((item) => comTempoLimite(deleteDoc(item.ref))));
 }
 
 // Apaga só os DADOS da conta (registros, conquistas, crises, missões e os
 // campos derivados do doc do usuário). O documento users/{uid} continua
 // existindo — quem apaga ele é apagarContaNoBanco, na exclusão de conta.
 async function apagarDadosDaConta(uid) {
-  await limparCacheEFila(uid);
+    await limparCacheEFila(uid);
 
-  for (const subcolecao of SUBCOLECOES) {
-    await apagarDocsDaColecao(uid, subcolecao);
-  }
+    for (const subcolecao of SUBCOLECOES) {
+        await apagarDocsDaColecao(uid, subcolecao);
+    }
 
-  await comTempoLimite(
-    setDoc(
-      doc(db, 'users', uid),
-      { device: null, goal: null, economy: {}, xp: null, appOpenDays: [] },
-      { merge: true }
-    )
-  );
+    await comTempoLimite(
+        setDoc(
+            doc(db, 'users', uid),
+            { device: null, goal: null, economy: {}, xp: null, appOpenDays: [] },
+            { merge: true }
+        )
+    );
 
-  // Deixa o espelho quente e vazio, senão a próxima leitura offline devolveria
-  // o padrão neutro sem saber que o dado foi apagado de propósito.
-  await Promise.all([
-    escreverCache(uid, ESPELHOS.REGISTROS, []),
-    escreverCache(uid, ESPELHOS.CONQUISTAS, []),
-    escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, []),
-    escreverCache(uid, ESPELHOS.MISSOES, []),
-    escreverCache(uid, ESPELHOS.APARELHO, null),
-    escreverCache(uid, ESPELHOS.META, null),
-    escreverCache(uid, ESPELHOS.ECONOMIA, {}),
-    escreverCache(uid, ESPELHOS.XP, null),
-    escreverCache(uid, ESPELHOS.ABERTURAS, []),
-  ]);
+    // Deixa o espelho quente e vazio, senão a próxima leitura offline devolveria
+    // o padrão neutro sem saber que o dado foi apagado de propósito.
+    await Promise.all([
+        escreverCache(uid, ESPELHOS.REGISTROS, []),
+        escreverCache(uid, ESPELHOS.CONQUISTAS, []),
+        escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, []),
+        escreverCache(uid, ESPELHOS.MISSOES, []),
+        escreverCache(uid, ESPELHOS.APARELHO, null),
+        escreverCache(uid, ESPELHOS.META, null),
+        escreverCache(uid, ESPELHOS.ECONOMIA, {}),
+        escreverCache(uid, ESPELHOS.XP, null),
+        escreverCache(uid, ESPELHOS.ABERTURAS, []),
+    ]);
 }
 
 export async function apagarTodosOsDados() {
-  const uid = obterUid();
+    const uid = obterUid();
 
-  if (!uid) {
-    try {
-      await limparDadosLocaisDoConvidado();
-      return OK;
-    } catch {
-      return falha('rede');
+    if (!uid) {
+        try {
+            await limparDadosLocaisDoConvidado();
+            return OK;
+        } catch {
+            return falha('rede');
+        }
     }
-  }
 
-  if (!(await estaOnline())) {
-    return falha('rede');
-  }
+    if (!(await estaOnline())) {
+        return falha('rede');
+    }
 
-  try {
-    await apagarDadosDaConta(uid);
-    return OK;
-  } catch (e) {
-    console.log('Erro ao apagar os dados da conta:', e);
-    return falha('rede');
-  }
+    try {
+        await apagarDadosDaConta(uid);
+        return OK;
+    } catch (e) {
+        console.log('Erro ao apagar os dados da conta:', e);
+        return falha('rede');
+    }
 }
 
 // Limpeza que precede o deleteUser do Firebase Auth (ver screens/AccountScreen).
 // Apaga os dados E o documento users/{uid}, além do espelho local.
 export async function apagarContaNoBanco(uid = obterUid()) {
-  if (!uid) return falha('sem_conta');
-  if (!(await estaOnline())) return falha('rede');
+    if (!uid) return falha('sem_conta');
+    if (!(await estaOnline())) return falha('rede');
 
-  try {
-    await apagarDadosDaConta(uid);
-    await comTempoLimite(deleteDoc(doc(db, 'users', uid)));
-    await limparCacheEFila(uid);
-    return OK;
-  } catch (e) {
-    console.log('Erro ao apagar a conta no banco:', e);
-    return falha('rede');
-  }
+    try {
+        await apagarDadosDaConta(uid);
+        await comTempoLimite(deleteDoc(doc(db, 'users', uid)));
+        await limparCacheEFila(uid);
+        return OK;
+    } catch (e) {
+        console.log('Erro ao apagar a conta no banco:', e);
+        return falha('rede');
+    }
 }
 
 // ─── Registros ──────────────────────────────────────────────────────────────
@@ -457,19 +452,19 @@ export async function apagarContaNoBanco(uid = obterUid()) {
 // como já era antes.
 
 export async function obterRegistros() {
-  const uid = obterUid();
-  if (uid) {
-    return lerDaConta(
-      uid,
-      ESPELHOS.REGISTROS,
-      async () => {
-        const snap = await getDocs(collection(db, 'users', uid, 'records'));
-        return snap.docs.map((d) => d.data());
-      },
-      []
-    );
-  }
-  return lerJson(CHAVES.REGISTROS, []);
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.REGISTROS,
+            async () => {
+                const snap = await getDocs(collection(db, 'users', uid, 'records'));
+                return snap.docs.map((d) => d.data());
+            },
+            []
+        );
+    }
+    return lerJson(CHAVES.REGISTROS, []);
 }
 
 // Janela em que dá pra criar registro: hoje ou até DIAS_PARA_TRAS_NO_REGISTRO
@@ -480,128 +475,128 @@ export async function obterRegistros() {
 export const DIAS_PARA_TRAS_NO_REGISTRO = 7;
 
 export function datasRegistraveis() {
-  return ultimosNDias(DIAS_PARA_TRAS_NO_REGISTRO + 1);
+    return ultimosNDias(DIAS_PARA_TRAS_NO_REGISTRO + 1);
 }
 
 export function dataEhRegistravel(data) {
-  return datasRegistraveis().includes(data);
+    return datasRegistraveis().includes(data);
 }
 
 export async function salvarRegistro(novoRegistro) {
-  const uid = obterUid();
-  const registro = normalizarRegistro(novoRegistro);
-  if (!dataEhRegistravel(registro.date)) {
-    return falha('data_invalida');
-  }
-  try {
-    if (uid) {
-      const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
-      // Registro antigo do mesmo dia sai junto: como o id vem de Date.now(),
-      // o doc velho tem outro docId e precisa de um delete próprio na fila,
-      // senão volta na próxima leitura online.
-      const antigosDoDia = registros.filter(
-        (r) => r.date === registro.date && r.id !== registro.id
-      );
-      for (const antigo of antigosDoDia) {
-        await enfileirar(uid, {
-          tipo: 'delete',
-          colecao: 'records',
-          docId: String(antigo.id),
-        });
-      }
-      await escreverNaConta(
-        uid,
-        ESPELHOS.REGISTROS,
-        [
-          ...registros.filter((r) => r.id !== registro.id && r.date !== registro.date),
-          registro,
-        ],
-        { tipo: 'set', colecao: 'records', docId: String(registro.id), dados: registro }
-      );
-      return OK;
+    const uid = obterUid();
+    const registro = normalizarRegistro(novoRegistro);
+    if (!dataEhRegistravel(registro.date)) {
+        return falha('data_invalida');
     }
-    const registros = await obterRegistros();
-    const restantes = registros.filter((r) => r.date !== registro.date);
-    restantes.push(registro);
-    await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
-    return OK;
-  } catch {
-    return falha('rede');
-  }
+    try {
+        if (uid) {
+            const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
+            // Registro antigo do mesmo dia sai junto: como o id vem de Date.now(),
+            // o doc velho tem outro docId e precisa de um delete próprio na fila,
+            // senão volta na próxima leitura online.
+            const antigosDoDia = registros.filter(
+                (r) => r.date === registro.date && r.id !== registro.id
+            );
+            for (const antigo of antigosDoDia) {
+                await enfileirar(uid, {
+                    tipo: 'delete',
+                    colecao: 'records',
+                    docId: String(antigo.id),
+                });
+            }
+            await escreverNaConta(
+                uid,
+                ESPELHOS.REGISTROS,
+                [
+                    ...registros.filter((r) => r.id !== registro.id && r.date !== registro.date),
+                    registro,
+                ],
+                { tipo: 'set', colecao: 'records', docId: String(registro.id), dados: registro }
+            );
+            return OK;
+        }
+        const registros = await obterRegistros();
+        const restantes = registros.filter((r) => r.date !== registro.date);
+        restantes.push(registro);
+        await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
+        return OK;
+    } catch {
+        return falha('rede');
+    }
 }
 
 export async function excluirRegistro(id) {
-  const uid = obterUid();
-  try {
-    if (uid) {
-      const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
-      await escreverNaConta(
-        uid,
-        ESPELHOS.REGISTROS,
-        registros.filter((r) => r.id !== id),
-        { tipo: 'delete', colecao: 'records', docId: String(id) }
-      );
-      return OK;
+    const uid = obterUid();
+    try {
+        if (uid) {
+            const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
+            await escreverNaConta(
+                uid,
+                ESPELHOS.REGISTROS,
+                registros.filter((r) => r.id !== id),
+                { tipo: 'delete', colecao: 'records', docId: String(id) }
+            );
+            return OK;
+        }
+        const registros = await obterRegistros();
+        const restantes = registros.filter((r) => r.id !== id);
+        await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
+        return OK;
+    } catch {
+        return falha('rede');
     }
-    const registros = await obterRegistros();
-    const restantes = registros.filter((r) => r.id !== id);
-    await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
-    return OK;
-  } catch {
-    return falha('rede');
-  }
 }
 
 export async function atualizarRegistro(registro) {
-  const uid = obterUid();
-  const registroAtualizado = normalizarRegistro(registro);
-  try {
-    if (uid) {
-      const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
-      // Mesma regra de um-registro-por-dia do salvarRegistro: se a edição
-      // moveu o registro pra um dia que já tinha outro, o outro sai (e o doc
-      // dele precisa de um delete próprio na fila).
-      const antigosDoDia = registros.filter(
-        (r) => r.date === registroAtualizado.date && r.id !== registroAtualizado.id
-      );
-      for (const antigo of antigosDoDia) {
-        await enfileirar(uid, {
-          tipo: 'delete',
-          colecao: 'records',
-          docId: String(antigo.id),
-        });
-      }
-      await escreverNaConta(
-        uid,
-        ESPELHOS.REGISTROS,
-        [
-          ...registros.filter(
-            (r) => r.id !== registroAtualizado.id && r.date !== registroAtualizado.date
-          ),
-          registroAtualizado,
-        ],
-        {
-          tipo: 'set',
-          colecao: 'records',
-          docId: String(registroAtualizado.id),
-          dados: registroAtualizado,
+    const uid = obterUid();
+    const registroAtualizado = normalizarRegistro(registro);
+    try {
+        if (uid) {
+            const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
+            // Mesma regra de um-registro-por-dia do salvarRegistro: se a edição
+            // moveu o registro pra um dia que já tinha outro, o outro sai (e o doc
+            // dele precisa de um delete próprio na fila).
+            const antigosDoDia = registros.filter(
+                (r) => r.date === registroAtualizado.date && r.id !== registroAtualizado.id
+            );
+            for (const antigo of antigosDoDia) {
+                await enfileirar(uid, {
+                    tipo: 'delete',
+                    colecao: 'records',
+                    docId: String(antigo.id),
+                });
+            }
+            await escreverNaConta(
+                uid,
+                ESPELHOS.REGISTROS,
+                [
+                    ...registros.filter(
+                        (r) => r.id !== registroAtualizado.id && r.date !== registroAtualizado.date
+                    ),
+                    registroAtualizado,
+                ],
+                {
+                    tipo: 'set',
+                    colecao: 'records',
+                    docId: String(registroAtualizado.id),
+                    dados: registroAtualizado,
+                }
+            );
+            return OK;
         }
-      );
-      return OK;
+        const registros = await obterRegistros();
+        if (!registros.some((r) => r.id === registroAtualizado.id)) {
+            return falha('nao_encontrado');
+        }
+        const restantes = registros.filter(
+            (r) => r.id !== registroAtualizado.id && r.date !== registroAtualizado.date
+        );
+        restantes.push(registroAtualizado);
+        await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
+        return OK;
+    } catch {
+        return falha('rede');
     }
-    const registros = await obterRegistros();
-    if (!registros.some((r) => r.id === registroAtualizado.id)) {
-      return falha('nao_encontrado');
-    }
-    const restantes = registros.filter(
-      (r) => r.id !== registroAtualizado.id && r.date !== registroAtualizado.date
-    );
-    restantes.push(registroAtualizado);
-    await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
-    return OK;
-  } catch {
-    return falha('rede');
-  }
 }
 
 // ─── Aparelho ───────────────────────────────────────────────────────────────
@@ -609,36 +604,36 @@ export async function atualizarRegistro(registro) {
 // Modo convidado: AsyncStorage, como já era antes.
 
 export async function obterAparelho() {
-  const uid = obterUid();
-  if (uid) {
-    return lerDaConta(
-      uid,
-      ESPELHOS.APARELHO,
-      async () => {
-        const snap = await getDoc(doc(db, 'users', uid));
-        return snap.exists() ? snap.data().device ?? null : null;
-      },
-      null
-    );
-  }
-  return lerJson(CHAVES.APARELHO, null);
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.APARELHO,
+            async () => {
+                const snap = await getDoc(doc(db, 'users', uid));
+                return snap.exists() ? (snap.data().device ?? null) : null;
+            },
+            null
+        );
+    }
+    return lerJson(CHAVES.APARELHO, null);
 }
 
 export async function salvarAparelho(aparelho) {
-  const uid = obterUid();
-  try {
-    if (uid) {
-      await escreverNaConta(uid, ESPELHOS.APARELHO, aparelho, {
-        tipo: 'merge_usuario',
-        dados: { device: aparelho },
-      });
-      return OK;
+    const uid = obterUid();
+    try {
+        if (uid) {
+            await escreverNaConta(uid, ESPELHOS.APARELHO, aparelho, {
+                tipo: 'merge_usuario',
+                dados: { device: aparelho },
+            });
+            return OK;
+        }
+        await AsyncStorage.setItem(CHAVES.APARELHO, JSON.stringify(aparelho));
+        return OK;
+    } catch {
+        return falha('rede');
     }
-    await AsyncStorage.setItem(CHAVES.APARELHO, JSON.stringify(aparelho));
-    return OK;
-  } catch {
-    return falha('rede');
-  }
 }
 
 // ─── Meta de redução ────────────────────────────────────────────────────────
@@ -650,41 +645,41 @@ export async function salvarAparelho(aparelho) {
 // podeEscreverDerivado como a economia. salvarMeta(null) é o "remover meta".
 
 export async function obterMeta() {
-  const uid = obterUid();
-  if (uid) {
-    return lerDaConta(
-      uid,
-      ESPELHOS.META,
-      async () => {
-        const snap = await getDoc(doc(db, 'users', uid));
-        return snap.exists() ? snap.data().goal ?? null : null;
-      },
-      null
-    );
-  }
-  return lerJson(CHAVES.META, null);
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.META,
+            async () => {
+                const snap = await getDoc(doc(db, 'users', uid));
+                return snap.exists() ? (snap.data().goal ?? null) : null;
+            },
+            null
+        );
+    }
+    return lerJson(CHAVES.META, null);
 }
 
 export async function salvarMeta(meta) {
-  const uid = obterUid();
-  const valor = meta ?? null;
-  try {
-    if (uid) {
-      await escreverNaConta(uid, ESPELHOS.META, valor, {
-        tipo: 'merge_usuario',
-        dados: { goal: valor },
-      });
-      return OK;
+    const uid = obterUid();
+    const valor = meta ?? null;
+    try {
+        if (uid) {
+            await escreverNaConta(uid, ESPELHOS.META, valor, {
+                tipo: 'merge_usuario',
+                dados: { goal: valor },
+            });
+            return OK;
+        }
+        if (valor === null) {
+            await AsyncStorage.removeItem(CHAVES.META);
+            return OK;
+        }
+        await AsyncStorage.setItem(CHAVES.META, JSON.stringify(valor));
+        return OK;
+    } catch {
+        return falha('rede');
     }
-    if (valor === null) {
-      await AsyncStorage.removeItem(CHAVES.META);
-      return OK;
-    }
-    await AsyncStorage.setItem(CHAVES.META, JSON.stringify(valor));
-    return OK;
-  } catch {
-    return falha('rede');
-  }
 }
 
 // ─── Perfil da conta ────────────────────────────────────────────────────────
@@ -694,17 +689,17 @@ export async function salvarMeta(meta) {
 // quando auth.currentUser ainda pode não estar propagado.
 
 export async function salvarPerfilDaConta(uid, { nome, email }) {
-  if (!uid) return falha('sem_conta');
-  const perfil = { nome, displayName: nome, email };
-  try {
-    await escreverNaConta(uid, ESPELHOS.PERFIL, perfil, {
-      tipo: 'merge_usuario',
-      dados: perfil,
-    });
-    return OK;
-  } catch {
-    return falha('rede');
-  }
+    if (!uid) return falha('sem_conta');
+    const perfil = { nome, displayName: nome, email };
+    try {
+        await escreverNaConta(uid, ESPELHOS.PERFIL, perfil, {
+            tipo: 'merge_usuario',
+            dados: perfil,
+        });
+        return OK;
+    } catch {
+        return falha('rede');
+    }
 }
 
 // ─── Economia ───────────────────────────────────────────────────────────────
@@ -712,39 +707,39 @@ export async function salvarPerfilDaConta(uid, { nome, email }) {
 // Modo convidado: AsyncStorage, como já era antes.
 
 export async function obterEconomia() {
-  const uid = obterUid();
-  if (uid) {
-    return lerDaConta(
-      uid,
-      ESPELHOS.ECONOMIA,
-      async () => {
-        const snap = await getDoc(doc(db, 'users', uid));
-        return snap.exists() ? snap.data().economy ?? {} : {};
-      },
-      {}
-    );
-  }
-  return lerJson(CHAVES.ECONOMIA, {});
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.ECONOMIA,
+            async () => {
+                const snap = await getDoc(doc(db, 'users', uid));
+                return snap.exists() ? (snap.data().economy ?? {}) : {};
+            },
+            {}
+        );
+    }
+    return lerJson(CHAVES.ECONOMIA, {});
 }
 
 export async function definirEconomia(mapaDeEconomia) {
-  const uid = obterUid();
-  try {
-    if (uid) {
-      if (!(await podeEscreverDerivado(uid, ESPELHOS.REGISTROS))) {
+    const uid = obterUid();
+    try {
+        if (uid) {
+            if (!(await podeEscreverDerivado(uid, ESPELHOS.REGISTROS))) {
+                return falha('rede');
+            }
+            await escreverNaConta(uid, ESPELHOS.ECONOMIA, mapaDeEconomia, {
+                tipo: 'merge_usuario',
+                dados: { economy: mapaDeEconomia },
+            });
+            return OK;
+        }
+        await AsyncStorage.setItem(CHAVES.ECONOMIA, JSON.stringify(mapaDeEconomia));
+        return OK;
+    } catch {
         return falha('rede');
-      }
-      await escreverNaConta(uid, ESPELHOS.ECONOMIA, mapaDeEconomia, {
-        tipo: 'merge_usuario',
-        dados: { economy: mapaDeEconomia },
-      });
-      return OK;
     }
-    await AsyncStorage.setItem(CHAVES.ECONOMIA, JSON.stringify(mapaDeEconomia));
-    return OK;
-  } catch {
-    return falha('rede');
-  }
 }
 
 // ─── Cálculo da economia ─────────────────────────────────────────────────────
@@ -756,35 +751,35 @@ export async function definirEconomia(mapaDeEconomia) {
 // função lê a atual, então quem não tem a meta em mãos chama com dois
 // argumentos, como antes.
 export async function recalcularEconomia(registros, aparelho, meta) {
-  if (!aparelho) return {};
-  const custoDaPuxada = custoPorPuxada(aparelho);
-  if (custoDaPuxada === null) return {};
-  const metaAtual = meta !== undefined ? meta : await obterMeta();
+    if (!aparelho) return {};
+    const custoDaPuxada = custoPorPuxada(aparelho);
+    if (custoDaPuxada === null) return {};
+    const metaAtual = meta !== undefined ? meta : await obterMeta();
 
-  // Agrupa os registros por data
-  const porData = {};
-  registros.forEach((r) => {
-    if (!porData[r.date]) porData[r.date] = [];
-    porData[r.date].push(r);
-  });
+    // Agrupa os registros por data
+    const porData = {};
+    registros.forEach((r) => {
+        if (!porData[r.date]) porData[r.date] = [];
+        porData[r.date].push(r);
+    });
 
-  const mapaDeEconomia = {};
-  Object.entries(porData).forEach(([data, registrosDoDia]) => {
-    const usadasHoje = somarPuxadas(registrosDoDia);
-    // Sem limite nenhum pro dia não dá pra saber quanto foi poupado.
-    const limite = limiteDoDia(metaAtual, aparelho, data);
-    const naoDadas = limite === null ? 0 : Math.max(0, limite - usadasHoje);
-    mapaDeEconomia[data] = parseFloat((naoDadas * custoDaPuxada).toFixed(2));
-  });
+    const mapaDeEconomia = {};
+    Object.entries(porData).forEach(([data, registrosDoDia]) => {
+        const usadasHoje = somarPuxadas(registrosDoDia);
+        // Sem limite nenhum pro dia não dá pra saber quanto foi poupado.
+        const limite = limiteDoDia(metaAtual, aparelho, data);
+        const naoDadas = limite === null ? 0 : Math.max(0, limite - usadasHoje);
+        mapaDeEconomia[data] = parseFloat((naoDadas * custoDaPuxada).toFixed(2));
+    });
 
-  // O retorno continua sendo o mapa (as telas usam pra setState). Uma falha
-  // aqui é rara — no modo conta a escrita vai pra fila e sempre dá ok — mas
-  // não pode passar totalmente em branco.
-  const resultado = await definirEconomia(mapaDeEconomia);
-  if (!resultado.ok) {
-    console.log('Não deu pra salvar a economia:', resultado.motivo);
-  }
-  return mapaDeEconomia;
+    // O retorno continua sendo o mapa (as telas usam pra setState). Uma falha
+    // aqui é rara — no modo conta a escrita vai pra fila e sempre dá ok — mas
+    // não pode passar totalmente em branco.
+    const resultado = await definirEconomia(mapaDeEconomia);
+    if (!resultado.ok) {
+        console.log('Não deu pra salvar a economia:', resultado.motivo);
+    }
+    return mapaDeEconomia;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -795,13 +790,26 @@ export async function recalcularEconomia(registros, aparelho, meta) {
 export { dataDeHoje, ultimosNDias, ultimasNSemanas, ultimosNMeses } from './datas';
 
 export function rotuloSemana(dataStr) {
-  return inicioDaSemana(dataStr).slice(5, 10);
+    return inicioDaSemana(dataStr).slice(5, 10);
 }
 
 export function rotuloMes(dataStr) {
-  const d = converterDataLocal(dataStr);
-  const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  return `${meses[d.getMonth()]} ${d.getFullYear()}`;
+    const d = converterDataLocal(dataStr);
+    const meses = [
+        'Jan',
+        'Fev',
+        'Mar',
+        'Abr',
+        'Mai',
+        'Jun',
+        'Jul',
+        'Ago',
+        'Set',
+        'Out',
+        'Nov',
+        'Dez',
+    ];
+    return `${meses[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 // ─── Aberturas do app ────────────────────────────────────────────────────────
@@ -811,48 +819,48 @@ export function rotuloMes(dataStr) {
 // Convidado: AsyncStorage.
 
 export async function obterDiasDeAbertura() {
-  const uid = obterUid();
-  if (uid) {
-    return lerDaConta(
-      uid,
-      ESPELHOS.ABERTURAS,
-      async () => {
-        const snap = await getDoc(doc(db, 'users', uid));
-        const dias = snap.exists() ? snap.data().appOpenDays : null;
-        return Array.isArray(dias) ? dias : [];
-      },
-      []
-    );
-  }
-  return lerJson(CHAVES.ABERTURAS, []);
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.ABERTURAS,
+            async () => {
+                const snap = await getDoc(doc(db, 'users', uid));
+                const dias = snap.exists() ? snap.data().appOpenDays : null;
+                return Array.isArray(dias) ? dias : [];
+            },
+            []
+        );
+    }
+    return lerJson(CHAVES.ABERTURAS, []);
 }
 
 // Marca hoje como dia aberto. Idempotente dentro do mesmo dia.
 export async function registrarAberturaDoApp() {
-  const uid = obterUid();
-  try {
-    const hoje = dataDeHoje();
-    const dias = await obterDiasDeAbertura();
-    if (dias.includes(hoje)) {
-      return dias;
-    }
-    const atualizados = [...dias, hoje].sort().slice(-LIMITE_DE_ABERTURAS);
+    const uid = obterUid();
+    try {
+        const hoje = dataDeHoje();
+        const dias = await obterDiasDeAbertura();
+        if (dias.includes(hoje)) {
+            return dias;
+        }
+        const atualizados = [...dias, hoje].sort().slice(-LIMITE_DE_ABERTURAS);
 
-    if (uid) {
-      if (!(await podeEscreverDerivado(uid, ESPELHOS.ABERTURAS))) {
-        return dias;
-      }
-      await escreverNaConta(uid, ESPELHOS.ABERTURAS, atualizados, {
-        tipo: 'merge_usuario',
-        dados: { appOpenDays: atualizados },
-      });
-    } else {
-      await AsyncStorage.setItem(CHAVES.ABERTURAS, JSON.stringify(atualizados));
+        if (uid) {
+            if (!(await podeEscreverDerivado(uid, ESPELHOS.ABERTURAS))) {
+                return dias;
+            }
+            await escreverNaConta(uid, ESPELHOS.ABERTURAS, atualizados, {
+                tipo: 'merge_usuario',
+                dados: { appOpenDays: atualizados },
+            });
+        } else {
+            await AsyncStorage.setItem(CHAVES.ABERTURAS, JSON.stringify(atualizados));
+        }
+        return atualizados;
+    } catch {
+        return [];
     }
-    return atualizados;
-  } catch {
-    return [];
-  }
 }
 
 // ─── Conquistas ──────────────────────────────────────────────────────────────
@@ -861,52 +869,54 @@ export async function registrarAberturaDoApp() {
 // convidado: array no AsyncStorage, como já era antes.
 
 export async function obterConquistas() {
-  const uid = obterUid();
-  if (uid) {
-    return lerDaConta(
-      uid,
-      ESPELHOS.CONQUISTAS,
-      async () => {
-        const snap = await getDocs(collection(db, 'users', uid, 'achievements'));
-        return snap.docs.map((d) => d.data());
-      },
-      []
-    );
-  }
-  return lerJson(CHAVES.CONQUISTAS, []);
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.CONQUISTAS,
+            async () => {
+                const snap = await getDocs(collection(db, 'users', uid, 'achievements'));
+                return snap.docs.map((d) => d.data());
+            },
+            []
+        );
+    }
+    return lerJson(CHAVES.CONQUISTAS, []);
 }
 
 export async function salvarConquista(idDaConquista, desbloqueadaEm) {
-  const uid = obterUid();
-  try {
-    const entrada = {
-      id: idDaConquista,
-      unlockedAt: desbloqueadaEm || new Date().toISOString(),
-    };
-    if (uid) {
-      const conquistas = await lerCache(uid, ESPELHOS.CONQUISTAS, []);
-      await escreverNaConta(
-        uid,
-        ESPELHOS.CONQUISTAS,
-        conquistas.find((c) => c.id === idDaConquista) ? conquistas : [...conquistas, entrada],
-        {
-          tipo: 'set',
-          colecao: 'achievements',
-          docId: String(idDaConquista),
-          dados: entrada,
+    const uid = obterUid();
+    try {
+        const entrada = {
+            id: idDaConquista,
+            unlockedAt: desbloqueadaEm || new Date().toISOString(),
+        };
+        if (uid) {
+            const conquistas = await lerCache(uid, ESPELHOS.CONQUISTAS, []);
+            await escreverNaConta(
+                uid,
+                ESPELHOS.CONQUISTAS,
+                conquistas.find((c) => c.id === idDaConquista)
+                    ? conquistas
+                    : [...conquistas, entrada],
+                {
+                    tipo: 'set',
+                    colecao: 'achievements',
+                    docId: String(idDaConquista),
+                    dados: entrada,
+                }
+            );
+            return true;
         }
-      );
-      return true;
+        const conquistas = await obterConquistas();
+        if (!conquistas.find((c) => c.id === idDaConquista)) {
+            conquistas.push(entrada);
+            await AsyncStorage.setItem(CHAVES.CONQUISTAS, JSON.stringify(conquistas));
+        }
+        return true;
+    } catch {
+        return false;
     }
-    const conquistas = await obterConquistas();
-    if (!conquistas.find((c) => c.id === idDaConquista)) {
-      conquistas.push(entrada);
-      await AsyncStorage.setItem(CHAVES.CONQUISTAS, JSON.stringify(conquistas));
-    }
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // ─── XP ──────────────────────────────────────────────────────────────────────
@@ -916,59 +926,59 @@ export async function salvarConquista(idDaConquista, desbloqueadaEm) {
 // Modo conta: campo "xp" no documento users/{uid}. Convidado: AsyncStorage.
 
 export async function obterEstadoDeXp() {
-  const uid = obterUid();
-  if (uid) {
-    return lerDaConta(
-      uid,
-      ESPELHOS.XP,
-      async () => {
-        const snap = await getDoc(doc(db, 'users', uid));
-        return snap.exists() ? snap.data().xp ?? null : null;
-      },
-      null
-    );
-  }
-  return lerJson(CHAVES.XP, null);
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.XP,
+            async () => {
+                const snap = await getDoc(doc(db, 'users', uid));
+                return snap.exists() ? (snap.data().xp ?? null) : null;
+            },
+            null
+        );
+    }
+    return lerJson(CHAVES.XP, null);
 }
 
 export async function salvarEstadoDeXp(estado) {
-  const uid = obterUid();
-  try {
-    if (uid) {
-      if (!(await podeEscreverDerivado(uid, ESPELHOS.REGISTROS))) {
+    const uid = obterUid();
+    try {
+        if (uid) {
+            if (!(await podeEscreverDerivado(uid, ESPELHOS.REGISTROS))) {
+                return false;
+            }
+            await escreverNaConta(uid, ESPELHOS.XP, estado, {
+                tipo: 'merge_usuario',
+                dados: { xp: estado },
+            });
+            return true;
+        }
+        await AsyncStorage.setItem(CHAVES.XP, JSON.stringify(estado));
+        return true;
+    } catch {
         return false;
-      }
-      await escreverNaConta(uid, ESPELHOS.XP, estado, {
-        tipo: 'merge_usuario',
-        dados: { xp: estado },
-      });
-      return true;
     }
-    await AsyncStorage.setItem(CHAVES.XP, JSON.stringify(estado));
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // Recalcula o XP a partir dos registros/conquistas/missões atuais, salva o
 // snapshot e devolve { xp, nivel, ganho }. "ganho" é a diferença pro
 // snapshot anterior — é o que a tela usa pra mostrar o toast de "+X XP".
 export async function atualizarXp(registros, conquistasDesbloqueadas, missoesConcluidas) {
-  const regs = registros ?? (await obterRegistros());
-  const conquistas = conquistasDesbloqueadas ?? (await obterConquistas());
-  const missoes = missoesConcluidas ?? (await obterMissoes());
-  const anterior = await obterEstadoDeXp();
-  const resumo = resumoDeXp(regs, conquistas, missoes);
+    const regs = registros ?? (await obterRegistros());
+    const conquistas = conquistasDesbloqueadas ?? (await obterConquistas());
+    const missoes = missoesConcluidas ?? (await obterMissoes());
+    const anterior = await obterEstadoDeXp();
+    const resumo = resumoDeXp(regs, conquistas, missoes);
 
-  await salvarEstadoDeXp({
-    xp: resumo.xp,
-    level: resumo.nivel.numero,
-    levelName: resumo.nivel.nome,
-    updatedAt: new Date().toISOString(),
-  });
+    await salvarEstadoDeXp({
+        xp: resumo.xp,
+        level: resumo.nivel.numero,
+        levelName: resumo.nivel.nome,
+        updatedAt: new Date().toISOString(),
+    });
 
-  return { ...resumo, ganho: resumo.xp - (anterior?.xp ?? resumo.xp) };
+    return { ...resumo, ganho: resumo.xp - (anterior?.xp ?? resumo.xp) };
 }
 
 // ─── Sessões de crise ────────────────────────────────────────────────────────
@@ -982,89 +992,92 @@ export async function atualizarXp(registros, conquistasDesbloqueadas, missoesCon
 //   outcome -> 'passou' | 'diminuiu' | 'usei'
 
 export async function obterSessoesDeCrise() {
-  const uid = obterUid();
-  if (uid) {
-    return lerDaConta(
-      uid,
-      ESPELHOS.SESSOES_DE_CRISE,
-      async () => {
-        const snap = await getDocs(collection(db, 'users', uid, 'crisisSessions'));
-        return snap.docs.map((d) => d.data());
-      },
-      []
-    );
-  }
-  return lerJson(CHAVES.CRISE, []);
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.SESSOES_DE_CRISE,
+            async () => {
+                const snap = await getDocs(collection(db, 'users', uid, 'crisisSessions'));
+                return snap.docs.map((d) => d.data());
+            },
+            []
+        );
+    }
+    return lerJson(CHAVES.CRISE, []);
 }
 
 export async function salvarSessaoDeCrise(sessao) {
-  const uid = obterUid();
-  try {
-    if (uid) {
-      const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
-      await escreverNaConta(
-        uid,
-        ESPELHOS.SESSOES_DE_CRISE,
-        [...sessoes.filter((s) => s.id !== sessao.id), sessao],
-        { tipo: 'set', colecao: 'crisisSessions', docId: String(sessao.id), dados: sessao }
-      );
-      return OK;
+    const uid = obterUid();
+    try {
+        if (uid) {
+            const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
+            await escreverNaConta(
+                uid,
+                ESPELHOS.SESSOES_DE_CRISE,
+                [...sessoes.filter((s) => s.id !== sessao.id), sessao],
+                { tipo: 'set', colecao: 'crisisSessions', docId: String(sessao.id), dados: sessao }
+            );
+            return OK;
+        }
+        const sessoes = await obterSessoesDeCrise();
+        sessoes.push(sessao);
+        await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(sessoes));
+        return OK;
+    } catch {
+        return falha('rede');
     }
-    const sessoes = await obterSessoesDeCrise();
-    sessoes.push(sessao);
-    await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(sessoes));
-    return OK;
-  } catch {
-    return falha('rede');
-  }
 }
 
 // Edição pela tela de histórico de crises: o usuário só muda desfecho e nota
 // (o resto — data, método, duração — é medido pelo app, não digitado).
 export async function atualizarSessaoDeCrise(sessao) {
-  const uid = obterUid();
-  try {
-    if (uid) {
-      const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
-      await escreverNaConta(
-        uid,
-        ESPELHOS.SESSOES_DE_CRISE,
-        [...sessoes.filter((s) => s.id !== sessao.id), sessao],
-        { tipo: 'set', colecao: 'crisisSessions', docId: String(sessao.id), dados: sessao }
-      );
-      return OK;
+    const uid = obterUid();
+    try {
+        if (uid) {
+            const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
+            await escreverNaConta(
+                uid,
+                ESPELHOS.SESSOES_DE_CRISE,
+                [...sessoes.filter((s) => s.id !== sessao.id), sessao],
+                { tipo: 'set', colecao: 'crisisSessions', docId: String(sessao.id), dados: sessao }
+            );
+            return OK;
+        }
+        const sessoes = await obterSessoesDeCrise();
+        if (!sessoes.some((s) => s.id === sessao.id)) {
+            return falha('nao_encontrado');
+        }
+        const atualizadas = sessoes.map((s) => (s.id === sessao.id ? sessao : s));
+        await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(atualizadas));
+        return OK;
+    } catch {
+        return falha('rede');
     }
-    const sessoes = await obterSessoesDeCrise();
-    if (!sessoes.some((s) => s.id === sessao.id)) {
-      return falha('nao_encontrado');
-    }
-    const atualizadas = sessoes.map((s) => (s.id === sessao.id ? sessao : s));
-    await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(atualizadas));
-    return OK;
-  } catch {
-    return falha('rede');
-  }
 }
 
 export async function excluirSessaoDeCrise(id) {
-  const uid = obterUid();
-  try {
-    if (uid) {
-      const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
-      await escreverNaConta(
-        uid,
-        ESPELHOS.SESSOES_DE_CRISE,
-        sessoes.filter((s) => s.id !== id),
-        { tipo: 'delete', colecao: 'crisisSessions', docId: String(id) }
-      );
-      return OK;
+    const uid = obterUid();
+    try {
+        if (uid) {
+            const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
+            await escreverNaConta(
+                uid,
+                ESPELHOS.SESSOES_DE_CRISE,
+                sessoes.filter((s) => s.id !== id),
+                { tipo: 'delete', colecao: 'crisisSessions', docId: String(id) }
+            );
+            return OK;
+        }
+        const sessoes = await obterSessoesDeCrise();
+        await AsyncStorage.setItem(
+            CHAVES.CRISE,
+            JSON.stringify(sessoes.filter((s) => s.id !== id))
+        );
+        return OK;
+    } catch {
+        return falha('rede');
     }
-    const sessoes = await obterSessoesDeCrise();
-    await AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(sessoes.filter((s) => s.id !== id)));
-    return OK;
-  } catch {
-    return falha('rede');
-  }
 }
 
 // ─── Missões ─────────────────────────────────────────────────────────────────
@@ -1076,125 +1089,131 @@ export async function excluirSessaoDeCrise(id) {
 // Shape: { id, missionId, period, periodKey, xp, completedAt }
 
 export async function obterMissoes() {
-  const uid = obterUid();
-  if (uid) {
-    return lerDaConta(
-      uid,
-      ESPELHOS.MISSOES,
-      async () => {
-        const snap = await getDocs(collection(db, 'users', uid, 'missions'));
-        return snap.docs.map((d) => d.data());
-      },
-      []
-    );
-  }
-  return lerJson(CHAVES.MISSOES, []);
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.MISSOES,
+            async () => {
+                const snap = await getDocs(collection(db, 'users', uid, 'missions'));
+                return snap.docs.map((d) => d.data());
+            },
+            []
+        );
+    }
+    return lerJson(CHAVES.MISSOES, []);
 }
 
 export async function salvarMissao(entrada) {
-  const uid = obterUid();
-  try {
-    if (uid) {
-      const missoes = await lerCache(uid, ESPELHOS.MISSOES, []);
-      await escreverNaConta(
-        uid,
-        ESPELHOS.MISSOES,
-        missoes.find((m) => m.id === entrada.id) ? missoes : [...missoes, entrada],
-        { tipo: 'set', colecao: 'missions', docId: String(entrada.id), dados: entrada }
-      );
-      return true;
+    const uid = obterUid();
+    try {
+        if (uid) {
+            const missoes = await lerCache(uid, ESPELHOS.MISSOES, []);
+            await escreverNaConta(
+                uid,
+                ESPELHOS.MISSOES,
+                missoes.find((m) => m.id === entrada.id) ? missoes : [...missoes, entrada],
+                { tipo: 'set', colecao: 'missions', docId: String(entrada.id), dados: entrada }
+            );
+            return true;
+        }
+        const missoes = await obterMissoes();
+        if (!missoes.find((m) => m.id === entrada.id)) {
+            missoes.push(entrada);
+            await AsyncStorage.setItem(CHAVES.MISSOES, JSON.stringify(missoes));
+        }
+        return true;
+    } catch {
+        return false;
     }
-    const missoes = await obterMissoes();
-    if (!missoes.find((m) => m.id === entrada.id)) {
-      missoes.push(entrada);
-      await AsyncStorage.setItem(CHAVES.MISSOES, JSON.stringify(missoes));
-    }
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // Avalia as missões do período atual, salva as que acabaram de ser concluídas
 // e devolve só essas novas (pra tela mostrar o toast de XP).
-export async function verificarEConcluirMissoes(registros, economia, sessoesDeCrise, meta, aparelho) {
-  try {
-    const regs = registros ?? (await obterRegistros());
-    const eco = economia ?? (await obterEconomia());
-    const sessoes = sessoesDeCrise ?? (await obterSessoesDeCrise());
-    const metaAtual = meta !== undefined ? meta : await obterMeta();
-    const aparelhoAtual = aparelho !== undefined ? aparelho : await obterAparelho();
-    const concluidas = await obterMissoes();
-    const idsConcluidas = new Set(concluidas.map((m) => m.id));
+export async function verificarEConcluirMissoes(
+    registros,
+    economia,
+    sessoesDeCrise,
+    meta,
+    aparelho
+) {
+    try {
+        const regs = registros ?? (await obterRegistros());
+        const eco = economia ?? (await obterEconomia());
+        const sessoes = sessoesDeCrise ?? (await obterSessoesDeCrise());
+        const metaAtual = meta !== undefined ? meta : await obterMeta();
+        const aparelhoAtual = aparelho !== undefined ? aparelho : await obterAparelho();
+        const concluidas = await obterMissoes();
+        const idsConcluidas = new Set(concluidas.map((m) => m.id));
 
-    const contexto = montarContextoDeMissoes({
-      registros: regs,
-      economia: eco,
-      sessoesDeCrise: sessoes,
-      meta: metaAtual,
-      aparelho: aparelhoAtual,
-    });
-    const resultados = verificarMissoes(contexto, concluidas);
-    const novasConclusoes = [];
+        const contexto = montarContextoDeMissoes({
+            registros: regs,
+            economia: eco,
+            sessoesDeCrise: sessoes,
+            meta: metaAtual,
+            aparelho: aparelhoAtual,
+        });
+        const resultados = verificarMissoes(contexto, concluidas);
+        const novasConclusoes = [];
 
-    for (const resultado of resultados) {
-      if (resultado.concluida && !idsConcluidas.has(resultado.id)) {
-        const entrada = {
-          id: resultado.id,
-          missionId: resultado.missionId,
-          period: resultado.period,
-          periodKey: resultado.periodKey,
-          xp: resultado.xp,
-          completedAt: resultado.completedAt || new Date().toISOString(),
-        };
-        await salvarMissao(entrada);
-        novasConclusoes.push(resultado);
-      }
+        for (const resultado of resultados) {
+            if (resultado.concluida && !idsConcluidas.has(resultado.id)) {
+                const entrada = {
+                    id: resultado.id,
+                    missionId: resultado.missionId,
+                    period: resultado.period,
+                    periodKey: resultado.periodKey,
+                    xp: resultado.xp,
+                    completedAt: resultado.completedAt || new Date().toISOString(),
+                };
+                await salvarMissao(entrada);
+                novasConclusoes.push(resultado);
+            }
+        }
+        return novasConclusoes;
+    } catch (e) {
+        console.log('Erro ao verificar missões:', e);
+        return [];
     }
-    return novasConclusoes;
-  } catch (e) {
-    console.log('Erro ao verificar missões:', e);
-    return [];
-  }
 }
 
 export async function verificarEDesbloquearConquistas(
-  registros,
-  economia,
-  missoesConcluidas,
-  contexto
+    registros,
+    economia,
+    missoesConcluidas,
+    contexto
 ) {
-  try {
-    const desbloqueadas = await obterConquistas();
-    const idsDesbloqueadas = new Set(desbloqueadas.map((c) => c.id));
-    const missoes = missoesConcluidas ?? (await obterMissoes());
-    const ctx = contexto ?? {
-      sessoesDeCrise: await obterSessoesDeCrise(),
-      diasDeAbertura: await obterDiasDeAbertura(),
-      meta: await obterMeta(),
-      aparelho: await obterAparelho(),
-      hoje: dataDeHoje(),
-    };
-    const novasDesbloqueadas = [];
+    try {
+        const desbloqueadas = await obterConquistas();
+        const idsDesbloqueadas = new Set(desbloqueadas.map((c) => c.id));
+        const missoes = missoesConcluidas ?? (await obterMissoes());
+        const ctx = contexto ?? {
+            sessoesDeCrise: await obterSessoesDeCrise(),
+            diasDeAbertura: await obterDiasDeAbertura(),
+            meta: await obterMeta(),
+            aparelho: await obterAparelho(),
+            hoje: dataDeHoje(),
+        };
+        const novasDesbloqueadas = [];
 
-    const resultados = await verificarConquistas(
-      registros,
-      economia,
-      desbloqueadas,
-      missoes,
-      ctx
-    );
-    for (const resultado of resultados) {
-      if (resultado.desbloqueada && !idsDesbloqueadas.has(resultado.id)) {
-        await salvarConquista(resultado.id, resultado.desbloqueadaEm);
-        novasDesbloqueadas.push(resultado);
-      }
+        const resultados = await verificarConquistas(
+            registros,
+            economia,
+            desbloqueadas,
+            missoes,
+            ctx
+        );
+        for (const resultado of resultados) {
+            if (resultado.desbloqueada && !idsDesbloqueadas.has(resultado.id)) {
+                await salvarConquista(resultado.id, resultado.desbloqueadaEm);
+                novasDesbloqueadas.push(resultado);
+            }
+        }
+        return novasDesbloqueadas;
+    } catch (e) {
+        console.log('Erro ao verificar conquistas:', e);
+        return [];
     }
-    return novasDesbloqueadas;
-  } catch (e) {
-    console.log('Erro ao verificar conquistas:', e);
-    return [];
-  }
 }
 
 // ─── Sincronização de gamificação ────────────────────────────────────────────
@@ -1208,42 +1227,42 @@ export async function verificarEDesbloquearConquistas(
 // telas usam, incluindo `recompensas` pronto pro mostrarRecompensas() do
 // usarToast(). Nunca lança — cada etapa já engole o próprio erro.
 export async function sincronizarGamificacao(entrada = {}) {
-  const registros = entrada.registros ?? (await obterRegistros());
-  const economia = entrada.economia ?? (await obterEconomia());
-  const sessoesDeCrise = entrada.sessoesDeCrise ?? (await obterSessoesDeCrise());
-  const diasDeAbertura = entrada.diasDeAbertura ?? (await obterDiasDeAbertura());
-  const meta = entrada.meta !== undefined ? entrada.meta : await obterMeta();
-  const aparelho = entrada.aparelho !== undefined ? entrada.aparelho : await obterAparelho();
+    const registros = entrada.registros ?? (await obterRegistros());
+    const economia = entrada.economia ?? (await obterEconomia());
+    const sessoesDeCrise = entrada.sessoesDeCrise ?? (await obterSessoesDeCrise());
+    const diasDeAbertura = entrada.diasDeAbertura ?? (await obterDiasDeAbertura());
+    const meta = entrada.meta !== undefined ? entrada.meta : await obterMeta();
+    const aparelho = entrada.aparelho !== undefined ? entrada.aparelho : await obterAparelho();
 
-  const novasMissoes = await verificarEConcluirMissoes(
-    registros,
-    economia,
-    sessoesDeCrise,
-    meta,
-    aparelho
-  );
-  const missoesConcluidas = await obterMissoes();
-  const novasConquistas = await verificarEDesbloquearConquistas(
-    registros,
-    economia,
-    missoesConcluidas,
-    { sessoesDeCrise, diasDeAbertura, meta, aparelho, hoje: dataDeHoje() }
-  );
-  const resumo = await atualizarXp(registros, null, missoesConcluidas);
+    const novasMissoes = await verificarEConcluirMissoes(
+        registros,
+        economia,
+        sessoesDeCrise,
+        meta,
+        aparelho
+    );
+    const missoesConcluidas = await obterMissoes();
+    const novasConquistas = await verificarEDesbloquearConquistas(
+        registros,
+        economia,
+        missoesConcluidas,
+        { sessoesDeCrise, diasDeAbertura, meta, aparelho, hoje: dataDeHoje() }
+    );
+    const resumo = await atualizarXp(registros, null, missoesConcluidas);
 
-  return {
-    registros,
-    economia,
-    sessoesDeCrise,
-    diasDeAbertura,
-    meta,
-    aparelho,
-    missoesConcluidas,
-    resumo,
-    recompensas: {
-      conquistas: novasConquistas,
-      missoes: novasMissoes,
-      ganho: resumo.ganho,
-    },
-  };
+    return {
+        registros,
+        economia,
+        sessoesDeCrise,
+        diasDeAbertura,
+        meta,
+        aparelho,
+        missoesConcluidas,
+        resumo,
+        recompensas: {
+            conquistas: novasConquistas,
+            missoes: novasMissoes,
+            ganho: resumo.ganho,
+        },
+    };
 }

@@ -27,10 +27,7 @@ import {
 } from '../utils/storage';
 import { aplicarPreferenciasDeNotificacao } from '../utils/notifications';
 import { deslocarData, converterDataLocal } from '../utils/datas';
-import {
-    RAIO, SOMBRA,
-    GATILHOS, AJUDAS, MENSAGENS_MOTIVACIONAIS,
-} from '../utils/theme';
+import { RAIO, SOMBRA, GATILHOS, AJUDAS, MENSAGENS_MOTIVACIONAIS } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
@@ -121,7 +118,9 @@ export default function RegisterScreen({ navigation }) {
     // missões, reagenda notificações e mostra os toasts de XP ganho.
     const concederRecompensas = async (usouVape) => {
         const [novosRegistros, aparelho] = await Promise.all([obterRegistros(), obterAparelho()]);
-        const economia = aparelho ? await recalcularEconomia(novosRegistros, aparelho) : await obterEconomia();
+        const economia = aparelho
+            ? await recalcularEconomia(novosRegistros, aparelho)
+            : await obterEconomia();
 
         const { recompensas } = await sincronizarGamificacao({
             registros: novosRegistros,
@@ -143,7 +142,10 @@ export default function RegisterScreen({ navigation }) {
 
     const salvar = async () => {
         if (usou === null) {
-            Alert.alert('Opa', `Você usou o vape ${formatarRotuloDaDataSelecionada(dataSelecionada)}? Escolhe uma opção.`);
+            Alert.alert(
+                'Opa',
+                `Você usou o vape ${formatarRotuloDaDataSelecionada(dataSelecionada)}? Escolhe uma opção.`
+            );
             return;
         }
 
@@ -187,7 +189,11 @@ export default function RegisterScreen({ navigation }) {
                 `Você já registrou ${formatarRotuloDaDataSelecionada(dataSelecionada)}. Salvar de novo vai sobrescrever o registro anterior.`,
                 [
                     { text: 'Cancelar', style: 'cancel' },
-                    { text: 'Sobrescrever', style: 'destructive', onPress: () => salvarComTrava(existente) },
+                    {
+                        text: 'Sobrescrever',
+                        style: 'destructive',
+                        onPress: () => salvarComTrava(existente),
+                    },
                 ]
             );
             return;
@@ -212,11 +218,15 @@ export default function RegisterScreen({ navigation }) {
             // usuário digitar e tocar direto em Salvar, então normaliza aqui.
             const puxadasFinais = usou ? Math.max(1, puxadas) : 0;
             if (usou && puxadasFinais !== puxadas) setPuxadas(puxadasFinais);
-            const rotulosDeGatilhos = GATILHOS.filter((t) => gatilhos.includes(t.id)).map((t) => t.rotulo);
+            const rotulosDeGatilhos = GATILHOS.filter((t) => gatilhos.includes(t.id)).map(
+                (t) => t.rotulo
+            );
             if (gatilhos.includes('outro') && gatilhoOutro.trim()) {
                 rotulosDeGatilhos.push(gatilhoOutro.trim());
             }
-            const rotulosDeAjudas = AJUDAS.filter((h) => ajudas.includes(h.id)).map((h) => h.rotulo);
+            const rotulosDeAjudas = AJUDAS.filter((h) => ajudas.includes(h.id)).map(
+                (h) => h.rotulo
+            );
             if (ajudas.includes('outro') && ajudaOutro.trim()) {
                 rotulosDeAjudas.push(ajudaOutro.trim());
             }
@@ -263,7 +273,8 @@ export default function RegisterScreen({ navigation }) {
                 setRegistroExistente(registro);
             }
 
-            const msg = MENSAGENS_MOTIVACIONAIS[Math.floor(Math.random() * MENSAGENS_MOTIVACIONAIS.length)];
+            const msg =
+                MENSAGENS_MOTIVACIONAIS[Math.floor(Math.random() * MENSAGENS_MOTIVACIONAIS.length)];
             mostrarSucesso(msg);
         } catch {
             Alert.alert('Erro', 'Não deu pra salvar o registro. Tenta de novo.');
@@ -278,218 +289,380 @@ export default function RegisterScreen({ navigation }) {
         setMostrarSeletorDeData(false);
     };
 
-    const corDaIntensidade = intensidade <= 3 ? cores.primary : intensidade <= 6 ? cores.warning : cores.danger;
+    const corDaIntensidade =
+        intensidade <= 3 ? cores.primary : intensidade <= 6 ? cores.warning : cores.danger;
     const rotuloDaDataSelecionada = formatarRotuloDaDataSelecionada(dataSelecionada);
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
-        <ScrollView
-            style={[styles.scroll, { backgroundColor: cores.background }]}
-            contentContainerStyle={styles.container}
-            keyboardShouldPersistTaps="handled"
-        >
-            <ScreenHeader
-                titulo="Como foi seu dia?"
-                subtitulo={`Como foi ${rotuloDaDataSelecionada}?`}
-                cores={cores}
-                mostrarConfiguracoes
-                aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
-            />
+            <ScrollView
+                style={[styles.scroll, { backgroundColor: cores.background }]}
+                contentContainerStyle={styles.container}
+                keyboardShouldPersistTaps="handled"
+            >
+                <ScreenHeader
+                    titulo="Como foi seu dia?"
+                    subtitulo={`Como foi ${rotuloDaDataSelecionada}?`}
+                    cores={cores}
+                    mostrarConfiguracoes
+                    aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
+                />
 
-            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                {/* Seletor de data */}
-                <Text style={[styles.fieldLabel, { color: cores.text }]}>Data</Text>
-                <TouchableOpacity
-                    style={[styles.dateSelector, { borderColor: cores.border, backgroundColor: cores.card }]}
-                    onPress={() => setMostrarSeletorDeData(true)}
-                >
-                    <Ionicons name="calendar-outline" size={18} color={cores.primary} />
-                    <Text style={[styles.dateSelectorText, { color: cores.text }]}>{dataSelecionada}</Text>
-                    <Ionicons name="chevron-down" size={16} color={cores.textMuted} />
-                </TouchableOpacity>
+                <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                    {/* Seletor de data */}
+                    <Text style={[styles.fieldLabel, { color: cores.text }]}>Data</Text>
+                    <TouchableOpacity
+                        style={[
+                            styles.dateSelector,
+                            { borderColor: cores.border, backgroundColor: cores.card },
+                        ]}
+                        onPress={() => setMostrarSeletorDeData(true)}
+                    >
+                        <Ionicons name="calendar-outline" size={18} color={cores.primary} />
+                        <Text style={[styles.dateSelectorText, { color: cores.text }]}>
+                            {dataSelecionada}
+                        </Text>
+                        <Ionicons name="chevron-down" size={16} color={cores.textMuted} />
+                    </TouchableOpacity>
 
-                <Modal
-                    visible={mostrarSeletorDeData}
-                    transparent
-                    animationType="slide"
-                    onRequestClose={() => setMostrarSeletorDeData(false)}
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={[styles.datePickerContainer, { backgroundColor: cores.modalBg }]}>
-                            <View style={[styles.datePickerHeader, { borderBottomColor: cores.border }]}>
-                                <TouchableOpacity onPress={() => setMostrarSeletorDeData(false)}>
-                                    <Text style={[styles.datePickerCancel, { color: cores.textMuted }]}>Cancelar</Text>
-                                </TouchableOpacity>
-                                <Text style={[styles.datePickerTitle, { color: cores.text }]}>Escolher data</Text>
-                                <View style={styles.datePickerSpacer} />
-                            </View>
-                            <Text style={[styles.pickerLabel, { color: cores.textMuted }]}>
-                                Dá pra registrar hoje ou até {DIAS_PARA_TRAS_NO_REGISTRO} dias atrás
-                            </Text>
-                            <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
-                                {datasDisponiveis.map((data) => (
+                    <Modal
+                        visible={mostrarSeletorDeData}
+                        transparent
+                        animationType="slide"
+                        onRequestClose={() => setMostrarSeletorDeData(false)}
+                    >
+                        <View style={styles.modalOverlay}>
+                            <View
+                                style={[
+                                    styles.datePickerContainer,
+                                    { backgroundColor: cores.modalBg },
+                                ]}
+                            >
+                                <View
+                                    style={[
+                                        styles.datePickerHeader,
+                                        { borderBottomColor: cores.border },
+                                    ]}
+                                >
                                     <TouchableOpacity
-                                        key={data}
-                                        style={[styles.pickerItem, data === dataSelecionada && { backgroundColor: cores.primaryLight }]}
-                                        onPress={() => selecionarData(data)}
+                                        onPress={() => setMostrarSeletorDeData(false)}
                                     >
-                                        <Text style={[styles.pickerItemText, { color: cores.text }, data === dataSelecionada && { color: cores.primaryDark, fontFamily: 'Poppins_600SemiBold' }]}>
-                                            {formatarOpcaoDeData(data, dataDeHoje())}
+                                        <Text
+                                            style={[
+                                                styles.datePickerCancel,
+                                                { color: cores.textMuted },
+                                            ]}
+                                        >
+                                            Cancelar
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <Text style={[styles.datePickerTitle, { color: cores.text }]}>
+                                        Escolher data
+                                    </Text>
+                                    <View style={styles.datePickerSpacer} />
+                                </View>
+                                <Text style={[styles.pickerLabel, { color: cores.textMuted }]}>
+                                    Dá pra registrar hoje ou até {DIAS_PARA_TRAS_NO_REGISTRO} dias
+                                    atrás
+                                </Text>
+                                <ScrollView
+                                    style={styles.pickerScroll}
+                                    showsVerticalScrollIndicator={false}
+                                >
+                                    {datasDisponiveis.map((data) => (
+                                        <TouchableOpacity
+                                            key={data}
+                                            style={[
+                                                styles.pickerItem,
+                                                data === dataSelecionada && {
+                                                    backgroundColor: cores.primaryLight,
+                                                },
+                                            ]}
+                                            onPress={() => selecionarData(data)}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.pickerItemText,
+                                                    { color: cores.text },
+                                                    data === dataSelecionada && {
+                                                        color: cores.primaryDark,
+                                                        fontFamily: 'Poppins_600SemiBold',
+                                                    },
+                                                ]}
+                                            >
+                                                {formatarOpcaoDeData(data, dataDeHoje())}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        </View>
+                    </Modal>
+
+                    {/* Aviso de registro existente */}
+                    {registroExistente && (
+                        <View
+                            style={[
+                                styles.warningBox,
+                                { backgroundColor: cores.card, borderColor: cores.warning },
+                            ]}
+                        >
+                            <Ionicons name="alert-circle-outline" size={20} color={cores.warning} />
+                            <Text style={[styles.warningText, { color: cores.textSecondary }]}>
+                                Esse dia já tem registro (
+                                {registroExistente.used ? 'usou o vape' : 'não usou'}). Salvar vai
+                                sobrescrever.
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Usou hoje? */}
+                    <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                        Você usou o vape {rotuloDaDataSelecionada}?
+                    </Text>
+                    <View style={styles.toggleRow}>
+                        {[
+                            { val: true, rotulo: 'Sim' },
+                            { val: false, rotulo: 'Não' },
+                        ].map(({ val, rotulo }) => (
+                            <TouchableOpacity
+                                key={rotulo}
+                                style={[
+                                    styles.toggleBtn,
+                                    { borderColor: cores.border, backgroundColor: cores.card },
+                                    usou === val && {
+                                        borderColor: cores.primary,
+                                        backgroundColor: cores.primary,
+                                    },
+                                ]}
+                                onPress={() => {
+                                    setUsou(val);
+                                    // Usou = pelo menos 1 puxada.
+                                    if (val) setPuxadas((p) => Math.max(1, p));
+                                }}
+                            >
+                                <Text
+                                    style={[
+                                        styles.toggleBtnText,
+                                        { color: cores.textSecondary },
+                                        usou === val && { color: '#fff' },
+                                    ]}
+                                >
+                                    {rotulo}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {/* Se usou = true */}
+                    {usou === true && (
+                        <>
+                            <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                                Quantas puxadas?
+                            </Text>
+                            <View style={styles.counterRow}>
+                                <TextInput
+                                    style={[
+                                        styles.counterInput,
+                                        {
+                                            borderColor: cores.primary,
+                                            backgroundColor: cores.inputBg,
+                                            color: cores.text,
+                                        },
+                                    ]}
+                                    keyboardType="number-pad"
+                                    value={String(puxadas)}
+                                    onChangeText={(texto) => {
+                                        const numero = parseInt(texto.replace(/[^0-9]/g, ''), 10);
+                                        setPuxadas(Number.isNaN(numero) ? 0 : numero);
+                                    }}
+                                    onBlur={() => setPuxadas((p) => Math.max(1, p))}
+                                />
+                            </View>
+
+                            <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                                O que te deu vontade?
+                            </Text>
+                            <View style={styles.chips}>
+                                {GATILHOS.map((t) => (
+                                    <TouchableOpacity
+                                        key={t.id}
+                                        style={[
+                                            styles.chip,
+                                            {
+                                                borderColor: cores.border,
+                                                backgroundColor: cores.card,
+                                            },
+                                            gatilhos.includes(t.id) && {
+                                                borderColor: cores.primary,
+                                                backgroundColor: cores.primary,
+                                            },
+                                        ]}
+                                        onPress={() => alternarGatilho(t.id)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.chipText,
+                                                { color: cores.textSecondary },
+                                                gatilhos.includes(t.id) && { color: '#fff' },
+                                            ]}
+                                        >
+                                            {t.emoji} {t.rotulo}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
-                            </ScrollView>
-                        </View>
-                    </View>
-                </Modal>
+                            </View>
+                            {gatilhos.includes('outro') && (
+                                <TextInput
+                                    style={[
+                                        styles.input,
+                                        {
+                                            borderColor: cores.border,
+                                            backgroundColor: cores.inputBg,
+                                            color: cores.text,
+                                        },
+                                    ]}
+                                    placeholder="Conta o que rolou..."
+                                    placeholderTextColor={cores.textMuted}
+                                    value={gatilhoOutro}
+                                    onChangeText={setGatilhoOutro}
+                                />
+                            )}
+                        </>
+                    )}
 
-                {/* Aviso de registro existente */}
-                {registroExistente && (
-                    <View style={[styles.warningBox, { backgroundColor: cores.card, borderColor: cores.warning }]}>
-                        <Ionicons name="alert-circle-outline" size={20} color={cores.warning} />
-                        <Text style={[styles.warningText, { color: cores.textSecondary }]}>
-                            Esse dia já tem registro ({registroExistente.used ? 'usou o vape' : 'não usou'}). Salvar vai sobrescrever.
+                    {/* Se usou = false */}
+                    {usou === false && (
+                        <>
+                            <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                                O que te ajudou a não usar?
+                            </Text>
+                            <View style={styles.chips}>
+                                {AJUDAS.map((h) => (
+                                    <TouchableOpacity
+                                        key={h.id}
+                                        style={[
+                                            styles.chip,
+                                            {
+                                                borderColor: cores.border,
+                                                backgroundColor: cores.card,
+                                            },
+                                            ajudas.includes(h.id) && {
+                                                borderColor: cores.primary,
+                                                backgroundColor: cores.primary,
+                                            },
+                                        ]}
+                                        onPress={() => alternarAjuda(h.id)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.chipText,
+                                                { color: cores.textSecondary },
+                                                ajudas.includes(h.id) && { color: '#fff' },
+                                            ]}
+                                        >
+                                            {h.emoji} {h.rotulo}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            {ajudas.includes('outro') && (
+                                <TextInput
+                                    style={[
+                                        styles.input,
+                                        {
+                                            borderColor: cores.border,
+                                            backgroundColor: cores.inputBg,
+                                            color: cores.text,
+                                        },
+                                    ]}
+                                    placeholder="O que te ajudou?"
+                                    placeholderTextColor={cores.textMuted}
+                                    value={ajudaOutro}
+                                    onChangeText={setAjudaOutro}
+                                />
+                            )}
+                        </>
+                    )}
+
+                    {/* Slider de intensidade */}
+                    {usou !== null && (
+                        <>
+                            <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                                Quanta vontade você sentiu?
+                            </Text>
+                            <View style={styles.sliderWrap}>
+                                <Text style={[styles.intensityVal, { color: corDaIntensidade }]}>
+                                    {Math.round(intensidade)}
+                                </Text>
+                                <Slider
+                                    style={styles.slider}
+                                    minimumValue={0}
+                                    maximumValue={10}
+                                    step={1}
+                                    value={intensidade}
+                                    onValueChange={(val) => setIntensidade(val[0])}
+                                    minimumTrackTintColor={corDaIntensidade}
+                                    maximumTrackTintColor={cores.border}
+                                    thumbTintColor={corDaIntensidade}
+                                />
+                                <View style={styles.sliderLabels}>
+                                    <Text style={[styles.sliderLabel, { color: cores.textMuted }]}>
+                                        Nenhuma
+                                    </Text>
+                                    <Text style={[styles.sliderLabel, { color: cores.textMuted }]}>
+                                        Moderada
+                                    </Text>
+                                    <Text style={[styles.sliderLabel, { color: cores.textMuted }]}>
+                                        Muito forte
+                                    </Text>
+                                </View>
+                            </View>
+                        </>
+                    )}
+
+                    {/* Botão salvar */}
+                    <TouchableOpacity
+                        style={[
+                            styles.saveBtn,
+                            { backgroundColor: cores.primary },
+                            salvando && styles.saveBtnDisabled,
+                        ]}
+                        onPress={salvar}
+                        disabled={salvando}
+                    >
+                        <Ionicons
+                            name={salvando ? 'hourglass-outline' : 'checkmark-circle-outline'}
+                            size={20}
+                            color="#fff"
+                        />
+                        <Text style={styles.saveBtnText}>
+                            {salvando ? 'Salvando...' : 'Salvar'}
                         </Text>
-                    </View>
-                )}
+                    </TouchableOpacity>
 
-                {/* Usou hoje? */}
-                <Text style={[styles.fieldLabel, { color: cores.text }]}>Você usou o vape {rotuloDaDataSelecionada}?</Text>
-                <View style={styles.toggleRow}>
-                    {[{ val: true, rotulo: 'Sim' }, { val: false, rotulo: 'Não' }].map(({ val, rotulo }) => (
-                        <TouchableOpacity
-                            key={rotulo}
-                            style={[styles.toggleBtn, { borderColor: cores.border, backgroundColor: cores.card }, usou === val && { borderColor: cores.primary, backgroundColor: cores.primary }]}
-                            onPress={() => {
-                                setUsou(val);
-                                // Usou = pelo menos 1 puxada.
-                                if (val) setPuxadas((p) => Math.max(1, p));
-                            }}
+                    {/* Mensagem de sucesso */}
+                    {mensagemDeSucesso !== '' && (
+                        <Animated.View
+                            style={[
+                                styles.successBox,
+                                {
+                                    backgroundColor: cores.primaryLight,
+                                    borderColor: cores.primary,
+                                    opacity: animacaoDeFade,
+                                },
+                            ]}
                         >
-                            <Text style={[styles.toggleBtnText, { color: cores.textSecondary }, usou === val && { color: '#fff' }]}>{rotulo}</Text>
-                        </TouchableOpacity>
-                    ))}
+                            <Ionicons name="checkmark-circle" size={22} color={cores.primary} />
+                            <Text style={[styles.successText, { color: cores.primaryDark }]}>
+                                {mensagemDeSucesso}
+                            </Text>
+                        </Animated.View>
+                    )}
                 </View>
 
-                {/* Se usou = true */}
-                {usou === true && (
-                    <>
-                        <Text style={[styles.fieldLabel, { color: cores.text }]}>Quantas puxadas?</Text>
-                        <View style={styles.counterRow}>
-                            <TextInput
-                                style={[styles.counterInput, { borderColor: cores.primary, backgroundColor: cores.inputBg, color: cores.text }]}
-                                keyboardType="number-pad"
-                                value={String(puxadas)}
-                                onChangeText={(texto) => {
-                                    const numero = parseInt(texto.replace(/[^0-9]/g, ''), 10);
-                                    setPuxadas(Number.isNaN(numero) ? 0 : numero);
-                                }}
-                                onBlur={() => setPuxadas((p) => Math.max(1, p))}
-                            />
-                        </View>
-
-                        <Text style={[styles.fieldLabel, { color: cores.text }]}>O que te deu vontade?</Text>
-                        <View style={styles.chips}>
-                            {GATILHOS.map((t) => (
-                                <TouchableOpacity
-                                    key={t.id}
-                                    style={[styles.chip, { borderColor: cores.border, backgroundColor: cores.card }, gatilhos.includes(t.id) && { borderColor: cores.primary, backgroundColor: cores.primary }]}
-                                    onPress={() => alternarGatilho(t.id)}
-                                >
-                                    <Text style={[styles.chipText, { color: cores.textSecondary }, gatilhos.includes(t.id) && { color: '#fff' }]}>
-                                        {t.emoji} {t.rotulo}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                        {gatilhos.includes('outro') && (
-                            <TextInput
-                                style={[styles.input, { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text }]}
-                                placeholder="Conta o que rolou..."
-                                placeholderTextColor={cores.textMuted}
-                                value={gatilhoOutro}
-                                onChangeText={setGatilhoOutro}
-                            />
-                        )}
-                    </>
-                )}
-
-                {/* Se usou = false */}
-                {usou === false && (
-                    <>
-                        <Text style={[styles.fieldLabel, { color: cores.text }]}>O que te ajudou a não usar?</Text>
-                        <View style={styles.chips}>
-                            {AJUDAS.map((h) => (
-                                <TouchableOpacity
-                                    key={h.id}
-                                    style={[styles.chip, { borderColor: cores.border, backgroundColor: cores.card }, ajudas.includes(h.id) && { borderColor: cores.primary, backgroundColor: cores.primary }]}
-                                    onPress={() => alternarAjuda(h.id)}
-                                >
-                                    <Text style={[styles.chipText, { color: cores.textSecondary }, ajudas.includes(h.id) && { color: '#fff' }]}>
-                                        {h.emoji} {h.rotulo}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                        {ajudas.includes('outro') && (
-                            <TextInput
-                                style={[styles.input, { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text }]}
-                                placeholder="O que te ajudou?"
-                                placeholderTextColor={cores.textMuted}
-                                value={ajudaOutro}
-                                onChangeText={setAjudaOutro}
-                            />
-                        )}
-                    </>
-                )}
-
-                {/* Slider de intensidade */}
-                {usou !== null && (
-                    <>
-                        <Text style={[styles.fieldLabel, { color: cores.text }]}>Quanta vontade você sentiu?</Text>
-                        <View style={styles.sliderWrap}>
-                            <Text style={[styles.intensityVal, { color: corDaIntensidade }]}>{Math.round(intensidade)}</Text>
-                            <Slider
-                                style={styles.slider}
-                                minimumValue={0}
-                                maximumValue={10}
-                                step={1}
-                                value={intensidade}
-                                onValueChange={(val) => setIntensidade(val[0])}
-                                minimumTrackTintColor={corDaIntensidade}
-                                maximumTrackTintColor={cores.border}
-                                thumbTintColor={corDaIntensidade}
-                            />
-                            <View style={styles.sliderLabels}>
-                                <Text style={[styles.sliderLabel, { color: cores.textMuted }]}>Nenhuma</Text>
-                                <Text style={[styles.sliderLabel, { color: cores.textMuted }]}>Moderada</Text>
-                                <Text style={[styles.sliderLabel, { color: cores.textMuted }]}>Muito forte</Text>
-                            </View>
-                        </View>
-                    </>
-                )}
-
-                {/* Botão salvar */}
-                <TouchableOpacity
-                    style={[styles.saveBtn, { backgroundColor: cores.primary }, salvando && styles.saveBtnDisabled]}
-                    onPress={salvar}
-                    disabled={salvando}
-                >
-                    <Ionicons name={salvando ? 'hourglass-outline' : 'checkmark-circle-outline'} size={20} color="#fff" />
-                    <Text style={styles.saveBtnText}>{salvando ? 'Salvando...' : 'Salvar'}</Text>
-                </TouchableOpacity>
-
-                {/* Mensagem de sucesso */}
-                {mensagemDeSucesso !== '' && (
-                    <Animated.View style={[styles.successBox, { backgroundColor: cores.primaryLight, borderColor: cores.primary, opacity: animacaoDeFade }]}>
-                        <Ionicons name="checkmark-circle" size={22} color={cores.primary} />
-                        <Text style={[styles.successText, { color: cores.primaryDark }]}>{mensagemDeSucesso}</Text>
-                    </Animated.View>
-                )}
-            </View>
-
-            <View style={{ height: 24 }} />
-        </ScrollView>
+                <View style={{ height: 24 }} />
+            </ScrollView>
         </View>
     );
 }
@@ -542,14 +715,20 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
         borderRadius: RAIO.md,
         padding: 12,
-        fontSize: 14, fontFamily: 'Poppins_400Regular',
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
         marginBottom: 14,
     },
     sliderWrap: { marginBottom: 18 },
     slider: { width: '100%', height: 40 },
-    intensityVal: { fontSize: 36, fontFamily: 'Poppins_800ExtraBold', textAlign: 'center', marginBottom: 4 },
+    intensityVal: {
+        fontSize: 36,
+        fontFamily: 'Poppins_800ExtraBold',
+        textAlign: 'center',
+        marginBottom: 4,
+    },
     sliderLabels: { flexDirection: 'row', justifyContent: 'space-between' },
-    sliderLabel: { fontSize: 10 , fontFamily: 'Poppins_400Regular'},
+    sliderLabel: { fontSize: 10, fontFamily: 'Poppins_400Regular' },
     saveBtn: {
         borderRadius: RAIO.md,
         paddingVertical: 15,
@@ -610,10 +789,16 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
     },
     datePickerTitle: { fontSize: 18, fontFamily: 'Poppins_700Bold' },
-    datePickerCancel: { fontSize: 16 , fontFamily: 'Poppins_400Regular'},
+    datePickerCancel: { fontSize: 16, fontFamily: 'Poppins_400Regular' },
     datePickerSpacer: { width: 60 },
-    pickerLabel: { fontSize: 12, fontFamily: 'Poppins_600SemiBold', marginTop: 12, marginBottom: 8, paddingHorizontal: 16 },
+    pickerLabel: {
+        fontSize: 12,
+        fontFamily: 'Poppins_600SemiBold',
+        marginTop: 12,
+        marginBottom: 8,
+        paddingHorizontal: 16,
+    },
     pickerScroll: { maxHeight: 300, paddingHorizontal: 16 },
     pickerItem: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: RAIO.sm },
-    pickerItemText: { fontSize: 16 , fontFamily: 'Poppins_400Regular'},
+    pickerItemText: { fontSize: 16, fontFamily: 'Poppins_400Regular' },
 });

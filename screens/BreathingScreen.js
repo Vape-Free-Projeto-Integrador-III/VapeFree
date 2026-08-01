@@ -155,98 +155,113 @@ export default function BreathingScreen({ navigation, route }) {
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
-        <ScrollView
-            style={[styles.scroll, { backgroundColor: cores.background }]}
-            contentContainerStyle={styles.container}
-        >
-            <ScreenHeader
-                titulo="Respiração"
-                subtitulo="Box breathing 4-4-4-4"
-                cores={cores}
-                mostrarConfiguracoes
-                aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
-                aoPressionarVoltar={() => navigation.goBack()}
-            />
-
-            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                <View style={styles.circleWrap}>
-                    <Animated.View
-                        style={[
-                            styles.circle,
-                            {
-                                backgroundColor: cores.primaryLight,
-                                borderColor: cores.primary,
-                                transform: [{ scale: escala }],
-                            },
-                        ]}
-                    />
-                    <View style={styles.circleTextWrap}>
-                        <Text style={[styles.phaseLabel, { color: cores.primaryDark }]}>
-                            {rodando ? fase.rotulo : 'Pronto?'}
-                        </Text>
-                        <Text style={[styles.phaseCount, { color: cores.text }]}>
-                            {rodando ? restanteDaFase : formatarRelogio(duracao.segundos)}
-                        </Text>
-                    </View>
-                </View>
-
-                <Text style={[styles.hint, { color: cores.textSecondary }]}>
-                    {rodando ? fase.dica : 'Inspire 4s, segure 4s, expire 4s, segure 4s.'}
-                </Text>
-
-                {rodando ? (
-                    <Text style={[styles.remaining, { color: cores.textMuted }]}>
-                        Faltam {formatarRelogio(restante)}
-                    </Text>
-                ) : null}
-            </View>
-
-            {!rodando ? (
-                <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}>
-                    <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Duração</Text>
-                    <View style={styles.chips}>
-                        {DURACOES.map((d) => (
-                            <TouchableOpacity
-                                key={d.id}
-                                style={[
-                                    styles.chip,
-                                    { borderColor: cores.border, backgroundColor: cores.card },
-                                    duracao.id === d.id && { borderColor: cores.primary, backgroundColor: cores.primary },
-                                ]}
-                                onPress={() => setDuracao(d)}
-                            >
-                                <Text
-                                    style={[
-                                        styles.chipText,
-                                        { color: cores.textSecondary },
-                                        duracao.id === d.id && { color: '#fff' },
-                                    ]}
-                                >
-                                    {d.rotulo}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-            ) : null}
-
-            {finalizado && !veioDaCrise ? (
-                <View style={[styles.doneCard, { backgroundColor: cores.card, borderLeftColor: cores.primary }, SOMBRA.pequena]}>
-                    <Text style={[styles.doneText, { color: cores.text }]}>
-                        Sessão concluída. Repara como o corpo tá agora. 💚
-                    </Text>
-                </View>
-            ) : null}
-
-            <TouchableOpacity
-                style={[styles.mainBtn, { backgroundColor: rodando ? cores.card : cores.primary, borderColor: cores.primary }]}
-                onPress={rodando ? parar : iniciar}
+            <ScrollView
+                style={[styles.scroll, { backgroundColor: cores.background }]}
+                contentContainerStyle={styles.container}
             >
-                <Text style={[styles.mainBtnText, rodando && { color: cores.primaryDark }]}>
-                    {rodando ? 'Parar' : finalizado ? 'Fazer de novo' : 'Começar'}
-                </Text>
-            </TouchableOpacity>
-        </ScrollView>
+                <ScreenHeader
+                    titulo="Respiração"
+                    subtitulo="Box breathing 4-4-4-4"
+                    cores={cores}
+                    mostrarConfiguracoes
+                    aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
+                    aoPressionarVoltar={() => navigation.goBack()}
+                />
+
+                <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                    <View style={styles.circleWrap}>
+                        <Animated.View
+                            style={[
+                                styles.circle,
+                                {
+                                    backgroundColor: cores.primaryLight,
+                                    borderColor: cores.primary,
+                                    transform: [{ scale: escala }],
+                                },
+                            ]}
+                        />
+                        <View style={styles.circleTextWrap}>
+                            <Text style={[styles.phaseLabel, { color: cores.primaryDark }]}>
+                                {rodando ? fase.rotulo : 'Pronto?'}
+                            </Text>
+                            <Text style={[styles.phaseCount, { color: cores.text }]}>
+                                {rodando ? restanteDaFase : formatarRelogio(duracao.segundos)}
+                            </Text>
+                        </View>
+                    </View>
+
+                    <Text style={[styles.hint, { color: cores.textSecondary }]}>
+                        {rodando ? fase.dica : 'Inspire 4s, segure 4s, expire 4s, segure 4s.'}
+                    </Text>
+
+                    {rodando ? (
+                        <Text style={[styles.remaining, { color: cores.textMuted }]}>
+                            Faltam {formatarRelogio(restante)}
+                        </Text>
+                    ) : null}
+                </View>
+
+                {!rodando ? (
+                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Duração</Text>
+                        <View style={styles.chips}>
+                            {DURACOES.map((d) => (
+                                <TouchableOpacity
+                                    key={d.id}
+                                    style={[
+                                        styles.chip,
+                                        { borderColor: cores.border, backgroundColor: cores.card },
+                                        duracao.id === d.id && {
+                                            borderColor: cores.primary,
+                                            backgroundColor: cores.primary,
+                                        },
+                                    ]}
+                                    onPress={() => setDuracao(d)}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.chipText,
+                                            { color: cores.textSecondary },
+                                            duracao.id === d.id && { color: '#fff' },
+                                        ]}
+                                    >
+                                        {d.rotulo}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+                ) : null}
+
+                {finalizado && !veioDaCrise ? (
+                    <View
+                        style={[
+                            styles.doneCard,
+                            { backgroundColor: cores.card, borderLeftColor: cores.primary },
+                            SOMBRA.pequena,
+                        ]}
+                    >
+                        <Text style={[styles.doneText, { color: cores.text }]}>
+                            Sessão concluída. Repara como o corpo tá agora. 💚
+                        </Text>
+                    </View>
+                ) : null}
+
+                <TouchableOpacity
+                    style={[
+                        styles.mainBtn,
+                        {
+                            backgroundColor: rodando ? cores.card : cores.primary,
+                            borderColor: cores.primary,
+                        },
+                    ]}
+                    onPress={rodando ? parar : iniciar}
+                >
+                    <Text style={[styles.mainBtnText, rodando && { color: cores.primaryDark }]}>
+                        {rodando ? 'Parar' : finalizado ? 'Fazer de novo' : 'Começar'}
+                    </Text>
+                </TouchableOpacity>
+            </ScrollView>
         </View>
     );
 }
@@ -282,8 +297,19 @@ const styles = StyleSheet.create({
     circleTextWrap: { alignItems: 'center' },
     phaseLabel: { fontSize: 18, fontFamily: 'Poppins_800ExtraBold', letterSpacing: 0.5 },
     phaseCount: { fontSize: 44, fontFamily: 'Poppins_800ExtraBold', marginTop: 2 },
-    hint: { fontSize: 14, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 18, lineHeight: 20 },
-    remaining: { fontSize: 12, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 8 },
+    hint: {
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
+        textAlign: 'center',
+        marginTop: 18,
+        lineHeight: 20,
+    },
+    remaining: {
+        fontSize: 12,
+        fontFamily: 'Poppins_400Regular',
+        textAlign: 'center',
+        marginTop: 8,
+    },
     chips: { flexDirection: 'row', gap: 8 },
     chip: {
         borderWidth: 1.5,

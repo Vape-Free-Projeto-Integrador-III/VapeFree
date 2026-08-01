@@ -16,7 +16,9 @@ export default function GradeDeCards({ colunas = 1, espacamento = 0, children })
     const [alturas, setAlturas] = useState({});
 
     const medir = useCallback((chave, altura) => {
-        setAlturas((atual) => (Math.abs((atual[chave] || 0) - altura) < 1 ? atual : { ...atual, [chave]: altura }));
+        setAlturas((atual) =>
+            Math.abs((atual[chave] || 0) - altura) < 1 ? atual : { ...atual, [chave]: altura }
+        );
     }, []);
 
     if (colunas <= 1) return <>{itens}</>;

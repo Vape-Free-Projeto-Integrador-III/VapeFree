@@ -43,11 +43,11 @@ Regra central: **nenhuma tela sabe se o usuário é convidado ou logado.** Toda 
 
 ## Decisões técnicas fixas
 
-| Decisão | Por quê |
-|---|---|
-| Sem TypeScript | Projeto começou em JS puro, nunca migrou. Não converta arquivos isoladamente. |
-| Sem Expo Router | Navegação já estruturada com React Navigation clássico (`navigation/AppNavigator.js`). |
-| Sem NativeWind | Estilo via `StyleSheet.create` + cores injetadas de `usarTema()`. |
+| Decisão           | Por quê                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| Sem TypeScript    | Projeto começou em JS puro, nunca migrou. Não converta arquivos isoladamente.                  |
+| Sem Expo Router   | Navegação já estruturada com React Navigation clássico (`navigation/AppNavigator.js`).         |
+| Sem NativeWind    | Estilo via `StyleSheet.create` + cores injetadas de `usarTema()`.                              |
 | Sem Redux/Zustand | Estado global é só Auth + Theme via Context; resto é local por tela. Ver [state.md](state.md). |
 
 ## Inconsistências conhecidas (não corrigir sem pedir)

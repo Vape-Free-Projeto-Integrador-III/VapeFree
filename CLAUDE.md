@@ -61,7 +61,7 @@ Não existe pasta `src/` — tudo fica na raiz.
 ## Fluxo de desenvolvimento
 
 - Instalar: `npm install`. Rodar: `npm start` (Metro), `npm run android`, `npm run ios`, `npm run web`.
-- Verificar antes de commit: `npm test` e `npm run lint` (nenhum dos dois é porta automática — não há CI). `npm run format` roda o Prettier, mas hoje só `__tests__/` está formatado por ele; o resto do repo tem indentação mista e formatar tudo de uma vez viraria um diff de ~57 arquivos.
+- Verificar antes de commit: `npm test` e `npm run lint` (nenhum dos dois é porta automática — não há CI). `npm run format` roda o Prettier sobre o repo inteiro — todo o código já está formatado por ele (4 espaços, aspas simples, `printWidth` 100), então rodar de novo deve dar diff vazio.
 - Teste novo em `__tests__/utils/<modulo>.test.js`, `describe`/`it` em português. **Nenhum teste pode depender do dia atual** — data fixa hardcoded, nunca `dataDeHoje()`. Única exceção: o que testa `dataEhRegistravel`, que é relativo a hoje por natureza. Ver `docs/deployment.md`.
 - Ao mudar `utils/storage.js`, rodar `npm test` é obrigatório: as ramificações convidado/conta e online/offline estão cobertas, e é a camada que quebra em silêncio.
 - Sem CI configurado (`.github/` não existe) e sem `eas.json` — build/deploy ainda é manual. Ver `docs/deployment.md`.
@@ -72,8 +72,8 @@ Não existe pasta `src/` — tudo fica na raiz.
 1. Nova tela: criar em `screens/`, registrar em `navigation/AppNavigator.js`, usar `ScreenHeader`, ler cores via `usarTema()`.
 2. Novo dado persistido: adicionar par de funções em `utils/storage.js` seguindo o padrão `if (uid) { lerDaConta/escreverNaConta } else { AsyncStorage }` — nunca ramificar essa lógica dentro da tela, e nunca chamar Firestore direto no branch logado (quebraria o offline). Registre também o nome do espelho em `ESPELHOS` (`utils/offline.js`). Ver `docs/database.md`.
 3. Nova conquista: adicionar entrada em `CONQUISTAS` (`utils/achievements.js`) com `condicao(registros, economia, missoesConcluidas, contexto)` pura — `contexto` é `{ sessoesDeCrise, diasDeAbertura, meta, aparelho, hoje }`, montado por `verificarEDesbloquearConquistas`.
-3.1. Nova missão: adicionar entrada em `MISSOES` (`utils/missions.js`) com `progresso(ctx)` pura devolvendo `{ atual, alvo }`, e `disponivel(ctx)` opcional pra missão que não faz sentido sem certo dado — ver `docs/missions.md`. Não renomeie o `id` de uma missão existente (faz parte da chave do que já foi salvo).
-3.2. Qualquer coisa que precise da "meta de puxadas do dia" usa `metaEfetiva(meta, aparelho, data)` (`utils/meta.js`), nunca `metaDiaria(aparelho)` direto — é o que faz a meta declarada pelo usuário ganhar da derivada do aparelho em todo lugar.
+   3.1. Nova missão: adicionar entrada em `MISSOES` (`utils/missions.js`) com `progresso(ctx)` pura devolvendo `{ atual, alvo }`, e `disponivel(ctx)` opcional pra missão que não faz sentido sem certo dado — ver `docs/missions.md`. Não renomeie o `id` de uma missão existente (faz parte da chave do que já foi salvo).
+   3.2. Qualquer coisa que precise da "meta de puxadas do dia" usa `metaEfetiva(meta, aparelho, data)` (`utils/meta.js`), nunca `metaDiaria(aparelho)` direto — é o que faz a meta declarada pelo usuário ganhar da derivada do aparelho em todo lugar.
 4. Novo texto motivacional/trigger/ajuda: adicionar ao array correspondente em `utils/theme.js` (`DICAS`, `GATILHOS`, `AJUDAS`, `MENSAGENS_MOTIVACIONAIS`).
 5. Ao mexer em auth, ler `docs/auth.md` primeiro — fluxo de migração de dados de convidado é sensível a ordem de chamadas.
 6. Atualize o arquivo de `docs/` correspondente quando mudar algo daquele domínio. Não reescreva este `CLAUDE.md` nem os demais docs inteiros — edite só o que mudou.

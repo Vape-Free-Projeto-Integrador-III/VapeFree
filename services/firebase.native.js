@@ -6,34 +6,24 @@ import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
+    apiKey: 'AIzaSyCI-3KUHcszmd8NnBCUGKH64gdtQAMc3iQ',
 
-    apiKey:
-        'AIzaSyCI-3KUHcszmd8NnBCUGKH64gdtQAMc3iQ',
+    authDomain: 'vapefree-pi.firebaseapp.com',
 
-    authDomain:
-        'vapefree-pi.firebaseapp.com',
+    projectId: 'vapefree-pi',
 
-    projectId:
-        'vapefree-pi',
+    storageBucket: 'vapefree-pi.firebasestorage.app',
 
-    storageBucket:
-        'vapefree-pi.firebasestorage.app',
+    messagingSenderId: '445859118404',
 
-    messagingSenderId:
-        '445859118404',
-
-    appId:
-        '1:445859118404:web:7e9be5456eb117a3732b11'
-
+    appId: '1:445859118404:web:7e9be5456eb117a3732b11',
 };
 
-const app =
-    initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 
-export const auth =
-    initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage),
-    });
+export const auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+});
 
 export const db = getFirestore(app);
 

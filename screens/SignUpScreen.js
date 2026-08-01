@@ -60,7 +60,12 @@ export default function SignUpScreen({ navigation }) {
     const [configEscolhaConvidado, setConfigEscolhaConvidado] = useState(null);
     const resolverEscolhaConvidadoRef = React.useRef(null);
 
-    async function perguntarSobreDadosDeConvidado({ titulo, mensagem, rotuloImportar, rotuloDescartar }) {
+    async function perguntarSobreDadosDeConvidado({
+        titulo,
+        mensagem,
+        rotuloImportar,
+        rotuloDescartar,
+    }) {
         if (!(await temDadosLocaisDoConvidado())) {
             return 'skip';
         }
@@ -144,7 +149,11 @@ export default function SignUpScreen({ navigation }) {
         setCarregando(true);
 
         try {
-            const credencialDoUsuario = await createUserWithEmailAndPassword(auth, emailFormatado, senha);
+            const credencialDoUsuario = await createUserWithEmailAndPassword(
+                auth,
+                emailFormatado,
+                senha
+            );
 
             await updateProfile(credencialDoUsuario.user, {
                 displayName: nomeFormatado,
@@ -189,166 +198,173 @@ export default function SignUpScreen({ navigation }) {
 
     return (
         <View style={{ flex: 1, backgroundColor: CORES.background }}>
-        {/* tela tem fundo branco fixo, sobrescreve o style="light" do App.js */}
-        <StatusBar style="dark" />
-        <KeyboardAvoidingView
-            style={styles.flex}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-            <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
+            {/* tela tem fundo branco fixo, sobrescreve o style="light" do App.js */}
+            <StatusBar style="dark" />
+            <KeyboardAvoidingView
+                style={styles.flex}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
-                <View style={styles.content}>
-                    <View style={styles.iconCircle}>
-                        <Ionicons name="checkmark-circle-outline" size={32} color={CORES.iconCheck} />
-                    </View>
-
-                    <Text style={styles.title}>Respire Livre</Text>
-                    <Text style={styles.subtitle}>
-                        Cria sua conta e começa agora
-                    </Text>
-
-                    <View style={styles.fieldGroup}>
-                        <Text style={styles.label}>Nome completo</Text>
-                        <View style={styles.inputContainer}>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.content}>
+                        <View style={styles.iconCircle}>
                             <Ionicons
-                                name="person-outline"
-                                size={20}
-                                color={CORES.inputIconColor}
-                                style={styles.inputIconLeft}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Seu nome"
-                                placeholderTextColor={CORES.placeholderText}
-                                value={nome}
-                                onChangeText={setNome}
-                                autoCapitalize="words"
+                                name="checkmark-circle-outline"
+                                size={32}
+                                color={CORES.iconCheck}
                             />
                         </View>
-                    </View>
 
-                    <View style={styles.fieldGroup}>
-                        <Text style={styles.label}>E-mail</Text>
-                        <View style={styles.inputContainer}>
-                            <Ionicons
-                                name="mail-outline"
-                                size={20}
-                                color={CORES.inputIconColor}
-                                style={styles.inputIconLeft}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="seu@email.com"
-                                placeholderTextColor={CORES.placeholderText}
-                                value={email}
-                                onChangeText={setEmail}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                keyboardType="email-address"
-                            />
-                        </View>
-                    </View>
+                        <Text style={styles.title}>Respire Livre</Text>
+                        <Text style={styles.subtitle}>Cria sua conta e começa agora</Text>
 
-                    <View style={styles.fieldGroupLarge}>
-                        <Text style={styles.label}>Senha</Text>
-                        <View style={styles.inputContainer}>
-                            <Ionicons
-                                name="lock-closed-outline"
-                                size={20}
-                                color={CORES.inputIconColor}
-                                style={styles.inputIconLeft}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Digite sua senha"
-                                placeholderTextColor={CORES.placeholderText}
-                                value={senha}
-                                onChangeText={setSenha}
-                                autoCapitalize="none"
-                                secureTextEntry={!mostrarSenha}
-                            />
-                            <TouchableOpacity
-                                onPress={() => setMostrarSenha((v) => !v)}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>Nome completo</Text>
+                            <View style={styles.inputContainer}>
                                 <Ionicons
-                                    name={mostrarSenha ? 'eye-off-outline' : 'eye-outline'}
+                                    name="person-outline"
                                     size={20}
                                     color={CORES.inputIconColor}
+                                    style={styles.inputIconLeft}
                                 />
-                            </TouchableOpacity>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Seu nome"
+                                    placeholderTextColor={CORES.placeholderText}
+                                    value={nome}
+                                    onChangeText={setNome}
+                                    autoCapitalize="words"
+                                />
+                            </View>
                         </View>
-                    </View>
 
-                    <View style={styles.fieldGroupLarge}>
-                        <Text style={styles.label}>Confirmar senha</Text>
-                        <View style={styles.inputContainer}>
-                            <Ionicons
-                                name="lock-closed-outline"
-                                size={20}
-                                color={CORES.inputIconColor}
-                                style={styles.inputIconLeft}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Confirme sua senha"
-                                placeholderTextColor={CORES.placeholderText}
-                                value={senhaConfirmacao}
-                                onChangeText={setSenhaConfirmacao}
-                                autoCapitalize="none"
-                                secureTextEntry={!mostrarSenhaConfirmacao}
-                            />
-                            <TouchableOpacity
-                                onPress={() => setMostrarSenhaConfirmacao((v) => !v)}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>E-mail</Text>
+                            <View style={styles.inputContainer}>
                                 <Ionicons
-                                    name={mostrarSenhaConfirmacao ? 'eye-off-outline' : 'eye-outline'}
+                                    name="mail-outline"
                                     size={20}
                                     color={CORES.inputIconColor}
+                                    style={styles.inputIconLeft}
                                 />
-                            </TouchableOpacity>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="seu@email.com"
+                                    placeholderTextColor={CORES.placeholderText}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    keyboardType="email-address"
+                                />
+                            </View>
                         </View>
-                    </View>
 
-                    <TouchableOpacity
-                        style={[styles.button, carregando && styles.buttonDisabled]}
-                        onPress={cadastrar}
-                        activeOpacity={0.85}
-                        disabled={carregando}
-                    >
-                        <Text style={styles.buttonText}>{carregando ? 'Criando conta...' : 'Cadastrar'}</Text>
-                    </TouchableOpacity>
+                        <View style={styles.fieldGroupLarge}>
+                            <Text style={styles.label}>Senha</Text>
+                            <View style={styles.inputContainer}>
+                                <Ionicons
+                                    name="lock-closed-outline"
+                                    size={20}
+                                    color={CORES.inputIconColor}
+                                    style={styles.inputIconLeft}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Digite sua senha"
+                                    placeholderTextColor={CORES.placeholderText}
+                                    value={senha}
+                                    onChangeText={setSenha}
+                                    autoCapitalize="none"
+                                    secureTextEntry={!mostrarSenha}
+                                />
+                                <TouchableOpacity
+                                    onPress={() => setMostrarSenha((v) => !v)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Ionicons
+                                        name={mostrarSenha ? 'eye-off-outline' : 'eye-outline'}
+                                        size={20}
+                                        color={CORES.inputIconColor}
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
 
-                    <View style={styles.footerRow}>
-                        <Text style={styles.footerText}>Já tem uma conta? </Text>
-                        <TouchableOpacity onPress={() => navigation.goBack()}>
-                            <Text style={styles.footerLink}>Entrar</Text>
+                        <View style={styles.fieldGroupLarge}>
+                            <Text style={styles.label}>Confirmar senha</Text>
+                            <View style={styles.inputContainer}>
+                                <Ionicons
+                                    name="lock-closed-outline"
+                                    size={20}
+                                    color={CORES.inputIconColor}
+                                    style={styles.inputIconLeft}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Confirme sua senha"
+                                    placeholderTextColor={CORES.placeholderText}
+                                    value={senhaConfirmacao}
+                                    onChangeText={setSenhaConfirmacao}
+                                    autoCapitalize="none"
+                                    secureTextEntry={!mostrarSenhaConfirmacao}
+                                />
+                                <TouchableOpacity
+                                    onPress={() => setMostrarSenhaConfirmacao((v) => !v)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Ionicons
+                                        name={
+                                            mostrarSenhaConfirmacao
+                                                ? 'eye-off-outline'
+                                                : 'eye-outline'
+                                        }
+                                        size={20}
+                                        color={CORES.inputIconColor}
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.button, carregando && styles.buttonDisabled]}
+                            onPress={cadastrar}
+                            activeOpacity={0.85}
+                            disabled={carregando}
+                        >
+                            <Text style={styles.buttonText}>
+                                {carregando ? 'Criando conta...' : 'Cadastrar'}
+                            </Text>
                         </TouchableOpacity>
-                    </View>
-                </View>
-            </ScrollView>
 
-            {configEscolhaConvidado ? (
-                <GuestDataChoiceModal
-                    visivel={escolhaConvidadoVisivel}
-                    titulo={configEscolhaConvidado.titulo}
-                    mensagem={configEscolhaConvidado.mensagem}
-                    rotuloImportar={configEscolhaConvidado.rotuloImportar}
-                    rotuloDescartar={configEscolhaConvidado.rotuloDescartar}
-                    aoImportar={() => fecharEscolhaConvidado('import')}
-                    aoDescartar={() => fecharEscolhaConvidado('discard')}
-                    aoCancelar={() => fecharEscolhaConvidado('cancel')}
-                />
-            ) : null}
-        </KeyboardAvoidingView>
+                        <View style={styles.footerRow}>
+                            <Text style={styles.footerText}>Já tem uma conta? </Text>
+                            <TouchableOpacity onPress={() => navigation.goBack()}>
+                                <Text style={styles.footerLink}>Entrar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </ScrollView>
+
+                {configEscolhaConvidado ? (
+                    <GuestDataChoiceModal
+                        visivel={escolhaConvidadoVisivel}
+                        titulo={configEscolhaConvidado.titulo}
+                        mensagem={configEscolhaConvidado.mensagem}
+                        rotuloImportar={configEscolhaConvidado.rotuloImportar}
+                        rotuloDescartar={configEscolhaConvidado.rotuloDescartar}
+                        aoImportar={() => fecharEscolhaConvidado('import')}
+                        aoDescartar={() => fecharEscolhaConvidado('discard')}
+                        aoCancelar={() => fecharEscolhaConvidado('cancel')}
+                    />
+                ) : null}
+            </KeyboardAvoidingView>
         </View>
     );
 }
-
 
 const styles = StyleSheet.create({
     flex: {
@@ -421,7 +437,8 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         height: '100%',
-        fontSize: 15, fontFamily: 'Poppins_400Regular',
+        fontSize: 15,
+        fontFamily: 'Poppins_400Regular',
         color: CORES.inputText,
         padding: 0,
     },
@@ -453,7 +470,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     footerText: {
-        fontSize: 14, fontFamily: 'Poppins_400Regular',
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
         color: CORES.footerText,
     },
     footerLink: {

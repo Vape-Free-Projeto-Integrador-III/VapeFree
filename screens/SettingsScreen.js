@@ -138,7 +138,10 @@ export default function SettingsScreen({ navigation }) {
         try {
             const resultado = await exportarDados(formato);
             if (!resultado.ok) {
-                mostrarErro('Erro', MOTIVO_DA_EXPORTACAO[resultado.motivo] || MOTIVO_DA_EXPORTACAO.falhou);
+                mostrarErro(
+                    'Erro',
+                    MOTIVO_DA_EXPORTACAO[resultado.motivo] || MOTIVO_DA_EXPORTACAO.falhou
+                );
             }
         } finally {
             setExportando(false);
@@ -198,10 +201,15 @@ export default function SettingsScreen({ navigation }) {
                 <View style={styles.rowTextWrap}>
                     <Text style={[styles.rowLabel, { color: corDoTexto }]}>{rotulo}</Text>
                     {!!descricao && (
-                        <Text style={[styles.rowDescricao, { color: cores.textMuted }]}>{descricao}</Text>
+                        <Text style={[styles.rowDescricao, { color: cores.textMuted }]}>
+                            {descricao}
+                        </Text>
                     )}
                 </View>
-                {direita ?? (aoPressionar ? <Ionicons name="chevron-forward" size={18} color={cores.textMuted} /> : null)}
+                {direita ??
+                    (aoPressionar ? (
+                        <Ionicons name="chevron-forward" size={18} color={cores.textMuted} />
+                    ) : null)}
             </Container>
         );
     }
@@ -294,7 +302,9 @@ export default function SettingsScreen({ navigation }) {
                             ? () => setSeletorDeHorarioVisivel(true)
                             : undefined,
                         direita: (
-                            <Text style={[styles.valor, { color: cores.primaryDark }]}>{horarioAtual}</Text>
+                            <Text style={[styles.valor, { color: cores.primaryDark }]}>
+                                {horarioAtual}
+                            </Text>
                         ),
                     })}
 
@@ -320,7 +330,9 @@ export default function SettingsScreen({ navigation }) {
                         rotulo: 'Exportar meus dados',
                         descricao: 'Leva seu histórico em CSV ou JSON',
                         aoPressionar: exportando ? undefined : handleExportar,
-                        direita: exportando ? <ActivityIndicator color={cores.primary} /> : undefined,
+                        direita: exportando ? (
+                            <ActivityIndicator color={cores.primary} />
+                        ) : undefined,
                     })}
 
                     {divisor}
@@ -343,7 +355,9 @@ export default function SettingsScreen({ navigation }) {
                     })}
                 </View>
 
-                <Text style={[styles.versao, { color: cores.textMuted }]}>VapeFree versão {versao}</Text>
+                <Text style={[styles.versao, { color: cores.textMuted }]}>
+                    VapeFree versão {versao}
+                </Text>
             </ScrollView>
 
             <Modal
@@ -352,12 +366,17 @@ export default function SettingsScreen({ navigation }) {
                 animationType="fade"
                 onRequestClose={() => setSeletorDeHorarioVisivel(false)}
             >
-                <Pressable style={styles.backdrop} onPress={() => setSeletorDeHorarioVisivel(false)}>
+                <Pressable
+                    style={styles.backdrop}
+                    onPress={() => setSeletorDeHorarioVisivel(false)}
+                >
                     <Pressable
                         style={[styles.modalCard, { backgroundColor: cores.modalBg }]}
                         onPress={() => {}}
                     >
-                        <Text style={[styles.modalTitulo, { color: cores.text }]}>Horário do lembrete</Text>
+                        <Text style={[styles.modalTitulo, { color: cores.text }]}>
+                            Horário do lembrete
+                        </Text>
                         <ScrollView style={styles.modalLista}>
                             {HORARIOS.map(({ hora, minuto }) => {
                                 const selecionado =
@@ -374,13 +393,21 @@ export default function SettingsScreen({ navigation }) {
                                         <Text
                                             style={[
                                                 styles.opcaoTexto,
-                                                { color: selecionado ? cores.primaryDark : cores.text },
+                                                {
+                                                    color: selecionado
+                                                        ? cores.primaryDark
+                                                        : cores.text,
+                                                },
                                             ]}
                                         >
                                             {formatarHorario(hora, minuto)}
                                         </Text>
                                         {selecionado && (
-                                            <Ionicons name="checkmark" size={18} color={cores.primaryDark} />
+                                            <Ionicons
+                                                name="checkmark"
+                                                size={18}
+                                                color={cores.primaryDark}
+                                            />
                                         )}
                                     </TouchableOpacity>
                                 );

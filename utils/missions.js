@@ -121,7 +121,8 @@ export const MISSOES = [
         titulo: 'Registre todos os dias da semana',
         descricao: 'Um registro em cada um dos 7 dias',
         progresso: (ctx) => ({
-            atual: ctx.diasDaSemana.filter((data) => registrosDoDia(ctx.registros, data).length > 0).length,
+            atual: ctx.diasDaSemana.filter((data) => registrosDoDia(ctx.registros, data).length > 0)
+                .length,
             alvo: 7,
         }),
     },
@@ -133,7 +134,10 @@ export const MISSOES = [
         titulo: 'Economize R$ 10 esta semana',
         descricao: 'O dinheiro que ficou no seu bolso nesta semana',
         progresso: (ctx) => {
-            const total = ctx.diasDaSemana.reduce((soma, data) => soma + (ctx.economia?.[data] || 0), 0);
+            const total = ctx.diasDaSemana.reduce(
+                (soma, data) => soma + (ctx.economia?.[data] || 0),
+                0
+            );
             return { atual: parseFloat(total.toFixed(2)), alvo: 10 };
         },
     },
@@ -199,7 +203,14 @@ export const MISSOES = [
 // Monta o contexto que as missões recebem. Recebe um OBJETO (e não argumentos
 // posicionais) porque o contexto cresceu com meta/aparelho.
 export function montarContextoDeMissoes(entrada = {}) {
-    const { registros = [], economia = {}, sessoesDeCrise = [], meta = null, aparelho = null, hoje } = entrada;
+    const {
+        registros = [],
+        economia = {},
+        sessoesDeCrise = [],
+        meta = null,
+        aparelho = null,
+        hoje,
+    } = entrada;
     const data = hoje || dataDeHoje();
     return {
         registros: Array.isArray(registros) ? registros : [],
@@ -216,7 +227,9 @@ export function montarContextoDeMissoes(entrada = {}) {
 // vindo de obterMissoes(). Devolve o estado de TODAS as missões do período
 // atual — mesma ideia de verificarConquistas.
 export function verificarMissoes(ctx, entradasConcluidas = []) {
-    const mapaConcluidas = new Map((entradasConcluidas || []).map((entrada) => [entrada.id, entrada]));
+    const mapaConcluidas = new Map(
+        (entradasConcluidas || []).map((entrada) => [entrada.id, entrada])
+    );
     const agora = new Date().toISOString();
 
     // Missão indisponível some da lista, mas se já foi concluída antes ela

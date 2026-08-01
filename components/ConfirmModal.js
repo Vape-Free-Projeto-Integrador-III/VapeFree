@@ -52,11 +52,18 @@ export default function ConfirmModal({ visivel, titulo, mensagem, botoes = [], a
         <Modal transparent visible={visivel} animationType="fade" onRequestClose={fecharPorFora}>
             <Pressable style={styles.backdrop} onPress={fecharPorFora}>
                 {/* Pressable interno só pra o toque no card não fechar o modal. */}
-                <Pressable style={[styles.card, { backgroundColor: cores.modalBg }]} onPress={() => {}}>
+                <Pressable
+                    style={[styles.card, { backgroundColor: cores.modalBg }]}
+                    onPress={() => {}}
+                >
                     <View
                         style={[
                             styles.iconWrap,
-                            { backgroundColor: temDestrutivo ? cores.danger + '22' : cores.primaryLight },
+                            {
+                                backgroundColor: temDestrutivo
+                                    ? cores.danger + '22'
+                                    : cores.primaryLight,
+                            },
                         ]}
                     >
                         <Ionicons
@@ -68,7 +75,9 @@ export default function ConfirmModal({ visivel, titulo, mensagem, botoes = [], a
 
                     <Text style={[styles.title, { color: cores.text }]}>{titulo}</Text>
                     {!!mensagem && (
-                        <Text style={[styles.message, { color: cores.textSecondary }]}>{mensagem}</Text>
+                        <Text style={[styles.message, { color: cores.textSecondary }]}>
+                            {mensagem}
+                        </Text>
                     )}
 
                     <View style={styles.actions}>
@@ -80,7 +89,9 @@ export default function ConfirmModal({ visivel, titulo, mensagem, botoes = [], a
                                     style={[styles.button, estilo.fundo]}
                                     onPress={() => aoPressionar(botao)}
                                 >
-                                    <Text style={[styles.buttonText, estilo.texto]}>{botao.text}</Text>
+                                    <Text style={[styles.buttonText, estilo.texto]}>
+                                        {botao.text}
+                                    </Text>
                                 </TouchableOpacity>
                             );
                         })}

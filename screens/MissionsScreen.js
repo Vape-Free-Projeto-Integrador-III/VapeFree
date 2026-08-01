@@ -32,8 +32,15 @@ export default function MissionsScreen({ navigation }) {
     const [missoes, setMissoes] = useState([]);
 
     const carregar = useCallback(async () => {
-        const { registros, economia, sessoesDeCrise, meta, aparelho, missoesConcluidas, recompensas } =
-            await sincronizarGamificacao();
+        const {
+            registros,
+            economia,
+            sessoesDeCrise,
+            meta,
+            aparelho,
+            missoesConcluidas,
+            recompensas,
+        } = await sincronizarGamificacao();
 
         const contexto = montarContextoDeMissoes({
             registros,
@@ -47,7 +54,11 @@ export default function MissionsScreen({ navigation }) {
         mostrarRecompensas(recompensas);
     }, [mostrarRecompensas]);
 
-    useFocusEffect(useCallback(() => { carregar(); }, [carregar]));
+    useFocusEffect(
+        useCallback(() => {
+            carregar();
+        }, [carregar])
+    );
 
     const diarias = missoes.filter((missao) => missao.period === 'daily');
     const semanais = missoes.filter((missao) => missao.period === 'weekly');
@@ -75,10 +86,17 @@ export default function MissionsScreen({ navigation }) {
             </View>
 
             <View style={styles.info}>
-                <Text style={[styles.title, { color: missao.concluida ? cores.text : cores.textSecondary }]}>
+                <Text
+                    style={[
+                        styles.title,
+                        { color: missao.concluida ? cores.text : cores.textSecondary },
+                    ]}
+                >
                     {missao.titulo}
                 </Text>
-                <Text style={[styles.description, { color: cores.textMuted }]}>{missao.descricao}</Text>
+                <Text style={[styles.description, { color: cores.textMuted }]}>
+                    {missao.descricao}
+                </Text>
 
                 <View style={[styles.track, { backgroundColor: cores.borderLight }]}>
                     <View
@@ -93,8 +111,15 @@ export default function MissionsScreen({ navigation }) {
                 </View>
 
                 <View style={styles.footer}>
-                    <Text style={[styles.progress, { color: cores.textMuted }]}>{formatarProgresso(missao)}</Text>
-                    <Text style={[styles.xp, { color: missao.concluida ? cores.primaryDark : cores.textMuted }]}>
+                    <Text style={[styles.progress, { color: cores.textMuted }]}>
+                        {formatarProgresso(missao)}
+                    </Text>
+                    <Text
+                        style={[
+                            styles.xp,
+                            { color: missao.concluida ? cores.primaryDark : cores.textMuted },
+                        ]}
+                    >
                         +{missao.xp} XP
                     </Text>
                 </View>
@@ -108,40 +133,45 @@ export default function MissionsScreen({ navigation }) {
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
-        <ScrollView style={[styles.scroll, { backgroundColor: cores.background }]} contentContainerStyle={styles.container}>
-            <ScreenHeader
-                titulo="Missões"
-                subtitulo="Metas que renovam sozinhas"
-                cores={cores}
-                mostrarConfiguracoes
-                aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
-                aoPressionarVoltar={() => navigation.goBack()}
-            />
+            <ScrollView
+                style={[styles.scroll, { backgroundColor: cores.background }]}
+                contentContainerStyle={styles.container}
+            >
+                <ScreenHeader
+                    titulo="Missões"
+                    subtitulo="Metas que renovam sozinhas"
+                    cores={cores}
+                    mostrarConfiguracoes
+                    aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
+                    aoPressionarVoltar={() => navigation.goBack()}
+                />
 
-            <View style={estiloDoConteudo}>
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: cores.text }]}>🎯 Hoje</Text>
-                    <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
-                        Renovam à meia-noite
-                    </Text>
-                    <GradeDeCards colunas={colunas} espacamento={12}>
-                        {diarias.map(renderizarMissao)}
-                    </GradeDeCards>
+                <View style={estiloDoConteudo}>
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: cores.text }]}>🎯 Hoje</Text>
+                        <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
+                            Renovam à meia-noite
+                        </Text>
+                        <GradeDeCards colunas={colunas} espacamento={12}>
+                            {diarias.map(renderizarMissao)}
+                        </GradeDeCards>
+                    </View>
+
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: cores.text }]}>
+                            📅 Esta semana
+                        </Text>
+                        <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
+                            Renovam toda segunda-feira
+                        </Text>
+                        <GradeDeCards colunas={colunas} espacamento={12}>
+                            {semanais.map(renderizarMissao)}
+                        </GradeDeCards>
+                    </View>
+
+                    <View style={{ height: 24 }} />
                 </View>
-
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: cores.text }]}>📅 Esta semana</Text>
-                    <Text style={[styles.sectionHint, { color: cores.textMuted }]}>
-                        Renovam toda segunda-feira
-                    </Text>
-                    <GradeDeCards colunas={colunas} espacamento={12}>
-                        {semanais.map(renderizarMissao)}
-                    </GradeDeCards>
-                </View>
-
-                <View style={{ height: 24 }} />
-            </View>
-        </ScrollView>
+            </ScrollView>
         </View>
     );
 }
@@ -161,14 +191,26 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
     },
     cardPending: { opacity: 0.85 },
-    iconWrap: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-    icon: { fontSize: 24 , fontFamily: 'Poppins_400Regular'},
+    iconWrap: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+    },
+    icon: { fontSize: 24, fontFamily: 'Poppins_400Regular' },
     info: { flex: 1, marginRight: 8 },
     title: { fontSize: 15, fontFamily: 'Poppins_700Bold' },
     description: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
     track: { height: 6, borderRadius: RAIO.md, overflow: 'hidden', marginTop: 8 },
     fill: { height: '100%', borderRadius: RAIO.md },
-    footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
-    progress: { fontSize: 11 , fontFamily: 'Poppins_400Regular'},
+    footer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 6,
+    },
+    progress: { fontSize: 11, fontFamily: 'Poppins_400Regular' },
     xp: { fontSize: 11, fontFamily: 'Poppins_700Bold' },
 });

@@ -8,13 +8,7 @@
 // no fim (passou/diminuiu/usei). Se pular o feedback, nada é registrado.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-    View,
-    Text,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-} from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
@@ -29,7 +23,11 @@ import {
     dataDeHoje,
 } from '../utils/storage';
 import { usarToast } from '../context/ToastContext';
-import { metodoDeCriseRecomendado, gatilhoMaisFrequente, MIN_REGISTROS_PARA_INSIGHTS } from '../utils/insights';
+import {
+    metodoDeCriseRecomendado,
+    gatilhoMaisFrequente,
+    MIN_REGISTROS_PARA_INSIGHTS,
+} from '../utils/insights';
 
 const SEGUNDOS_DE_ESPERA = 5 * 60;
 
@@ -92,7 +90,10 @@ export default function CrisisScreen({ navigation, route }) {
     const carregar = useCallback(async () => {
         const [registros, sessoes] = await Promise.all([obterRegistros(), obterSessoesDeCrise()]);
 
-        const gatilho = registros.length >= MIN_REGISTROS_PARA_INSIGHTS ? gatilhoMaisFrequente(registros) : null;
+        const gatilho =
+            registros.length >= MIN_REGISTROS_PARA_INSIGHTS
+                ? gatilhoMaisFrequente(registros)
+                : null;
         setMensagem(
             gatilho
                 ? mensagemDoGatilho(gatilho)
@@ -116,7 +117,11 @@ export default function CrisisScreen({ navigation, route }) {
         const params = route?.params;
         if (!params?.completedMethod) return;
 
-        navigation.setParams({ completedMethod: undefined, durationSec: undefined, completed: undefined });
+        navigation.setParams({
+            completedMethod: undefined,
+            durationSec: undefined,
+            completed: undefined,
+        });
         setPendente({
             method: params.completedMethod,
             durationSec: params.durationSec ?? 0,
@@ -258,7 +263,13 @@ export default function CrisisScreen({ navigation, route }) {
                     aoPressionarVoltar={() => encerrar(metodoAtivo, segundosDecorridos(), false)}
                 />
 
-                <View style={[styles.msgCard, { backgroundColor: cores.card, borderLeftColor: cores.warning }, SOMBRA.media]}>
+                <View
+                    style={[
+                        styles.msgCard,
+                        { backgroundColor: cores.card, borderLeftColor: cores.warning },
+                        SOMBRA.media,
+                    ]}
+                >
                     <Text style={[styles.msgText, { color: cores.text }]}>{mensagem}</Text>
                 </View>
 
@@ -271,7 +282,10 @@ export default function CrisisScreen({ navigation, route }) {
                             <TouchableOpacity
                                 style={[
                                     styles.methodCard,
-                                    { backgroundColor: cores.card, borderColor: ehAtivo ? cores.primary : 'transparent' },
+                                    {
+                                        backgroundColor: cores.card,
+                                        borderColor: ehAtivo ? cores.primary : 'transparent',
+                                    },
                                     SOMBRA.pequena,
                                 ]}
                                 onPress={() => selecionarMetodo(m.id)}
@@ -279,37 +293,76 @@ export default function CrisisScreen({ navigation, route }) {
                                 <Text style={styles.methodIcon}>{m.icon}</Text>
                                 <View style={styles.methodBody}>
                                     <View style={styles.methodTitleRow}>
-                                        <Text style={[styles.methodTitle, { color: cores.text }]}>{m.title}</Text>
+                                        <Text style={[styles.methodTitle, { color: cores.text }]}>
+                                            {m.title}
+                                        </Text>
                                         {ehRecomendado ? (
-                                            <View style={[styles.badge, { backgroundColor: cores.primaryLight }]}>
-                                                <Text style={[styles.badgeText, { color: cores.primaryDark }]}>
+                                            <View
+                                                style={[
+                                                    styles.badge,
+                                                    { backgroundColor: cores.primaryLight },
+                                                ]}
+                                            >
+                                                <Text
+                                                    style={[
+                                                        styles.badgeText,
+                                                        { color: cores.primaryDark },
+                                                    ]}
+                                                >
                                                     já funcionou
                                                 </Text>
                                             </View>
                                         ) : null}
                                     </View>
-                                    <Text style={[styles.methodSubtitle, { color: cores.textSecondary }]}>
+                                    <Text
+                                        style={[
+                                            styles.methodSubtitle,
+                                            { color: cores.textSecondary },
+                                        ]}
+                                    >
                                         {m.subtitle}
                                     </Text>
                                 </View>
                                 <Ionicons
-                                    name={m.id === 'respiracao' ? 'chevron-forward' : ehAtivo ? 'chevron-up' : 'chevron-down'}
+                                    name={
+                                        m.id === 'respiracao'
+                                            ? 'chevron-forward'
+                                            : ehAtivo
+                                              ? 'chevron-up'
+                                              : 'chevron-down'
+                                    }
                                     size={18}
                                     color={cores.textMuted}
                                 />
                             </TouchableOpacity>
 
                             {ehAtivo && m.id === 'timer' ? (
-                                <View style={[styles.panel, { backgroundColor: cores.card }, SOMBRA.pequena]}>
-                                    <Text style={[styles.clock, { color: cores.primaryDark }]}>{formatarRelogio(tempoRestante)}</Text>
-                                    <Text style={[styles.panelText, { color: cores.textSecondary }]}>
-                                        Você não precisa fazer nada além de esperar. A vontade vai baixar sozinha.
+                                <View
+                                    style={[
+                                        styles.panel,
+                                        { backgroundColor: cores.card },
+                                        SOMBRA.pequena,
+                                    ]}
+                                >
+                                    <Text style={[styles.clock, { color: cores.primaryDark }]}>
+                                        {formatarRelogio(tempoRestante)}
+                                    </Text>
+                                    <Text
+                                        style={[styles.panelText, { color: cores.textSecondary }]}
+                                    >
+                                        Você não precisa fazer nada além de esperar. A vontade vai
+                                        baixar sozinha.
                                     </Text>
                                     <TouchableOpacity
                                         style={[styles.panelBtn, { borderColor: cores.primary }]}
                                         onPress={() => setEsperaRodando((prev) => !prev)}
                                     >
-                                        <Text style={[styles.panelBtnText, { color: cores.primaryDark }]}>
+                                        <Text
+                                            style={[
+                                                styles.panelBtnText,
+                                                { color: cores.primaryDark },
+                                            ]}
+                                        >
                                             {esperaRodando ? 'Pausar' : 'Continuar'}
                                         </Text>
                                     </TouchableOpacity>
@@ -317,13 +370,31 @@ export default function CrisisScreen({ navigation, route }) {
                             ) : null}
 
                             {ehAtivo && m.id === 'distracao' ? (
-                                <View style={[styles.panel, { backgroundColor: cores.card }, SOMBRA.pequena]}>
+                                <View
+                                    style={[
+                                        styles.panel,
+                                        { backgroundColor: cores.card },
+                                        SOMBRA.pequena,
+                                    ]}
+                                >
                                     {DISTRACOES.map((d) => (
                                         <View key={d.id} style={styles.distractionRow}>
                                             <Text style={styles.distractionEmoji}>{d.emoji}</Text>
                                             <View style={{ flex: 1 }}>
-                                                <Text style={[styles.distractionLabel, { color: cores.text }]}>{d.rotulo}</Text>
-                                                <Text style={[styles.distractionDetail, { color: cores.textSecondary }]}>
+                                                <Text
+                                                    style={[
+                                                        styles.distractionLabel,
+                                                        { color: cores.text },
+                                                    ]}
+                                                >
+                                                    {d.rotulo}
+                                                </Text>
+                                                <Text
+                                                    style={[
+                                                        styles.distractionDetail,
+                                                        { color: cores.textSecondary },
+                                                    ]}
+                                                >
                                                     {d.detalhe}
                                                 </Text>
                                             </View>
@@ -331,7 +402,6 @@ export default function CrisisScreen({ navigation, route }) {
                                     ))}
                                 </View>
                             ) : null}
-
                         </View>
                     );
                 })}
@@ -375,12 +445,17 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginTop: 12,
     },
-    methodIcon: { fontSize: 24 , fontFamily: 'Poppins_400Regular'},
+    methodIcon: { fontSize: 24, fontFamily: 'Poppins_400Regular' },
     methodBody: { flex: 1 },
     methodTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     methodTitle: { fontSize: 15, fontFamily: 'Poppins_700Bold' },
     badge: { borderRadius: RAIO.full, paddingHorizontal: 8, paddingVertical: 2 },
-    badgeText: { fontSize: 10, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.5 },
+    badgeText: {
+        fontSize: 10,
+        fontFamily: 'Poppins_700Bold',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
     methodSubtitle: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
     panel: {
         borderRadius: RAIO.lg,
@@ -389,7 +464,13 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     clock: { fontSize: 40, fontFamily: 'Poppins_800ExtraBold', textAlign: 'center' },
-    panelText: { fontSize: 13, fontFamily: 'Poppins_400Regular', lineHeight: 19, marginTop: 8, textAlign: 'center' },
+    panelText: {
+        fontSize: 13,
+        fontFamily: 'Poppins_400Regular',
+        lineHeight: 19,
+        marginTop: 8,
+        textAlign: 'center',
+    },
     panelBtn: {
         borderWidth: 1.5,
         borderRadius: RAIO.md,
@@ -399,7 +480,7 @@ const styles = StyleSheet.create({
     },
     panelBtnText: { fontSize: 14, fontFamily: 'Poppins_700Bold' },
     distractionRow: { flexDirection: 'row', gap: 12, paddingVertical: 10 },
-    distractionEmoji: { fontSize: 20 , fontFamily: 'Poppins_400Regular'},
+    distractionEmoji: { fontSize: 20, fontFamily: 'Poppins_400Regular' },
     distractionLabel: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
     distractionDetail: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
     endBtn: {

@@ -150,15 +150,27 @@ export default function GoalScreen({ navigation }) {
     const salvar = async () => {
         const b = parseInt(baseline);
         const a = parseInt(alvo);
-        if (isNaN(b) || b <= 0) { Alert.alert('Opa', 'Quantas puxadas por dia você dá hoje?'); return; }
-        if (isNaN(a) || a < 0) { Alert.alert('Opa', 'Coloca um alvo válido (pode ser 0).'); return; }
-        if (a >= b) { Alert.alert('Opa', 'O alvo precisa ser menor do que o seu consumo de hoje.'); return; }
+        if (isNaN(b) || b <= 0) {
+            Alert.alert('Opa', 'Quantas puxadas por dia você dá hoje?');
+            return;
+        }
+        if (isNaN(a) || a < 0) {
+            Alert.alert('Opa', 'Coloca um alvo válido (pode ser 0).');
+            return;
+        }
+        if (a >= b) {
+            Alert.alert('Opa', 'O alvo precisa ser menor do que o seu consumo de hoje.');
+            return;
+        }
 
         const meta = metaDoFormulario();
         // Editar uma meta em andamento com prazo curto pode jogar o fim antes
         // de hoje — aí a rampa nasceria vencida.
         if (diferencaEmDias(dataDeHoje(), meta.endDate) <= 0) {
-            Alert.alert('Opa', 'Esse prazo termina antes de hoje, contando da data em que sua meta começou. Escolha um prazo maior.');
+            Alert.alert(
+                'Opa',
+                'Esse prazo termina antes de hoje, contando da data em que sua meta começou. Escolha um prazo maior.'
+            );
             return;
         }
 
@@ -198,12 +210,18 @@ export default function GoalScreen({ navigation }) {
                     const resultado = await salvarMeta(null);
                     if (!resultado.ok) {
                         setSalvando(false);
-                        mostrarErro('Não deu pra remover a meta', 'Verifique sua conexão e tente de novo.');
+                        mostrarErro(
+                            'Não deu pra remover a meta',
+                            'Verifique sua conexão e tente de novo.'
+                        );
                         return;
                     }
                     // Sem meta o limite volta a ser o do aparelho, então a
                     // economia (e o que depende dela) precisa acompanhar.
-                    const [registros, aparelho] = await Promise.all([obterRegistros(), obterAparelho()]);
+                    const [registros, aparelho] = await Promise.all([
+                        obterRegistros(),
+                        obterAparelho(),
+                    ]);
                     const economia = await recalcularEconomia(registros, aparelho, null);
                     const { recompensas } = await sincronizarGamificacao({
                         registros,
@@ -226,180 +244,248 @@ export default function GoalScreen({ navigation }) {
     const metaDeHoje = metaDoDia(rascunho, dataDeHoje());
     // Meta salva com prazo fora da lista padrão ainda precisa de chip próprio,
     // senão editar o alvo trocaria o prazo em silêncio.
-    const prazosVisiveis = PRAZOS.includes(prazo) ? PRAZOS : [...PRAZOS, prazo].sort((x, y) => x - y);
-    const estiloDoInput = [styles.input, { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text }];
+    const prazosVisiveis = PRAZOS.includes(prazo)
+        ? PRAZOS
+        : [...PRAZOS, prazo].sort((x, y) => x - y);
+    const estiloDoInput = [
+        styles.input,
+        { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text },
+    ];
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
-        <ScrollView style={[styles.scroll, { backgroundColor: cores.background }]} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-            <ScreenHeader
-                titulo="Sua Meta"
-                subtitulo="Até onde você quer chegar"
-                cores={cores}
-                mostrarConfiguracoes
-                aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
-                aoPressionarVoltar={() => navigation.goBack()}
-            />
-
-            <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                <Text style={[styles.fieldLabel, { color: cores.text }]}>Quantas puxadas por dia hoje</Text>
-                <TextInput
-                    style={estiloDoInput}
-                    placeholder="Ex: 100"
-                    placeholderTextColor={cores.textMuted}
-                    value={baseline}
-                    onChangeText={aoDigitarInteiro(setBaseline)}
-                    keyboardType="number-pad"
+            <ScrollView
+                style={[styles.scroll, { backgroundColor: cores.background }]}
+                contentContainerStyle={styles.container}
+                keyboardShouldPersistTaps="handled"
+            >
+                <ScreenHeader
+                    titulo="Sua Meta"
+                    subtitulo="Até onde você quer chegar"
+                    cores={cores}
+                    mostrarConfiguracoes
+                    aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
+                    aoPressionarVoltar={() => navigation.goBack()}
                 />
 
-                <Text style={[styles.fieldLabel, { color: cores.text }]}>Quer chegar a quantas por dia</Text>
-                <TextInput
-                    style={estiloDoInput}
-                    placeholder="Ex: 10"
-                    placeholderTextColor={cores.textMuted}
-                    value={alvo}
-                    onChangeText={aoDigitarInteiro(setAlvo)}
-                    keyboardType="number-pad"
-                />
-
-                <Text style={[styles.fieldLabel, { color: cores.text }]}>Em quanto tempo</Text>
-                <View style={styles.chipRow}>
-                    {prazosVisiveis.map((dias) => {
-                        const ativo = dias === prazo;
-                        return (
-                            <TouchableOpacity
-                                key={dias}
-                                style={[
-                                    styles.chip,
-                                    {
-                                        backgroundColor: ativo ? cores.primary : cores.inputBg,
-                                        borderColor: ativo ? cores.primary : cores.border,
-                                    },
-                                ]}
-                                onPress={() => setPrazo(dias)}
-                            >
-                                <Text style={[styles.chipText, { color: ativo ? '#fff' : cores.textSecondary }]}>
-                                    {dias} dias
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-
-                <TouchableOpacity
-                    style={[styles.dateBtn, { borderColor: cores.border, backgroundColor: cores.inputBg }]}
-                    onPress={abrirSeletorDeData}
-                >
-                    <Ionicons name="calendar-outline" size={18} color={cores.primary} />
-                    <Text style={[styles.dateBtnLabel, { color: cores.textSecondary }]}>Terminar em</Text>
-                    <Text style={[styles.dateBtnValue, { color: cores.text }]}>
-                        {formatarData(rascunho.endDate)}
+                <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                    <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                        Quantas puxadas por dia hoje
                     </Text>
-                </TouchableOpacity>
+                    <TextInput
+                        style={estiloDoInput}
+                        placeholder="Ex: 100"
+                        placeholderTextColor={cores.textMuted}
+                        value={baseline}
+                        onChangeText={aoDigitarInteiro(setBaseline)}
+                        keyboardType="number-pad"
+                    />
 
-                {metaDeHoje !== null && (
-                    <View style={[styles.previewBox, { backgroundColor: cores.primaryLight }]}>
-                        <Text style={[styles.previewTitle, { color: cores.primaryDark }]}>Prévia</Text>
-                        <View style={styles.previewRow}>
-                            <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Seu limite de hoje</Text>
-                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
-                                {Math.round(metaDeHoje)} puxadas
+                    <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                        Quer chegar a quantas por dia
+                    </Text>
+                    <TextInput
+                        style={estiloDoInput}
+                        placeholder="Ex: 10"
+                        placeholderTextColor={cores.textMuted}
+                        value={alvo}
+                        onChangeText={aoDigitarInteiro(setAlvo)}
+                        keyboardType="number-pad"
+                    />
+
+                    <Text style={[styles.fieldLabel, { color: cores.text }]}>Em quanto tempo</Text>
+                    <View style={styles.chipRow}>
+                        {prazosVisiveis.map((dias) => {
+                            const ativo = dias === prazo;
+                            return (
+                                <TouchableOpacity
+                                    key={dias}
+                                    style={[
+                                        styles.chip,
+                                        {
+                                            backgroundColor: ativo ? cores.primary : cores.inputBg,
+                                            borderColor: ativo ? cores.primary : cores.border,
+                                        },
+                                    ]}
+                                    onPress={() => setPrazo(dias)}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.chipText,
+                                            { color: ativo ? '#fff' : cores.textSecondary },
+                                        ]}
+                                    >
+                                        {dias} dias
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    <TouchableOpacity
+                        style={[
+                            styles.dateBtn,
+                            { borderColor: cores.border, backgroundColor: cores.inputBg },
+                        ]}
+                        onPress={abrirSeletorDeData}
+                    >
+                        <Ionicons name="calendar-outline" size={18} color={cores.primary} />
+                        <Text style={[styles.dateBtnLabel, { color: cores.textSecondary }]}>
+                            Terminar em
+                        </Text>
+                        <Text style={[styles.dateBtnValue, { color: cores.text }]}>
+                            {formatarData(rascunho.endDate)}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {metaDeHoje !== null && (
+                        <View style={[styles.previewBox, { backgroundColor: cores.primaryLight }]}>
+                            <Text style={[styles.previewTitle, { color: cores.primaryDark }]}>
+                                Prévia
                             </Text>
-                        </View>
-                        {inicio !== null && (
                             <View style={styles.previewRow}>
-                                <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Começou em</Text>
+                                <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>
+                                    Seu limite de hoje
+                                </Text>
                                 <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
-                                    {formatarData(inicio)}
+                                    {Math.round(metaDeHoje)} puxadas
                                 </Text>
                             </View>
-                        )}
-                        <View style={styles.previewRow}>
-                            <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Chega no alvo em</Text>
-                            <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
-                                {formatarData(rascunho.endDate)}
+                            {inicio !== null && (
+                                <View style={styles.previewRow}>
+                                    <Text
+                                        style={[
+                                            styles.previewLabel,
+                                            { color: cores.textSecondary },
+                                        ]}
+                                    >
+                                        Começou em
+                                    </Text>
+                                    <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
+                                        {formatarData(inicio)}
+                                    </Text>
+                                </View>
+                            )}
+                            <View style={styles.previewRow}>
+                                <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>
+                                    Chega no alvo em
+                                </Text>
+                                <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
+                                    {formatarData(rascunho.endDate)}
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
+                    <TouchableOpacity
+                        style={[
+                            styles.saveBtn,
+                            { backgroundColor: cores.primary },
+                            salvando && styles.saveBtnDisabled,
+                        ]}
+                        onPress={salvar}
+                        disabled={salvando}
+                    >
+                        <Ionicons
+                            name={salvando ? 'hourglass-outline' : 'flag-outline'}
+                            size={20}
+                            color="#fff"
+                        />
+                        <Text style={styles.saveBtnText}>
+                            {salvando ? 'Salvando...' : 'Salvar minha meta'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {temMetaSalva && (
+                        <TouchableOpacity
+                            style={styles.removeBtn}
+                            onPress={remover}
+                            disabled={salvando}
+                        >
+                            <Text style={[styles.removeBtnText, { color: cores.danger }]}>
+                                Remover minha meta
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {sucessoVisivel && (
+                        <Animated.View
+                            style={[
+                                styles.successBox,
+                                {
+                                    backgroundColor: cores.primaryLight,
+                                    borderColor: cores.primary,
+                                    opacity: animacaoDeFade,
+                                },
+                            ]}
+                        >
+                            <Ionicons name="checkmark-circle" size={22} color={cores.primary} />
+                            <Text style={[styles.successText, { color: cores.primaryDark }]}>
+                                {inicio === null || inicio === dataDeHoje()
+                                    ? 'Meta salva! Ela já vale a partir de hoje. ✅'
+                                    : `Meta salva! Sua rampa continua contando desde ${formatarData(inicio)}. ✅`}
+                            </Text>
+                        </Animated.View>
+                    )}
+                </View>
+
+                <View style={[styles.infoBox, { backgroundColor: cores.primaryLight }]}>
+                    <Ionicons name="information-circle-outline" size={18} color={cores.primary} />
+                    <Text style={[styles.infoText, { color: cores.primaryDark }]}>
+                        Seu limite de puxadas desce um pouco a cada dia até o alvo, em vez de cair
+                        de uma vez — é o que torna a redução possível. Enquanto essa meta existir, é
+                        ela que vale no lugar do consumo do aparelho.
+                    </Text>
+                </View>
+
+                <View style={{ height: 40 }} />
+            </ScrollView>
+
+            {/* Data final no calendário — alternativa aos chips de 30/60/90 dias */}
+            <Modal
+                visible={modalDeDataAberto}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setModalDeDataAberto(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: cores.modalBg }]}>
+                        <View style={[styles.modalHeader, { borderBottomColor: cores.border }]}>
+                            <Text style={[styles.modalTitle, { color: cores.text }]}>
+                                Data final da meta
+                            </Text>
+                            <TouchableOpacity onPress={() => setModalDeDataAberto(false)}>
+                                <Ionicons name="close" size={24} color={cores.textMuted} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.modalBody}>
+                            <CalendarioMensal
+                                ano={mesDoSeletor.ano}
+                                mes={mesDoSeletor.mes}
+                                cores={cores}
+                                aoMudarMes={setMesDoSeletor}
+                                bloquearVolta={
+                                    mesDoSeletor.ano === mesDeData(dataFinalMinima).ano &&
+                                    mesDoSeletor.mes === mesDeData(dataFinalMinima).mes
+                                }
+                                minimo={dataFinalMinima}
+                                estiloDoDia={(dataStr) =>
+                                    dataStr === rascunho.endDate
+                                        ? { fundo: cores.primary, corDoTexto: '#fff' }
+                                        : {}
+                                }
+                                aoTocarDia={escolherDataFinal}
+                            />
+
+                            <Text style={[styles.modalHint, { color: cores.textSecondary }]}>
+                                Chega no alvo em {formatarDataCompleta(rascunho.endDate)} — {prazo}{' '}
+                                {prazo === 1 ? 'dia' : 'dias'} de rampa.
                             </Text>
                         </View>
                     </View>
-                )}
-
-                <TouchableOpacity
-                    style={[styles.saveBtn, { backgroundColor: cores.primary }, salvando && styles.saveBtnDisabled]}
-                    onPress={salvar}
-                    disabled={salvando}
-                >
-                    <Ionicons name={salvando ? 'hourglass-outline' : 'flag-outline'} size={20} color="#fff" />
-                    <Text style={styles.saveBtnText}>{salvando ? 'Salvando...' : 'Salvar minha meta'}</Text>
-                </TouchableOpacity>
-
-                {temMetaSalva && (
-                    <TouchableOpacity style={styles.removeBtn} onPress={remover} disabled={salvando}>
-                        <Text style={[styles.removeBtnText, { color: cores.danger }]}>Remover minha meta</Text>
-                    </TouchableOpacity>
-                )}
-
-                {sucessoVisivel && (
-                    <Animated.View style={[styles.successBox, { backgroundColor: cores.primaryLight, borderColor: cores.primary, opacity: animacaoDeFade }]}>
-                        <Ionicons name="checkmark-circle" size={22} color={cores.primary} />
-                        <Text style={[styles.successText, { color: cores.primaryDark }]}>
-                            {inicio === null || inicio === dataDeHoje()
-                                ? 'Meta salva! Ela já vale a partir de hoje. ✅'
-                                : `Meta salva! Sua rampa continua contando desde ${formatarData(inicio)}. ✅`}
-                        </Text>
-                    </Animated.View>
-                )}
-            </View>
-
-            <View style={[styles.infoBox, { backgroundColor: cores.primaryLight }]}>
-                <Ionicons name="information-circle-outline" size={18} color={cores.primary} />
-                <Text style={[styles.infoText, { color: cores.primaryDark }]}>
-                    Seu limite de puxadas desce um pouco a cada dia até o alvo, em vez de cair de uma
-                    vez — é o que torna a redução possível. Enquanto essa meta existir, é ela que
-                    vale no lugar do consumo do aparelho.
-                </Text>
-            </View>
-
-            <View style={{ height: 40 }} />
-        </ScrollView>
-
-        {/* Data final no calendário — alternativa aos chips de 30/60/90 dias */}
-        <Modal visible={modalDeDataAberto} transparent animationType="slide" onRequestClose={() => setModalDeDataAberto(false)}>
-            <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, { backgroundColor: cores.modalBg }]}>
-                    <View style={[styles.modalHeader, { borderBottomColor: cores.border }]}>
-                        <Text style={[styles.modalTitle, { color: cores.text }]}>Data final da meta</Text>
-                        <TouchableOpacity onPress={() => setModalDeDataAberto(false)}>
-                            <Ionicons name="close" size={24} color={cores.textMuted} />
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.modalBody}>
-                        <CalendarioMensal
-                            ano={mesDoSeletor.ano}
-                            mes={mesDoSeletor.mes}
-                            cores={cores}
-                            aoMudarMes={setMesDoSeletor}
-                            bloquearVolta={
-                                mesDoSeletor.ano === mesDeData(dataFinalMinima).ano &&
-                                mesDoSeletor.mes === mesDeData(dataFinalMinima).mes
-                            }
-                            minimo={dataFinalMinima}
-                            estiloDoDia={(dataStr) =>
-                                dataStr === rascunho.endDate
-                                    ? { fundo: cores.primary, corDoTexto: '#fff' }
-                                    : {}
-                            }
-                            aoTocarDia={escolherDataFinal}
-                        />
-
-                        <Text style={[styles.modalHint, { color: cores.textSecondary }]}>
-                            Chega no alvo em {formatarDataCompleta(rascunho.endDate)} —{' '}
-                            {prazo} {prazo === 1 ? 'dia' : 'dias'} de rampa.
-                        </Text>
-                    </View>
                 </View>
-            </View>
-        </Modal>
+            </Modal>
         </View>
     );
 }
@@ -409,31 +495,98 @@ const styles = StyleSheet.create({
     container: { paddingBottom: 24 },
     card: { borderRadius: RAIO.lg, padding: 18, marginHorizontal: 16, marginTop: 16 },
     fieldLabel: { fontSize: 14, fontFamily: 'Poppins_700Bold', marginBottom: 8, marginTop: 4 },
-    input: { borderWidth: 1.5, borderRadius: RAIO.md, padding: 12, fontSize: 15, fontFamily: 'Poppins_400Regular', marginBottom: 14 },
+    input: {
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+        padding: 12,
+        fontSize: 15,
+        fontFamily: 'Poppins_400Regular',
+        marginBottom: 14,
+    },
     chipRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-    chip: { flex: 1, borderWidth: 1.5, borderRadius: RAIO.md, paddingVertical: 12, alignItems: 'center' },
+    chip: {
+        flex: 1,
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
     chipText: { fontSize: 14, fontFamily: 'Poppins_700Bold' },
-    dateBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: RAIO.md, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 16 },
+    dateBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        marginBottom: 16,
+    },
     dateBtnLabel: { fontSize: 14, fontFamily: 'Poppins_400Regular', flex: 1 },
     dateBtnValue: { fontSize: 14, fontFamily: 'Poppins_700Bold' },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalContent: { borderTopLeftRadius: RAIO.lg, borderTopRightRadius: RAIO.lg, paddingBottom: 24 },
-    modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1 },
+    modalContent: {
+        borderTopLeftRadius: RAIO.lg,
+        borderTopRightRadius: RAIO.lg,
+        paddingBottom: 24,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 18,
+        borderBottomWidth: 1,
+    },
     modalTitle: { fontSize: 17, fontFamily: 'Poppins_700Bold' },
     modalBody: { padding: 18 },
-    modalHint: { fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 14, lineHeight: 18 },
+    modalHint: {
+        fontSize: 13,
+        fontFamily: 'Poppins_400Regular',
+        textAlign: 'center',
+        marginTop: 14,
+        lineHeight: 18,
+    },
     previewBox: { borderRadius: RAIO.md, padding: 14, marginBottom: 16 },
-    previewTitle: { fontSize: 12, fontFamily: 'Poppins_700Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+    previewTitle: {
+        fontSize: 12,
+        fontFamily: 'Poppins_700Bold',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 10,
+    },
     previewRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
     previewLabel: { fontSize: 13, fontFamily: 'Poppins_400Regular' },
     previewVal: { fontSize: 13, fontFamily: 'Poppins_700Bold' },
-    saveBtn: { borderRadius: RAIO.md, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    saveBtn: {
+        borderRadius: RAIO.md,
+        paddingVertical: 15,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
     saveBtnDisabled: { opacity: 0.7 },
     saveBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins_700Bold' },
     removeBtn: { alignItems: 'center', paddingVertical: 14 },
     removeBtnText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
-    successBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: RAIO.md, padding: 14, marginTop: 12 },
+    successBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+        padding: 14,
+        marginTop: 12,
+    },
     successText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold', flex: 1 },
-    infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginHorizontal: 16, marginTop: 14, borderRadius: RAIO.md, padding: 14 },
+    infoBox: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+        marginHorizontal: 16,
+        marginTop: 14,
+        borderRadius: RAIO.md,
+        padding: 14,
+    },
     infoText: { flex: 1, fontSize: 13, fontFamily: 'Poppins_400Regular', lineHeight: 18 },
 });

@@ -8,13 +8,13 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  Modal,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  StyleSheet,
+    View,
+    Text,
+    Modal,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    StyleSheet,
 } from 'react-native';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { DESFECHOS_DE_CRISE as DESFECHOS } from '../utils/insights';
@@ -22,137 +22,154 @@ import { DESFECHOS_DE_CRISE as DESFECHOS } from '../utils/insights';
 // `valorInicial` ({ outcome, note }) é o que faz este mesmo modal servir pra
 // edição na tela de histórico de crises. Sem ele, é o fim de sessão normal.
 export default function CrisisOutcomeModal({
-  visivel,
-  cores,
-  aoEnviar,
-  aoPular,
-  valorInicial = null,
-  titulo = 'E aí, como foi?',
-  subtitulo = 'Não tem resposta errada. Isso me ajuda a te ajudar melhor na próxima.',
-  rotuloDeSalvar = 'Salvar',
-  rotuloDePular = 'Agora não',
+    visivel,
+    cores,
+    aoEnviar,
+    aoPular,
+    valorInicial = null,
+    titulo = 'E aí, como foi?',
+    subtitulo = 'Não tem resposta errada. Isso me ajuda a te ajudar melhor na próxima.',
+    rotuloDeSalvar = 'Salvar',
+    rotuloDePular = 'Agora não',
 }) {
-  const [desfecho, setDesfecho] = useState(valorInicial?.outcome ?? null);
-  const [nota, setNota] = useState(valorInicial?.note ?? '');
+    const [desfecho, setDesfecho] = useState(valorInicial?.outcome ?? null);
+    const [nota, setNota] = useState(valorInicial?.note ?? '');
 
-  // Reabrir o modal tem que mostrar o desfecho da sessão que está sendo
-  // editada, não o que sobrou da anterior.
-  useEffect(() => {
-    if (visivel) {
-      setDesfecho(valorInicial?.outcome ?? null);
-      setNota(valorInicial?.note ?? '');
+    // Reabrir o modal tem que mostrar o desfecho da sessão que está sendo
+    // editada, não o que sobrou da anterior.
+    useEffect(() => {
+        if (visivel) {
+            setDesfecho(valorInicial?.outcome ?? null);
+            setNota(valorInicial?.note ?? '');
+        }
+    }, [visivel, valorInicial]);
+
+    function finalizar(desfechoEscolhido) {
+        const notaLimpa = nota.trim();
+        setDesfecho(null);
+        setNota('');
+        aoEnviar(desfechoEscolhido, notaLimpa || null);
     }
-  }, [visivel, valorInicial]);
 
-  function finalizar(desfechoEscolhido) {
-    const notaLimpa = nota.trim();
-    setDesfecho(null);
-    setNota('');
-    aoEnviar(desfechoEscolhido, notaLimpa || null);
-  }
+    function pular() {
+        setDesfecho(null);
+        setNota('');
+        aoPular();
+    }
 
-  function pular() {
-    setDesfecho(null);
-    setNota('');
-    aoPular();
-  }
+    return (
+        <Modal visible={visivel} transparent animationType="fade" onRequestClose={pular}>
+            <TouchableWithoutFeedback onPress={pular}>
+                <View style={styles.backdrop}>
+                    <TouchableWithoutFeedback>
+                        <View
+                            style={[styles.sheet, { backgroundColor: cores.modalBg }, SOMBRA.media]}
+                        >
+                            <Text style={[styles.title, { color: cores.text }]}>{titulo}</Text>
+                            <Text style={[styles.subtitle, { color: cores.textSecondary }]}>
+                                {subtitulo}
+                            </Text>
 
-  return (
-    <Modal visible={visivel} transparent animationType="fade" onRequestClose={pular}>
-      <TouchableWithoutFeedback onPress={pular}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback>
-            <View style={[styles.sheet, { backgroundColor: cores.modalBg }, SOMBRA.media]}>
-              <Text style={[styles.title, { color: cores.text }]}>{titulo}</Text>
-              <Text style={[styles.subtitle, { color: cores.textSecondary }]}>{subtitulo}</Text>
+                            <View style={styles.chips}>
+                                {DESFECHOS.map((d) => (
+                                    <TouchableOpacity
+                                        key={d.id}
+                                        style={[
+                                            styles.chip,
+                                            {
+                                                borderColor: cores.border,
+                                                backgroundColor: cores.card,
+                                            },
+                                            desfecho === d.id && {
+                                                borderColor: cores.primary,
+                                                backgroundColor: cores.primary,
+                                            },
+                                        ]}
+                                        onPress={() => setDesfecho(d.id)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.chipText,
+                                                { color: cores.textSecondary },
+                                                desfecho === d.id && { color: '#fff' },
+                                            ]}
+                                        >
+                                            {d.emoji} {d.rotulo}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
 
-              <View style={styles.chips}>
-                {DESFECHOS.map((d) => (
-                  <TouchableOpacity
-                    key={d.id}
-                    style={[
-                      styles.chip,
-                      { borderColor: cores.border, backgroundColor: cores.card },
-                      desfecho === d.id && { borderColor: cores.primary, backgroundColor: cores.primary },
-                    ]}
-                    onPress={() => setDesfecho(d.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: cores.textSecondary },
-                        desfecho === d.id && { color: '#fff' },
-                      ]}
-                    >
-                      {d.emoji} {d.rotulo}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                            <TextInput
+                                style={[
+                                    styles.input,
+                                    {
+                                        borderColor: cores.border,
+                                        backgroundColor: cores.inputBg,
+                                        color: cores.text,
+                                    },
+                                ]}
+                                placeholder="Quer contar o que sentiu? (opcional)"
+                                placeholderTextColor={cores.textMuted}
+                                value={nota}
+                                onChangeText={setNota}
+                                multiline
+                            />
 
-              <TextInput
-                style={[
-                  styles.input,
-                  { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text },
-                ]}
-                placeholder="Quer contar o que sentiu? (opcional)"
-                placeholderTextColor={cores.textMuted}
-                value={nota}
-                onChangeText={setNota}
-                multiline
-              />
+                            <TouchableOpacity
+                                style={[
+                                    styles.saveBtn,
+                                    { backgroundColor: desfecho ? cores.primary : cores.border },
+                                ]}
+                                disabled={!desfecho}
+                                onPress={() => finalizar(desfecho)}
+                            >
+                                <Text style={styles.saveBtnText}>{rotuloDeSalvar}</Text>
+                            </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[
-                  styles.saveBtn,
-                  { backgroundColor: desfecho ? cores.primary : cores.border },
-                ]}
-                disabled={!desfecho}
-                onPress={() => finalizar(desfecho)}
-              >
-                <Text style={styles.saveBtnText}>{rotuloDeSalvar}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.skipBtn} onPress={pular}>
-                <Text style={[styles.skipText, { color: cores.textMuted }]}>{rotuloDePular}</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
-  );
+                            <TouchableOpacity style={styles.skipBtn} onPress={pular}>
+                                <Text style={[styles.skipText, { color: cores.textMuted }]}>
+                                    {rotuloDePular}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </Modal>
+    );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  sheet: { borderRadius: RAIO.lg, padding: 20 },
-  title: { fontSize: 20, fontFamily: 'Poppins_800ExtraBold' },
-  subtitle: { fontSize: 13, fontFamily: 'Poppins_400Regular', marginTop: 6, lineHeight: 18 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
-  chip: { borderWidth: 1.5, borderRadius: RAIO.full, paddingVertical: 8, paddingHorizontal: 14 },
-  chipText: { fontSize: 13, fontFamily: 'Poppins_600SemiBold' },
-  input: {
-    borderWidth: 1.5,
-    borderRadius: RAIO.md,
-    padding: 12,
-    marginTop: 14,
-    fontSize: 14, fontFamily: 'Poppins_400Regular',
-    minHeight: 70,
-    textAlignVertical: 'top',
-  },
-  saveBtn: {
-    borderRadius: RAIO.md,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  saveBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Poppins_700Bold' },
-  skipBtn: { alignItems: 'center', paddingVertical: 12 },
-  skipText: { fontSize: 13, fontFamily: 'Poppins_600SemiBold' },
+    backdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        justifyContent: 'center',
+        padding: 24,
+    },
+    sheet: { borderRadius: RAIO.lg, padding: 20 },
+    title: { fontSize: 20, fontFamily: 'Poppins_800ExtraBold' },
+    subtitle: { fontSize: 13, fontFamily: 'Poppins_400Regular', marginTop: 6, lineHeight: 18 },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+    chip: { borderWidth: 1.5, borderRadius: RAIO.full, paddingVertical: 8, paddingHorizontal: 14 },
+    chipText: { fontSize: 13, fontFamily: 'Poppins_600SemiBold' },
+    input: {
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+        padding: 12,
+        marginTop: 14,
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
+        minHeight: 70,
+        textAlignVertical: 'top',
+    },
+    saveBtn: {
+        borderRadius: RAIO.md,
+        paddingVertical: 14,
+        alignItems: 'center',
+        marginTop: 16,
+    },
+    saveBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Poppins_700Bold' },
+    skipBtn: { alignItems: 'center', paddingVertical: 12 },
+    skipText: { fontSize: 13, fontFamily: 'Poppins_600SemiBold' },
 });

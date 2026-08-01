@@ -48,7 +48,8 @@ WebBrowser.maybeCompleteAuthSession();
 // (`vapefree://`) dá redirect_uri_mismatch. Esse scheme precisa estar
 // declarado no `scheme` do app.json, senão a volta do browser não chega aqui.
 const CLIENT_ID_WEB = '445859118404-c0b3j87a7t0ej8s503oal396dfp2pdes.apps.googleusercontent.com';
-const CLIENT_ID_ANDROID = '445859118404-bhlmovclojdicvdugl9umrgve85f37co.apps.googleusercontent.com';
+const CLIENT_ID_ANDROID =
+    '445859118404-bhlmovclojdicvdugl9umrgve85f37co.apps.googleusercontent.com';
 const CLIENT_ID_IOS = '445859118404-tvijnoie97sqphusvr6sr66f5sm1o2ek.apps.googleusercontent.com';
 
 const CORES = {
@@ -98,7 +99,12 @@ export default function LoginScreen({ navigation }) {
         await continuarSemConta();
     }
 
-    async function perguntarSobreDadosDeConvidado({ titulo, mensagem, rotuloImportar, rotuloDescartar }) {
+    async function perguntarSobreDadosDeConvidado({
+        titulo,
+        mensagem,
+        rotuloImportar,
+        rotuloDescartar,
+    }) {
         if (!(await temDadosLocaisDoConvidado())) {
             return 'skip';
         }
@@ -141,15 +147,14 @@ export default function LoginScreen({ navigation }) {
         }
     }
 
-    const [request, response, promptAsync] =
-        Google.useAuthRequest({
-            webClientId: CLIENT_ID_WEB,
-            androidClientId: CLIENT_ID_ANDROID,
-            iosClientId: CLIENT_ID_IOS,
-            // Sempre mostrar o seletor de conta em vez de reusar a sessão que
-            // já estiver aberta no browser.
-            selectAccount: true,
-        });
+    const [request, response, promptAsync] = Google.useAuthRequest({
+        webClientId: CLIENT_ID_WEB,
+        androidClientId: CLIENT_ID_ANDROID,
+        iosClientId: CLIENT_ID_IOS,
+        // Sempre mostrar o seletor de conta em vez de reusar a sessão que
+        // já estiver aberta no browser.
+        selectAccount: true,
+    });
 
     useEffect(() => {
         async function autenticarComGoogle() {
@@ -171,13 +176,11 @@ export default function LoginScreen({ navigation }) {
 
             try {
                 const idToken = response.authentication?.idToken ?? response.params?.id_token;
-                const accessToken = response.authentication?.accessToken ?? response.params?.access_token;
+                const accessToken =
+                    response.authentication?.accessToken ?? response.params?.access_token;
 
                 if (!idToken && !accessToken) {
-                    Alert.alert(
-                        'Erro',
-                        'Não deu pra pegar seu login do Google. Tenta de novo.'
-                    );
+                    Alert.alert('Erro', 'Não deu pra pegar seu login do Google. Tenta de novo.');
                     return;
                 }
 
@@ -198,20 +201,19 @@ export default function LoginScreen({ navigation }) {
                     console.log('Não deu pra salvar o perfil:', perfilSalvo.motivo);
                 }
 
-                await finalizarDadosDeConvidado(credencialDoUsuario.user.uid, escolhaConvidadoGooglePendenteRef.current);
+                await finalizarDadosDeConvidado(
+                    credencialDoUsuario.user.uid,
+                    escolhaConvidadoGooglePendenteRef.current
+                );
                 escolhaConvidadoGooglePendenteRef.current = 'skip';
             } catch (erro) {
                 console.log('Erro no login com Google:', erro);
-                Alert.alert(
-                    'Erro',
-                    'Não deu pra entrar com o Google agora.'
-                );
+                Alert.alert('Erro', 'Não deu pra entrar com o Google agora.');
             }
         }
 
         autenticarComGoogle();
     }, [response]);
-
 
     async function fazerLogin() {
         const emailFormatado = email.trim();
@@ -234,7 +236,11 @@ export default function LoginScreen({ navigation }) {
 
         setCarregando(true);
         try {
-            const credencialDoUsuario = await signInWithEmailAndPassword(auth, emailFormatado, senha);
+            const credencialDoUsuario = await signInWithEmailAndPassword(
+                auth,
+                emailFormatado,
+                senha
+            );
             await finalizarDadosDeConvidado(credencialDoUsuario.user.uid, acao);
         } catch (erro) {
             if (CREDENCIAIS_INVALIDAS.includes(erro?.code)) {
@@ -255,7 +261,10 @@ export default function LoginScreen({ navigation }) {
         const emailFormatado = email.trim();
 
         if (!emailFormatado) {
-            Alert.alert('Opa', 'Preenche seu e-mail primeiro pra gente mandar o link de recuperação.');
+            Alert.alert(
+                'Opa',
+                'Preenche seu e-mail primeiro pra gente mandar o link de recuperação.'
+            );
             return;
         }
 
@@ -276,9 +285,15 @@ export default function LoginScreen({ navigation }) {
                     `Se existir uma conta com ${emailFormatado}, o link pra criar uma senha nova chegou no e-mail. Dá uma olhada no spam também.`
                 );
             } else if (erro?.code === 'auth/too-many-requests') {
-                Alert.alert('Calma lá', 'Você pediu muitos links seguidos. Espera um pouco e tenta de novo.');
+                Alert.alert(
+                    'Calma lá',
+                    'Você pediu muitos links seguidos. Espera um pouco e tenta de novo.'
+                );
             } else {
-                Alert.alert('Erro', 'Não deu pra enviar o link agora. Confira sua conexão e tenta de novo.');
+                Alert.alert(
+                    'Erro',
+                    'Não deu pra enviar o link agora. Confira sua conexão e tenta de novo.'
+                );
             }
         } finally {
             setEnviandoReset(false);
@@ -307,10 +322,7 @@ export default function LoginScreen({ navigation }) {
             promptAsync()
                 .catch((erro) => {
                     console.log(erro);
-                    Alert.alert(
-                        'Erro',
-                        'Não deu pra entrar com o Google.'
-                    );
+                    Alert.alert('Erro', 'Não deu pra entrar com o Google.');
                     escolhaConvidadoGooglePendenteRef.current = 'skip';
                 })
                 .finally(() => {
@@ -321,150 +333,162 @@ export default function LoginScreen({ navigation }) {
 
     return (
         <View style={{ flex: 1, backgroundColor: CORES.background }}>
-        {/* tela tem fundo branco fixo, sobrescreve o style="light" do App.js */}
-        <StatusBar style="dark" />
-        <KeyboardAvoidingView
-            style={styles.flex}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-            <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
+            {/* tela tem fundo branco fixo, sobrescreve o style="light" do App.js */}
+            <StatusBar style="dark" />
+            <KeyboardAvoidingView
+                style={styles.flex}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
-                <View style={styles.content}>
-                    <View style={styles.iconCircle}>
-                        <Ionicons name="checkmark-circle-outline" size={32} color={CORES.iconCheck} />
-                    </View>
-
-                    <Text style={styles.title}>Respire Livre</Text>
-                    <Text style={styles.subtitle}>
-                        Sua vida sem vape começa agora
-                    </Text>
-
-                    <View style={styles.fieldGroup}>
-                        <Text style={styles.label}>E-mail</Text>
-                        <View style={styles.inputContainer}>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.content}>
+                        <View style={styles.iconCircle}>
                             <Ionicons
-                                name="mail-outline"
-                                size={20}
-                                color={CORES.inputIconColor}
-                                style={styles.inputIconLeft}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="seu@email.com"
-                                placeholderTextColor={CORES.placeholderText}
-                                value={email}
-                                onChangeText={setEmail}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                keyboardType="email-address"
+                                name="checkmark-circle-outline"
+                                size={32}
+                                color={CORES.iconCheck}
                             />
                         </View>
-                    </View>
 
-                    <View style={styles.fieldGroupLarge}>
-                        <Text style={styles.label}>Senha</Text>
-                        <View style={styles.inputContainer}>
-                            <Ionicons
-                                name="lock-closed-outline"
-                                size={20}
-                                color={CORES.inputIconColor}
-                                style={styles.inputIconLeft}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Digite sua senha"
-                                placeholderTextColor={CORES.placeholderText}
-                                value={senha}
-                                onChangeText={setSenha}
-                                autoCapitalize="none"
-                                secureTextEntry={!mostrarSenha}
-                            />
-                            <TouchableOpacity
-                                onPress={() => setMostrarSenha((v) => !v)}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
+                        <Text style={styles.title}>Respire Livre</Text>
+                        <Text style={styles.subtitle}>Sua vida sem vape começa agora</Text>
+
+                        <View style={styles.fieldGroup}>
+                            <Text style={styles.label}>E-mail</Text>
+                            <View style={styles.inputContainer}>
                                 <Ionicons
-                                    name={mostrarSenha ? 'eye-off-outline' : 'eye-outline'}
+                                    name="mail-outline"
                                     size={20}
                                     color={CORES.inputIconColor}
+                                    style={styles.inputIconLeft}
                                 />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="seu@email.com"
+                                    placeholderTextColor={CORES.placeholderText}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    keyboardType="email-address"
+                                />
+                            </View>
+                        </View>
+
+                        <View style={styles.fieldGroupLarge}>
+                            <Text style={styles.label}>Senha</Text>
+                            <View style={styles.inputContainer}>
+                                <Ionicons
+                                    name="lock-closed-outline"
+                                    size={20}
+                                    color={CORES.inputIconColor}
+                                    style={styles.inputIconLeft}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Digite sua senha"
+                                    placeholderTextColor={CORES.placeholderText}
+                                    value={senha}
+                                    onChangeText={setSenha}
+                                    autoCapitalize="none"
+                                    secureTextEntry={!mostrarSenha}
+                                />
+                                <TouchableOpacity
+                                    onPress={() => setMostrarSenha((v) => !v)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Ionicons
+                                        name={mostrarSenha ? 'eye-off-outline' : 'eye-outline'}
+                                        size={20}
+                                        color={CORES.inputIconColor}
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        <View style={styles.optionsRow}>
+                            <TouchableOpacity
+                                onPress={handleEsqueceuSenha}
+                                disabled={enviandoReset}
+                            >
+                                <Text
+                                    style={[
+                                        styles.linkText,
+                                        enviandoReset && styles.linkTextDisabled,
+                                    ]}
+                                >
+                                    {enviandoReset ? 'Enviando...' : 'Esqueceu a senha?'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.button, carregando && styles.buttonDisabled]}
+                            onPress={fazerLogin}
+                            activeOpacity={0.85}
+                            disabled={carregando}
+                        >
+                            <Text style={styles.buttonText}>
+                                {carregando ? 'Entrando...' : 'Entrar'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.dividerRow}>
+                            <View style={styles.dividerLine} />
+                            <Text style={styles.dividerText}>Ou continue com</Text>
+                            <View style={styles.dividerLine} />
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.googleButton}
+                            onPress={handleGoogleLogin}
+                            activeOpacity={0.85}
+                        >
+                            <Ionicons
+                                name="logo-google"
+                                size={20}
+                                color={CORES.googleText}
+                                style={styles.googleIcon}
+                            />
+                            <Text style={styles.googleText}>Google</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.guestButton}
+                            onPress={handleContinuarSemConta}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={styles.guestButtonText}>Continuar sem conta</Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.footerRow}>
+                            <Text style={styles.footerText}>Não tem uma conta? </Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+                                <Text style={styles.footerLink}>Criar conta grátis</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
+                </ScrollView>
 
-                    <View style={styles.optionsRow}>
-                        <TouchableOpacity onPress={handleEsqueceuSenha} disabled={enviandoReset}>
-                            <Text style={[styles.linkText, enviandoReset && styles.linkTextDisabled]}>
-                                {enviandoReset ? 'Enviando...' : 'Esqueceu a senha?'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity
-                        style={[styles.button, carregando && styles.buttonDisabled]}
-                        onPress={fazerLogin}
-                        activeOpacity={0.85}
-                        disabled={carregando}
-                    >
-                        <Text style={styles.buttonText}>{carregando ? 'Entrando...' : 'Entrar'}</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.dividerRow}>
-                        <View style={styles.dividerLine} />
-                        <Text style={styles.dividerText}>Ou continue com</Text>
-                        <View style={styles.dividerLine} />
-                    </View>
-
-                    <TouchableOpacity
-                        style={styles.googleButton}
-                        onPress={handleGoogleLogin}
-                        activeOpacity={0.85}>
-
-                        <Ionicons
-                            name="logo-google"
-                            size={20}
-                            color={CORES.googleText}
-                            style={styles.googleIcon}
-                        />
-                        <Text style={styles.googleText}>Google</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.guestButton}
-                        onPress={handleContinuarSemConta}
-                        activeOpacity={0.7}>
-                        <Text style={styles.guestButtonText}>Continuar sem conta</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.footerRow}>
-                        <Text style={styles.footerText}>Não tem uma conta? </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                            <Text style={styles.footerLink}>Criar conta grátis</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </ScrollView>
-
-            {configEscolhaConvidado ? (
-                <GuestDataChoiceModal
-                    visivel={escolhaConvidadoVisivel}
-                    titulo={configEscolhaConvidado.titulo}
-                    mensagem={configEscolhaConvidado.mensagem}
-                    rotuloImportar={configEscolhaConvidado.rotuloImportar}
-                    rotuloDescartar={configEscolhaConvidado.rotuloDescartar}
-                    aoImportar={() => fecharEscolhaConvidado('import')}
-                    aoDescartar={() => fecharEscolhaConvidado('discard')}
-                    aoCancelar={() => fecharEscolhaConvidado('cancel')}
-                />
-            ) : null}
-        </KeyboardAvoidingView>
+                {configEscolhaConvidado ? (
+                    <GuestDataChoiceModal
+                        visivel={escolhaConvidadoVisivel}
+                        titulo={configEscolhaConvidado.titulo}
+                        mensagem={configEscolhaConvidado.mensagem}
+                        rotuloImportar={configEscolhaConvidado.rotuloImportar}
+                        rotuloDescartar={configEscolhaConvidado.rotuloDescartar}
+                        aoImportar={() => fecharEscolhaConvidado('import')}
+                        aoDescartar={() => fecharEscolhaConvidado('discard')}
+                        aoCancelar={() => fecharEscolhaConvidado('cancel')}
+                    />
+                ) : null}
+            </KeyboardAvoidingView>
         </View>
     );
 }
-
 
 const styles = StyleSheet.create({
     flex: {
@@ -540,7 +564,8 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         height: '100%',
-        fontSize: 15, fontFamily: 'Poppins_400Regular',
+        fontSize: 15,
+        fontFamily: 'Poppins_400Regular',
         color: CORES.inputText,
         padding: 0,
     },
@@ -594,7 +619,8 @@ const styles = StyleSheet.create({
     },
     dividerText: {
         marginHorizontal: 12,
-        fontSize: 13, fontFamily: 'Poppins_400Regular',
+        fontSize: 13,
+        fontFamily: 'Poppins_400Regular',
         color: CORES.dividerText,
     },
 
@@ -643,7 +669,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     footerText: {
-        fontSize: 14, fontFamily: 'Poppins_400Regular',
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
         color: CORES.footerText,
     },
     footerLink: {

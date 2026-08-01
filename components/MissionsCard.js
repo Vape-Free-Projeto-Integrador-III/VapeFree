@@ -14,14 +14,19 @@ export default function MissionsCard({ missoes = [], cores, aoPressionar }) {
         <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
             <View style={styles.header}>
                 <Text style={[styles.title, { color: cores.textMuted }]}>🎯 Missões de hoje</Text>
-                <Text style={[styles.counter, { color: cores.primaryDark }]}>{concluidas}/{total}</Text>
+                <Text style={[styles.counter, { color: cores.primaryDark }]}>
+                    {concluidas}/{total}
+                </Text>
             </View>
 
             <View style={[styles.track, { backgroundColor: cores.primaryLight }]}>
                 <View
                     style={[
                         styles.fill,
-                        { backgroundColor: cores.primary, width: `${Math.round(progresso * 100)}%` },
+                        {
+                            backgroundColor: cores.primary,
+                            width: `${Math.round(progresso * 100)}%`,
+                        },
                     ]}
                 />
             </View>

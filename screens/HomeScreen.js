@@ -1,12 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import {
-    View,
-    Text,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-    RefreshControl,
-} from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
@@ -136,7 +129,9 @@ export default function HomeScreen({ navigation }) {
         if (comparativo.direcao === 'estavel') return 'Praticamente igual à semana passada';
         const variacao = Math.abs(comparativo.diferenca).toFixed(1).replace('.', ',');
         const percentual =
-            comparativo.percentual === null ? '' : ` (${Math.abs(Math.round(comparativo.percentual))}%)`;
+            comparativo.percentual === null
+                ? ''
+                : ` (${Math.abs(Math.round(comparativo.percentual))}%)`;
         const verbo = comparativo.direcao === 'queda' ? 'a menos' : 'a mais';
         return `${variacao} puxadas por dia ${verbo}${percentual} que na semana passada`;
     })();
@@ -145,7 +140,9 @@ export default function HomeScreen({ navigation }) {
         const [, mes, dia] = d.split('-');
         return `${dia}/${mes}`;
     });
-    const dadosDoGrafico = ultimos7Dias.map((d) => somarPuxadas(registros.filter((r) => r.date === d)));
+    const dadosDoGrafico = ultimos7Dias.map((d) =>
+        somarPuxadas(registros.filter((r) => r.date === d))
+    );
 
     const economiaDeHoje = economia[hoje] || 0;
     const economiaTotal = Object.values(economia).reduce((a, v) => a + v, 0);
@@ -198,14 +195,20 @@ export default function HomeScreen({ navigation }) {
         return mapa;
     }, {});
     const mesAtual = mesDeData(hoje);
-    const estaNoMesAtual = mesDoCalendario.ano === mesAtual.ano && mesDoCalendario.mes === mesAtual.mes;
+    const estaNoMesAtual =
+        mesDoCalendario.ano === mesAtual.ano && mesDoCalendario.mes === mesAtual.mes;
     const resumoDoCalendario = resumoDoMes(registros, mesDoCalendario.ano, mesDoCalendario.mes);
 
     const estiloDoDiaNoCalendario = (dataStr) => {
-        const estado = estadoDoDia(registrosPorData[dataStr] || [], metaEfetiva(meta, aparelho, dataStr));
+        const estado = estadoDoDia(
+            registrosPorData[dataStr] || [],
+            metaEfetiva(meta, aparelho, dataStr)
+        );
         if (estado === 'limpo') return { fundo: cores.primary, corDoTexto: '#fff' };
-        if (estado === 'usou_dentro') return { fundo: cores.primaryLight, corDoTexto: cores.primaryDark };
-        if (estado === 'usou_acima') return { fundo: cores.danger + '33', corDoTexto: cores.danger, borda: cores.danger };
+        if (estado === 'usou_dentro')
+            return { fundo: cores.primaryLight, corDoTexto: cores.primaryDark };
+        if (estado === 'usou_acima')
+            return { fundo: cores.danger + '33', corDoTexto: cores.danger, borda: cores.danger };
         if (estado === 'usou') return { fundo: cores.warning + '33', corDoTexto: cores.text };
         return { fundo: cores.borderLight, corDoTexto: cores.textMuted };
     };
@@ -220,263 +223,635 @@ export default function HomeScreen({ navigation }) {
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
-        <ScrollView
-            style={[styles.scroll, { backgroundColor: cores.background }]}
-            contentContainerStyle={styles.container}
-            refreshControl={<RefreshControl refreshing={atualizando} onRefresh={aoAtualizar} tintColor={cores.primary} />}
-        >
-            <ScreenHeader
-                titulo="VapeFree"
-                subtitulo="Vamos deixar o vape pra trás"
-                cores={cores}
-                mostrarConfiguracoes
-                aoPressionarConfiguracoes={abrirConfiguracoes}
-            />
+            <ScrollView
+                style={[styles.scroll, { backgroundColor: cores.background }]}
+                contentContainerStyle={styles.container}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={atualizando}
+                        onRefresh={aoAtualizar}
+                        tintColor={cores.primary}
+                    />
+                }
+            >
+                <ScreenHeader
+                    titulo="VapeFree"
+                    subtitulo="Vamos deixar o vape pra trás"
+                    cores={cores}
+                    mostrarConfiguracoes
+                    aoPressionarConfiguracoes={abrirConfiguracoes}
+                />
 
-            <View style={estiloDoConteudo}>
-                <TouchableOpacity
-                    style={[styles.crisisCard, { backgroundColor: cores.card, borderLeftColor: cores.warning }, SOMBRA.media]}
-                    onPress={() => navigation.navigate('Crisis')}
-                >
-                    <Ionicons name="hand-left" size={26} color={cores.warning} />
-                    <View style={{ flex: 1 }}>
-                        <Text style={[styles.crisisTitle, { color: cores.text }]}>Estou com vontade</Text>
-                        <Text style={[styles.crisisSubtitle, { color: cores.textSecondary }]}>
-                            Toca aqui — a gente passa por isso junto
-                        </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color={cores.textMuted} />
-                </TouchableOpacity>
-
-                <GradeDeCards colunas={colunas}>
-                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Como você foi hoje?</Text>
-                        <View style={styles.statRow}>
-                            <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
-                                <Text style={[styles.statNum, { color: cores.primaryDark }]}>{puxadasDeHoje}</Text>
-                                <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Puxadas{'\n'}hoje</Text>
-                            </View>
-                            <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
-                                <Text style={[styles.statNum, { color: cores.primaryDark }]}>{streak}</Text>
-                                 <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Dias{'\n'}registrados{'\n'}sem uso</Text>
-                            </View>
-                            <View style={[styles.statBox, { backgroundColor: cores.primaryLight }]}>
-                                <Text style={[styles.statNum, { color: cores.primaryDark }]}>{puxadasDaSemana}</Text>
-                                <Text style={[styles.statLabel, { color: cores.textSecondary }]}>Esta{'\n'}semana</Text>
-                            </View>
-                        </View>
-
-                        <View
-                            style={[
-                                styles.shieldRow,
-                                { backgroundColor: cores.primaryLight, borderColor: temEscudo ? cores.primary : cores.borderLight },
-                            ]}
-                        >
-                            <Ionicons
-                                name={temEscudo ? 'shield-checkmark' : 'shield-outline'}
-                                size={20}
-                                color={temEscudo ? cores.primary : cores.textMuted}
-                            />
-                            <Text style={[styles.shieldText, { color: temEscudo ? cores.primaryDark : cores.textSecondary }]}>
-                                {mensagemDoEscudo}
+                <View style={estiloDoConteudo}>
+                    <TouchableOpacity
+                        style={[
+                            styles.crisisCard,
+                            { backgroundColor: cores.card, borderLeftColor: cores.warning },
+                            SOMBRA.media,
+                        ]}
+                        onPress={() => navigation.navigate('Crisis')}
+                    >
+                        <Ionicons name="hand-left" size={26} color={cores.warning} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.crisisTitle, { color: cores.text }]}>
+                                Estou com vontade
+                            </Text>
+                            <Text style={[styles.crisisSubtitle, { color: cores.textSecondary }]}>
+                                Toca aqui — a gente passa por isso junto
                             </Text>
                         </View>
+                        <Ionicons name="chevron-forward" size={18} color={cores.textMuted} />
+                    </TouchableOpacity>
 
-                        {mostrarExcesso ? (
-                            <View style={[styles.excessRow, { backgroundColor: cores.danger + '22', borderColor: cores.danger }]}>
-                                <Ionicons name="alert-circle" size={20} color={cores.danger} />
-                                <Text style={[styles.excessText, { color: cores.danger }]}>{mensagemDoExcesso}</Text>
+                    <GradeDeCards colunas={colunas}>
+                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                            <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                                Como você foi hoje?
+                            </Text>
+                            <View style={styles.statRow}>
+                                <View
+                                    style={[
+                                        styles.statBox,
+                                        { backgroundColor: cores.primaryLight },
+                                    ]}
+                                >
+                                    <Text style={[styles.statNum, { color: cores.primaryDark }]}>
+                                        {puxadasDeHoje}
+                                    </Text>
+                                    <Text
+                                        style={[styles.statLabel, { color: cores.textSecondary }]}
+                                    >
+                                        Puxadas{'\n'}hoje
+                                    </Text>
+                                </View>
+                                <View
+                                    style={[
+                                        styles.statBox,
+                                        { backgroundColor: cores.primaryLight },
+                                    ]}
+                                >
+                                    <Text style={[styles.statNum, { color: cores.primaryDark }]}>
+                                        {streak}
+                                    </Text>
+                                    <Text
+                                        style={[styles.statLabel, { color: cores.textSecondary }]}
+                                    >
+                                        Dias{'\n'}registrados{'\n'}sem uso
+                                    </Text>
+                                </View>
+                                <View
+                                    style={[
+                                        styles.statBox,
+                                        { backgroundColor: cores.primaryLight },
+                                    ]}
+                                >
+                                    <Text style={[styles.statNum, { color: cores.primaryDark }]}>
+                                        {puxadasDaSemana}
+                                    </Text>
+                                    <Text
+                                        style={[styles.statLabel, { color: cores.textSecondary }]}
+                                    >
+                                        Esta{'\n'}semana
+                                    </Text>
+                                </View>
                             </View>
-                        ) : null}
-                    </View>
 
-                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>📅 Seu mês</Text>
-
-                        <CalendarioMensal
-                            ano={mesDoCalendario.ano}
-                            mes={mesDoCalendario.mes}
-                            cores={cores}
-                            aoMudarMes={setMesDoCalendario}
-                            bloquearAvanco={estaNoMesAtual}
-                            maximo={hoje}
-                            estiloDoDia={estiloDoDiaNoCalendario}
-                            tooltipDoDia={tooltipDoDiaNoCalendario}
-                        />
-
-                        <Text style={[styles.calendarSummary, { color: cores.text }]}>
-                            {resumoDoCalendario.diasLimpos}{' '}
-                            {resumoDoCalendario.diasLimpos === 1 ? 'dia limpo' : 'dias limpos'} ·{' '}
-                            {resumoDoCalendario.diasComUso} com uso · {resumoDoCalendario.diasSemRegistro} sem registro
-                        </Text>
-
-                        <View style={styles.calendarLegend}>
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendDot, { backgroundColor: cores.primary }]} />
-                                <Text style={[styles.legendText, { color: cores.textSecondary }]}>Limpo</Text>
-                            </View>
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendDot, { backgroundColor: metaDeHoje === null ? cores.warning + '33' : cores.primaryLight }]} />
-                                <Text style={[styles.legendText, { color: cores.textSecondary }]}>
-                                    {metaDeHoje === null ? 'Com uso' : 'Dentro do limite'}
+                            <View
+                                style={[
+                                    styles.shieldRow,
+                                    {
+                                        backgroundColor: cores.primaryLight,
+                                        borderColor: temEscudo ? cores.primary : cores.borderLight,
+                                    },
+                                ]}
+                            >
+                                <Ionicons
+                                    name={temEscudo ? 'shield-checkmark' : 'shield-outline'}
+                                    size={20}
+                                    color={temEscudo ? cores.primary : cores.textMuted}
+                                />
+                                <Text
+                                    style={[
+                                        styles.shieldText,
+                                        {
+                                            color: temEscudo
+                                                ? cores.primaryDark
+                                                : cores.textSecondary,
+                                        },
+                                    ]}
+                                >
+                                    {mensagemDoEscudo}
                                 </Text>
                             </View>
-                            {metaDeHoje === null ? null : (
-                                <View style={styles.legendItem}>
-                                    <View style={[styles.legendDot, { backgroundColor: cores.danger + '33', borderColor: cores.danger, borderWidth: 1.5 }]} />
-                                    <Text style={[styles.legendText, { color: cores.textSecondary }]}>Acima</Text>
+
+                            {mostrarExcesso ? (
+                                <View
+                                    style={[
+                                        styles.excessRow,
+                                        {
+                                            backgroundColor: cores.danger + '22',
+                                            borderColor: cores.danger,
+                                        },
+                                    ]}
+                                >
+                                    <Ionicons name="alert-circle" size={20} color={cores.danger} />
+                                    <Text style={[styles.excessText, { color: cores.danger }]}>
+                                        {mensagemDoExcesso}
+                                    </Text>
                                 </View>
-                            )}
-                            <View style={styles.legendItem}>
-                                <View style={[styles.legendDot, { backgroundColor: cores.borderLight }]} />
-                                <Text style={[styles.legendText, { color: cores.textSecondary }]}>Sem registro</Text>
+                            ) : null}
+                        </View>
+
+                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                            <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                                📅 Seu mês
+                            </Text>
+
+                            <CalendarioMensal
+                                ano={mesDoCalendario.ano}
+                                mes={mesDoCalendario.mes}
+                                cores={cores}
+                                aoMudarMes={setMesDoCalendario}
+                                bloquearAvanco={estaNoMesAtual}
+                                maximo={hoje}
+                                estiloDoDia={estiloDoDiaNoCalendario}
+                                tooltipDoDia={tooltipDoDiaNoCalendario}
+                            />
+
+                            <Text style={[styles.calendarSummary, { color: cores.text }]}>
+                                {resumoDoCalendario.diasLimpos}{' '}
+                                {resumoDoCalendario.diasLimpos === 1 ? 'dia limpo' : 'dias limpos'}{' '}
+                                · {resumoDoCalendario.diasComUso} com uso ·{' '}
+                                {resumoDoCalendario.diasSemRegistro} sem registro
+                            </Text>
+
+                            <View style={styles.calendarLegend}>
+                                <View style={styles.legendItem}>
+                                    <View
+                                        style={[
+                                            styles.legendDot,
+                                            { backgroundColor: cores.primary },
+                                        ]}
+                                    />
+                                    <Text
+                                        style={[styles.legendText, { color: cores.textSecondary }]}
+                                    >
+                                        Limpo
+                                    </Text>
+                                </View>
+                                <View style={styles.legendItem}>
+                                    <View
+                                        style={[
+                                            styles.legendDot,
+                                            {
+                                                backgroundColor:
+                                                    metaDeHoje === null
+                                                        ? cores.warning + '33'
+                                                        : cores.primaryLight,
+                                            },
+                                        ]}
+                                    />
+                                    <Text
+                                        style={[styles.legendText, { color: cores.textSecondary }]}
+                                    >
+                                        {metaDeHoje === null ? 'Com uso' : 'Dentro do limite'}
+                                    </Text>
+                                </View>
+                                {metaDeHoje === null ? null : (
+                                    <View style={styles.legendItem}>
+                                        <View
+                                            style={[
+                                                styles.legendDot,
+                                                {
+                                                    backgroundColor: cores.danger + '33',
+                                                    borderColor: cores.danger,
+                                                    borderWidth: 1.5,
+                                                },
+                                            ]}
+                                        />
+                                        <Text
+                                            style={[
+                                                styles.legendText,
+                                                { color: cores.textSecondary },
+                                            ]}
+                                        >
+                                            Acima
+                                        </Text>
+                                    </View>
+                                )}
+                                <View style={styles.legendItem}>
+                                    <View
+                                        style={[
+                                            styles.legendDot,
+                                            { backgroundColor: cores.borderLight },
+                                        ]}
+                                    />
+                                    <Text
+                                        style={[styles.legendText, { color: cores.textSecondary }]}
+                                    >
+                                        Sem registro
+                                    </Text>
+                                </View>
                             </View>
                         </View>
-                    </View>
 
-                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>🎯 Seu limite de hoje</Text>
-                        {progressoDoObjetivo ? (
-                            <>
-                                <View style={styles.goalTopRow}>
-                                    <View>
-                                        <Text style={[styles.goalBig, { color: cores.text }]}>
-                                            {Math.round(progressoDoObjetivo.metaDeHoje)} puxadas
+                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                            <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                                🎯 Seu limite de hoje
+                            </Text>
+                            {progressoDoObjetivo ? (
+                                <>
+                                    <View style={styles.goalTopRow}>
+                                        <View>
+                                            <Text style={[styles.goalBig, { color: cores.text }]}>
+                                                {Math.round(progressoDoObjetivo.metaDeHoje)} puxadas
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.goalSub,
+                                                    { color: cores.textSecondary },
+                                                ]}
+                                            >
+                                                é o seu limite de hoje — você está em{' '}
+                                                {progressoDoObjetivo.usadasHoje}
+                                            </Text>
+                                        </View>
+                                        <View
+                                            style={[
+                                                styles.goalBadge,
+                                                {
+                                                    backgroundColor:
+                                                        progressoDoObjetivo.dentroDaMeta
+                                                            ? cores.primaryLight
+                                                            : cores.danger + '22',
+                                                },
+                                            ]}
+                                        >
+                                            <Ionicons
+                                                name={
+                                                    progressoDoObjetivo.dentroDaMeta
+                                                        ? 'checkmark-circle'
+                                                        : 'alert-circle'
+                                                }
+                                                size={16}
+                                                color={
+                                                    progressoDoObjetivo.dentroDaMeta
+                                                        ? cores.primary
+                                                        : cores.danger
+                                                }
+                                            />
+                                            <Text
+                                                style={[
+                                                    styles.goalBadgeText,
+                                                    {
+                                                        color: progressoDoObjetivo.dentroDaMeta
+                                                            ? cores.primaryDark
+                                                            : cores.danger,
+                                                    },
+                                                ]}
+                                            >
+                                                {progressoDoObjetivo.dentroDaMeta
+                                                    ? 'dentro'
+                                                    : 'acima'}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <View
+                                        style={[
+                                            styles.xpTrack,
+                                            { backgroundColor: cores.borderLight, marginTop: 12 },
+                                        ]}
+                                    >
+                                        <View
+                                            style={[
+                                                styles.xpFill,
+                                                {
+                                                    backgroundColor: cores.primary,
+                                                    width: `${progressoDoObjetivo.percentualDoTempo}%`,
+                                                },
+                                            ]}
+                                        />
+                                    </View>
+                                    <TouchableOpacity
+                                        onPress={() => navigation.navigate('Goal')}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.goalFoot,
+                                                { color: cores.textSecondary },
+                                            ]}
+                                        >
+                                            Objetivo: {meta.target}/dia até {diaFinal}/{mesFinal}/
+                                            {anoFinal} · {progressoDoObjetivo.diasRestantes} dias
+                                            restantes
                                         </Text>
-                                        <Text style={[styles.goalSub, { color: cores.textSecondary }]}>
-                                            é o seu limite de hoje — você está em {progressoDoObjetivo.usadasHoje}
+                                    </TouchableOpacity>
+                                </>
+                            ) : (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.devicePrompt,
+                                        {
+                                            backgroundColor: cores.primaryLight,
+                                            borderColor: cores.primary,
+                                        },
+                                    ]}
+                                    onPress={() => navigation.navigate('Goal')}
+                                >
+                                    <Ionicons
+                                        name="add-circle-outline"
+                                        size={20}
+                                        color={cores.primary}
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.devicePromptText,
+                                            { color: cores.primaryDark },
+                                        ]}
+                                    >
+                                        Define seu limite diário pra acompanhar a queda dia a dia 🎯
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                            <View style={styles.xpHeader}>
+                                <Text style={styles.xpIcon}>{nivel.icone}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.xpLevel, { color: cores.text }]}>
+                                        Nível {nivel.numero} · {nivel.nome}
+                                    </Text>
+                                    <Text style={[styles.xpSub, { color: cores.textSecondary }]}>
+                                        {nivel.nomeDoProximo
+                                            ? `${nivel.xpParaProximo} XP pra virar ${nivel.nomeDoProximo}`
+                                            : 'Nível máximo — você é lenda 👑'}
+                                    </Text>
+                                </View>
+                                <Text style={[styles.xpTotal, { color: cores.primaryDark }]}>
+                                    {xp} XP
+                                </Text>
+                            </View>
+                            <View style={[styles.xpTrack, { backgroundColor: cores.primaryLight }]}>
+                                <View
+                                    style={[
+                                        styles.xpFill,
+                                        {
+                                            backgroundColor: cores.primary,
+                                            width: `${Math.round(nivel.progresso * 100)}%`,
+                                        },
+                                    ]}
+                                />
+                            </View>
+                        </View>
+
+                        <MissionsCard
+                            missoes={missoes.filter((missao) => missao.period === 'daily')}
+                            cores={cores}
+                            aoPressionar={() => navigation.navigate('Missions')}
+                        />
+
+                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                            <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                                💰 Economia
+                            </Text>
+                            {aparelho ? (
+                                <View style={styles.moneyRow}>
+                                    <View
+                                        style={[
+                                            styles.moneyBox,
+                                            { backgroundColor: cores.primaryLight },
+                                        ]}
+                                    >
+                                        <Text style={styles.moneyIcon}>💰</Text>
+                                        <Text
+                                            style={[styles.moneyVal, { color: cores.primaryDark }]}
+                                        >
+                                            R$ {economiaDeHoje.toFixed(2)}
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.moneyLabel,
+                                                { color: cores.textSecondary },
+                                            ]}
+                                        >
+                                            Ficou no seu bolso hoje
                                         </Text>
                                     </View>
                                     <View
                                         style={[
-                                            styles.goalBadge,
+                                            styles.moneyBox,
+                                            { backgroundColor: cores.primaryLight },
+                                        ]}
+                                    >
+                                        <Text style={styles.moneyIcon}>💵</Text>
+                                        <Text
+                                            style={[styles.moneyVal, { color: cores.primaryDark }]}
+                                        >
+                                            R$ {economiaTotal.toFixed(2)}
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.moneyLabel,
+                                                { color: cores.textSecondary },
+                                            ]}
+                                        >
+                                            Total no bolso
+                                        </Text>
+                                    </View>
+                                </View>
+                            ) : (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.devicePrompt,
+                                        {
+                                            backgroundColor: cores.primaryLight,
+                                            borderColor: cores.primary,
+                                        },
+                                    ]}
+                                    onPress={() => navigation.navigate('Device')}
+                                >
+                                    <Ionicons
+                                        name="add-circle-outline"
+                                        size={20}
+                                        color={cores.primary}
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.devicePromptText,
+                                            { color: cores.primaryDark },
+                                        ]}
+                                    >
+                                        Cadastra seu dispositivo pra ver quanto você tá economizando
+                                        💡
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {mostrarGraficoDeEconomia ? (
+                            <View
+                                style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}
+                            >
+                                <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                                    📈 Economia acumulada
+                                </Text>
+                                <Text
+                                    style={[styles.savingsSubtitle, { color: cores.textSecondary }]}
+                                >
+                                    R$ {ganhoDoPeriodo.toFixed(2)} nos últimos {DIAS_DA_ECONOMIA}{' '}
+                                    dias
+                                </Text>
+                                {larguraDoCardDoGrafico > 0 ? (
+                                    <LineChart
+                                        data={{
+                                            labels: rotulosEspacados(ultimos30Dias),
+                                            datasets: [{ data: dadosDaEconomia }],
+                                        }}
+                                        width={Math.max(240, larguraDoCardDoGrafico - 32)}
+                                        height={180}
+                                        fromZero
+                                        withDots={false}
+                                        segments={4}
+                                        chartConfig={{
+                                            backgroundColor: cores.card,
+                                            backgroundGradientFrom: cores.card,
+                                            backgroundGradientTo: cores.card,
+                                            decimalPlaces: 0,
+                                            color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
+                                            labelColor: () => cores.textSecondary,
+                                            propsForBackgroundLines: { stroke: cores.borderLight },
+                                            propsForLabels: { fontFamily: 'Poppins_400Regular' },
+                                            fillShadowGradient: cores.primary,
+                                            fillShadowGradientOpacity: 0.25,
+                                            formatYLabel: (v) => `R$ ${Math.round(Number(v))}`,
+                                        }}
+                                        bezier
+                                        style={styles.chart}
+                                    />
+                                ) : null}
+                            </View>
+                        ) : null}
+
+                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                            <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                                📊 Esta semana x semana passada
+                            </Text>
+                            {comparativo.direcao === null ? (
+                                <Text style={[styles.emptyChart, { color: cores.textMuted }]}>
+                                    Registra pelo menos um dia em cada semana pra comparar 📝
+                                </Text>
+                            ) : (
+                                <>
+                                    <View style={styles.weekRow}>
+                                        <View
+                                            style={[
+                                                styles.weekBox,
+                                                { backgroundColor: cores.primaryLight },
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.weekVal,
+                                                    { color: cores.primaryDark },
+                                                ]}
+                                            >
+                                                {comparativo.mediaAtual
+                                                    .toFixed(1)
+                                                    .replace('.', ',')}
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.weekLabel,
+                                                    { color: cores.textSecondary },
+                                                ]}
+                                            >
+                                                puxadas/dia esta semana
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.weekDays,
+                                                    { color: cores.textMuted },
+                                                ]}
+                                            >
+                                                {comparativo.diasAtuais} de 7 dias registrados
+                                            </Text>
+                                        </View>
+                                        <View
+                                            style={[
+                                                styles.weekBox,
+                                                { backgroundColor: cores.borderLight },
+                                            ]}
+                                        >
+                                            <Text style={[styles.weekVal, { color: cores.text }]}>
+                                                {comparativo.mediaAnterior
+                                                    .toFixed(1)
+                                                    .replace('.', ',')}
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.weekLabel,
+                                                    { color: cores.textSecondary },
+                                                ]}
+                                            >
+                                                puxadas/dia na semana passada
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.weekDays,
+                                                    { color: cores.textMuted },
+                                                ]}
+                                            >
+                                                {comparativo.diasAnteriores} de 7 dias registrados
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <View
+                                        style={[
+                                            styles.trendRow,
                                             {
-                                                backgroundColor: progressoDoObjetivo.dentroDaMeta
-                                                    ? cores.primaryLight
-                                                    : cores.danger + '22',
+                                                backgroundColor: corDaTendencia + '22',
+                                                borderColor: corDaTendencia,
                                             },
                                         ]}
                                     >
                                         <Ionicons
-                                            name={progressoDoObjetivo.dentroDaMeta ? 'checkmark-circle' : 'alert-circle'}
-                                            size={16}
-                                            color={progressoDoObjetivo.dentroDaMeta ? cores.primary : cores.danger}
+                                            name={iconeDaTendencia}
+                                            size={20}
+                                            color={corDaTendencia}
                                         />
-                                        <Text
-                                            style={[
-                                                styles.goalBadgeText,
-                                                { color: progressoDoObjetivo.dentroDaMeta ? cores.primaryDark : cores.danger },
-                                            ]}
-                                        >
-                                            {progressoDoObjetivo.dentroDaMeta ? 'dentro' : 'acima'}
+                                        <Text style={[styles.trendText, { color: corDaTendencia }]}>
+                                            {textoDaTendencia}
                                         </Text>
                                     </View>
-                                </View>
-
-                                <View style={[styles.xpTrack, { backgroundColor: cores.borderLight, marginTop: 12 }]}>
-                                    <View
-                                        style={[
-                                            styles.xpFill,
-                                            { backgroundColor: cores.primary, width: `${progressoDoObjetivo.percentualDoTempo}%` },
-                                        ]}
-                                    />
-                                </View>
-                                <TouchableOpacity onPress={() => navigation.navigate('Goal')} activeOpacity={0.7}>
-                                    <Text style={[styles.goalFoot, { color: cores.textSecondary }]}>
-                                        Objetivo: {meta.target}/dia até {diaFinal}/{mesFinal}/{anoFinal} ·{' '}
-                                        {progressoDoObjetivo.diasRestantes} dias restantes
-                                    </Text>
-                                </TouchableOpacity>
-                            </>
-                        ) : (
-                            <TouchableOpacity
-                                style={[styles.devicePrompt, { backgroundColor: cores.primaryLight, borderColor: cores.primary }]}
-                                onPress={() => navigation.navigate('Goal')}
-                            >
-                                <Ionicons name="add-circle-outline" size={20} color={cores.primary} />
-                                <Text style={[styles.devicePromptText, { color: cores.primaryDark }]}>
-                                    Define seu limite diário pra acompanhar a queda dia a dia 🎯
-                                </Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-
-                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                        <View style={styles.xpHeader}>
-                            <Text style={styles.xpIcon}>{nivel.icone}</Text>
-                            <View style={{ flex: 1 }}>
-                                <Text style={[styles.xpLevel, { color: cores.text }]}>
-                                    Nível {nivel.numero} · {nivel.nome}
-                                </Text>
-                                <Text style={[styles.xpSub, { color: cores.textSecondary }]}>
-                                    {nivel.nomeDoProximo
-                                        ? `${nivel.xpParaProximo} XP pra virar ${nivel.nomeDoProximo}`
-                                        : 'Nível máximo — você é lenda 👑'}
-                                </Text>
-                            </View>
-                            <Text style={[styles.xpTotal, { color: cores.primaryDark }]}>{xp} XP</Text>
+                                </>
+                            )}
                         </View>
-                        <View style={[styles.xpTrack, { backgroundColor: cores.primaryLight }]}>
-                            <View
-                                style={[
-                                    styles.xpFill,
-                                    { backgroundColor: cores.primary, width: `${Math.round(nivel.progresso * 100)}%` },
-                                ]}
-                            />
-                        </View>
-                    </View>
 
-                    <MissionsCard
-                        missoes={missoes.filter((missao) => missao.period === 'daily')}
-                        cores={cores}
-                        aoPressionar={() => navigation.navigate('Missions')}
-                    />
-
-                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>💰 Economia</Text>
-                        {aparelho ? (
-                            <View style={styles.moneyRow}>
-                                <View style={[styles.moneyBox, { backgroundColor: cores.primaryLight }]}>
-                                    <Text style={styles.moneyIcon}>💰</Text>
-                                    <Text style={[styles.moneyVal, { color: cores.primaryDark }]}>R$ {economiaDeHoje.toFixed(2)}</Text>
-                                    <Text style={[styles.moneyLabel, { color: cores.textSecondary }]}>Ficou no seu bolso hoje</Text>
-                                </View>
-                                <View style={[styles.moneyBox, { backgroundColor: cores.primaryLight }]}>
-                                    <Text style={styles.moneyIcon}>💵</Text>
-                                    <Text style={[styles.moneyVal, { color: cores.primaryDark }]}>R$ {economiaTotal.toFixed(2)}</Text>
-                                    <Text style={[styles.moneyLabel, { color: cores.textSecondary }]}>Total no bolso</Text>
-                                </View>
-                            </View>
-                        ) : (
-                            <TouchableOpacity
-                                style={[styles.devicePrompt, { backgroundColor: cores.primaryLight, borderColor: cores.primary }]}
-                                onPress={() => navigation.navigate('Device')}
-                            >
-                                <Ionicons name="add-circle-outline" size={20} color={cores.primary} />
-                                <Text style={[styles.devicePromptText, { color: cores.primaryDark }]}>
-                                    Cadastra seu dispositivo pra ver quanto você tá economizando 💡
-                                </Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-
-                    {mostrarGraficoDeEconomia ? (
-                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                            <Text style={[styles.cardTitle, { color: cores.textMuted }]}>📈 Economia acumulada</Text>
-                            <Text style={[styles.savingsSubtitle, { color: cores.textSecondary }]}>
-                                R$ {ganhoDoPeriodo.toFixed(2)} nos últimos {DIAS_DA_ECONOMIA} dias
+                        <View
+                            style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}
+                            onLayout={(e) => setLarguraDoCardDoGrafico(e.nativeEvent.layout.width)}
+                        >
+                            <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                                Uso nos últimos 7 dias
                             </Text>
-                            {larguraDoCardDoGrafico > 0 ? (
+                            {registros.length === 0 ? (
+                                <Text style={[styles.emptyChart, { color: cores.textMuted }]}>
+                                    Ainda não tem nada por aqui. Bora começar? 📝
+                                </Text>
+                            ) : larguraDoCardDoGrafico > 0 ? (
                                 <LineChart
                                     data={{
-                                        labels: rotulosEspacados(ultimos30Dias),
-                                        datasets: [{ data: dadosDaEconomia }],
+                                        labels: rotulosDoGrafico,
+                                        datasets: [{ data: dadosDoGrafico }],
                                     }}
                                     width={Math.max(240, larguraDoCardDoGrafico - 32)}
                                     height={180}
                                     fromZero
-                                    withDots={false}
-                                    segments={4}
+                                    segments={Math.max(1, Math.min(4, Math.max(...dadosDoGrafico)))}
                                     chartConfig={{
                                         backgroundColor: cores.card,
                                         backgroundGradientFrom: cores.card,
@@ -484,120 +859,60 @@ export default function HomeScreen({ navigation }) {
                                         decimalPlaces: 0,
                                         color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
                                         labelColor: () => cores.textSecondary,
+                                        propsForDots: {
+                                            r: '4',
+                                            strokeWidth: '2',
+                                            stroke: cores.primaryDark,
+                                        },
                                         propsForBackgroundLines: { stroke: cores.borderLight },
                                         propsForLabels: { fontFamily: 'Poppins_400Regular' },
-                                        fillShadowGradient: cores.primary,
-                                        fillShadowGradientOpacity: 0.25,
-                                        formatYLabel: (v) => `R$ ${Math.round(Number(v))}`,
+                                        formatYLabel: (v) => `${Math.round(Number(v))}`,
                                     }}
                                     bezier
                                     style={styles.chart}
                                 />
                             ) : null}
                         </View>
-                    ) : null}
 
-                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
-                            📊 Esta semana x semana passada
-                        </Text>
-                        {comparativo.direcao === null ? (
-                            <Text style={[styles.emptyChart, { color: cores.textMuted }]}>
-                                Registra pelo menos um dia em cada semana pra comparar 📝
-                            </Text>
-                        ) : (
-                            <>
-                                <View style={styles.weekRow}>
-                                    <View style={[styles.weekBox, { backgroundColor: cores.primaryLight }]}>
-                                        <Text style={[styles.weekVal, { color: cores.primaryDark }]}>
-                                            {comparativo.mediaAtual.toFixed(1).replace('.', ',')}
-                                        </Text>
-                                        <Text style={[styles.weekLabel, { color: cores.textSecondary }]}>
-                                            puxadas/dia esta semana
-                                        </Text>
-                                        <Text style={[styles.weekDays, { color: cores.textMuted }]}>
-                                            {comparativo.diasAtuais} de 7 dias registrados
-                                        </Text>
-                                    </View>
-                                    <View style={[styles.weekBox, { backgroundColor: cores.borderLight }]}>
-                                        <Text style={[styles.weekVal, { color: cores.text }]}>
-                                            {comparativo.mediaAnterior.toFixed(1).replace('.', ',')}
-                                        </Text>
-                                        <Text style={[styles.weekLabel, { color: cores.textSecondary }]}>
-                                            puxadas/dia na semana passada
-                                        </Text>
-                                        <Text style={[styles.weekDays, { color: cores.textMuted }]}>
-                                            {comparativo.diasAnteriores} de 7 dias registrados
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                <View
-                                    style={[
-                                        styles.trendRow,
-                                        { backgroundColor: corDaTendencia + '22', borderColor: corDaTendencia },
-                                    ]}
-                                >
-                                    <Ionicons name={iconeDaTendencia} size={20} color={corDaTendencia} />
-                                    <Text style={[styles.trendText, { color: corDaTendencia }]}>{textoDaTendencia}</Text>
-                                </View>
-                            </>
-                        )}
-                    </View>
-
-                    <View
-                        style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}
-                        onLayout={(e) => setLarguraDoCardDoGrafico(e.nativeEvent.layout.width)}
-                    >
-                        <Text style={[styles.cardTitle, { color: cores.textMuted }]}>Uso nos últimos 7 dias</Text>
-                        {registros.length === 0 ? (
-                            <Text style={[styles.emptyChart, { color: cores.textMuted }]}>Ainda não tem nada por aqui. Bora começar? 📝</Text>
-                        ) : larguraDoCardDoGrafico > 0 ? (
-                            <LineChart
-                                data={{
-                                    labels: rotulosDoGrafico,
-                                    datasets: [{ data: dadosDoGrafico }],
-                                }}
-                                width={Math.max(240, larguraDoCardDoGrafico - 32)}
-                                height={180}
-                                fromZero
-                                segments={Math.max(1, Math.min(4, Math.max(...dadosDoGrafico)))}
-                                chartConfig={{
-                                    backgroundColor: cores.card,
-                                    backgroundGradientFrom: cores.card,
-                                    backgroundGradientTo: cores.card,
-                                    decimalPlaces: 0,
-                                    color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
-                                    labelColor: () => cores.textSecondary,
-                                    propsForDots: { r: '4', strokeWidth: '2', stroke: cores.primaryDark },
-                                    propsForBackgroundLines: { stroke: cores.borderLight },
-                                    propsForLabels: { fontFamily: 'Poppins_400Regular' },
-                                    formatYLabel: (v) => `${Math.round(Number(v))}`,
-                                }}
-                                bezier
-                                style={styles.chart}
+                        <View
+                            style={[
+                                styles.tipCard,
+                                { backgroundColor: cores.card, borderLeftColor: cores.primary },
+                                SOMBRA.pequena,
+                            ]}
+                        >
+                            <Ionicons
+                                name="bulb-outline"
+                                size={24}
+                                color={cores.primary}
+                                style={{ marginRight: 10 }}
                             />
-                        ) : null}
-                    </View>
+                            <Text style={[styles.tipText, { color: cores.text }]}>{dica}</Text>
+                        </View>
 
-                    <View style={[styles.tipCard, { backgroundColor: cores.card, borderLeftColor: cores.primary }, SOMBRA.pequena]}>
-                        <Ionicons name="bulb-outline" size={24} color={cores.primary} style={{ marginRight: 10 }} />
-                        <Text style={[styles.tipText, { color: cores.text }]}>{dica}</Text>
-                    </View>
-
-                    <TouchableOpacity
-                        style={[styles.deviceBtn, { backgroundColor: cores.card, borderColor: cores.primary }, SOMBRA.pequena]}
-                        onPress={() => navigation.navigate('Device')}
-                    >
-                        <Ionicons name="phone-portrait-outline" size={18} color={cores.primary} />
-                        <Text style={[styles.deviceBtnText, { color: cores.primaryDark }]}>
-                            {aparelho ? `Seu dispositivo: ${aparelho.name}` : 'Cadastrar meu dispositivo'}
-                        </Text>
-                        <Ionicons name="chevron-forward" size={16} color={cores.primary} />
-                    </TouchableOpacity>
-                </GradeDeCards>
-            </View>
-        </ScrollView>
+                        <TouchableOpacity
+                            style={[
+                                styles.deviceBtn,
+                                { backgroundColor: cores.card, borderColor: cores.primary },
+                                SOMBRA.pequena,
+                            ]}
+                            onPress={() => navigation.navigate('Device')}
+                        >
+                            <Ionicons
+                                name="phone-portrait-outline"
+                                size={18}
+                                color={cores.primary}
+                            />
+                            <Text style={[styles.deviceBtnText, { color: cores.primaryDark }]}>
+                                {aparelho
+                                    ? `Seu dispositivo: ${aparelho.name}`
+                                    : 'Cadastrar meu dispositivo'}
+                            </Text>
+                            <Ionicons name="chevron-forward" size={16} color={cores.primary} />
+                        </TouchableOpacity>
+                    </GradeDeCards>
+                </View>
+            </ScrollView>
         </View>
     );
 }
@@ -657,14 +972,36 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     excessText: { flex: 1, fontSize: 12, fontFamily: 'Poppins_600SemiBold', lineHeight: 16 },
-    calendarSummary: { fontSize: 13, fontFamily: 'Poppins_600SemiBold', marginTop: 12, textAlign: 'center' },
-    calendarLegend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginTop: 8 },
+    calendarSummary: {
+        fontSize: 13,
+        fontFamily: 'Poppins_600SemiBold',
+        marginTop: 12,
+        textAlign: 'center',
+    },
+    calendarLegend: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: 12,
+        marginTop: 8,
+    },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     legendDot: { width: 12, height: 12, borderRadius: RAIO.sm },
     legendText: { fontSize: 11, fontFamily: 'Poppins_400Regular' },
     statNum: { fontSize: 26, fontFamily: 'Poppins_800ExtraBold' },
-    statLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular', textAlign: 'center', marginTop: 2, lineHeight: 14 },
-    goalTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    statLabel: {
+        fontSize: 11,
+        fontFamily: 'Poppins_400Regular',
+        textAlign: 'center',
+        marginTop: 2,
+        lineHeight: 14,
+    },
+    goalTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+    },
     goalBig: { fontSize: 22, fontFamily: 'Poppins_800ExtraBold' },
     goalSub: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
     goalBadge: {
@@ -678,7 +1015,7 @@ const styles = StyleSheet.create({
     goalBadgeText: { fontSize: 12, fontFamily: 'Poppins_700Bold' },
     goalFoot: { fontSize: 12, fontFamily: 'Poppins_600SemiBold', marginTop: 8 },
     xpHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-    xpIcon: { fontSize: 26 , fontFamily: 'Poppins_400Regular'},
+    xpIcon: { fontSize: 26, fontFamily: 'Poppins_400Regular' },
     xpLevel: { fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },
     xpSub: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
     xpTotal: { fontSize: 16, fontFamily: 'Poppins_800ExtraBold' },
@@ -718,9 +1055,19 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     trendText: { flex: 1, fontSize: 12, fontFamily: 'Poppins_600SemiBold', lineHeight: 16 },
-    savingsSubtitle: { fontSize: 13, fontFamily: 'Poppins_600SemiBold', marginTop: -8, marginBottom: 6 },
+    savingsSubtitle: {
+        fontSize: 13,
+        fontFamily: 'Poppins_600SemiBold',
+        marginTop: -8,
+        marginBottom: 6,
+    },
     chart: { borderRadius: RAIO.md, marginTop: 4 },
-    emptyChart: { fontSize: 13, fontFamily: 'Poppins_400Regular', textAlign: 'center', padding: 20 },
+    emptyChart: {
+        fontSize: 13,
+        fontFamily: 'Poppins_400Regular',
+        textAlign: 'center',
+        padding: 20,
+    },
     tipCard: {
         borderRadius: RAIO.lg,
         padding: 16,

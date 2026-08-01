@@ -5,22 +5,29 @@ const expoConfig = require('eslint-config-expo/flat');
 const prettierConfig = require('eslint-config-prettier');
 
 module.exports = [
-  ...expoConfig,
-  prettierConfig,
-  {
-    ignores: ['node_modules/**', '.expo/**', 'dist/**', 'android/**', 'assets/**', 'coverage/**'],
-  },
-  {
-    files: ['__tests__/**/*.js'],
-    languageOptions: {
-      globals: {
-        describe: 'readonly',
-        it: 'readonly',
-        expect: 'readonly',
-        beforeEach: 'readonly',
-        afterEach: 'readonly',
-        jest: 'readonly',
-      },
+    ...expoConfig,
+    prettierConfig,
+    {
+        ignores: [
+            'node_modules/**',
+            '.expo/**',
+            'dist/**',
+            'android/**',
+            'assets/**',
+            'coverage/**',
+        ],
     },
-  },
+    {
+        files: ['__tests__/**/*.js'],
+        languageOptions: {
+            globals: {
+                describe: 'readonly',
+                it: 'readonly',
+                expect: 'readonly',
+                beforeEach: 'readonly',
+                afterEach: 'readonly',
+                jest: 'readonly',
+            },
+        },
+    },
 ];
