@@ -47,7 +47,8 @@ import {
 } from './offline';
 import { verificarConquistas, calcularStreak, calcularEstadoDeStreak } from './achievements';
 import { montarContextoDeMissoes, verificarMissoes } from './missions';
-import { normalizarRegistro, somarPuxadas, metaDiaria, custoPorPuxada } from './records';
+import { normalizarRegistro, somarPuxadas, custoPorPuxada } from './records';
+import { limiteDoDia } from './meta';
 import { resumoDeXp } from './xp';
 import { dataDeHoje, ultimosNDias, converterDataLocal, inicioDaSemana } from './datas';
 
@@ -485,17 +486,34 @@ export async function salvarRegistro(novoRegistro) {
   try {
     if (uid) {
       const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
+      // Registro antigo do mesmo dia sai junto: como o id vem de Date.now(),
+      // o doc velho tem outro docId e precisa de um delete próprio na fila,
+      // senão volta na próxima leitura online.
+      const antigosDoDia = registros.filter(
+        (r) => r.date === registro.date && r.id !== registro.id
+      );
+      for (const antigo of antigosDoDia) {
+        await enfileirar(uid, {
+          tipo: 'delete',
+          colecao: 'records',
+          docId: String(antigo.id),
+        });
+      }
       await escreverNaConta(
         uid,
         ESPELHOS.REGISTROS,
-        [...registros.filter((r) => r.id !== registro.id), registro],
+        [
+          ...registros.filter((r) => r.id !== registro.id && r.date !== registro.date),
+          registro,
+        ],
         { tipo: 'set', colecao: 'records', docId: String(registro.id), dados: registro }
       );
       return OK;
     }
     const registros = await obterRegistros();
-    registros.push(registro);
-    await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(registros));
+    const restantes = registros.filter((r) => r.date !== registro.date);
+    restantes.push(registro);
+    await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
     return OK;
   } catch {
     return falha('rede');
@@ -530,10 +548,28 @@ export async function atualizarRegistro(registro) {
   try {
     if (uid) {
       const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
+      // Mesma regra de um-registro-por-dia do salvarRegistro: se a edição
+      // moveu o registro pra um dia que já tinha outro, o outro sai (e o doc
+      // dele precisa de um delete próprio na fila).
+      const antigosDoDia = registros.filter(
+        (r) => r.date === registroAtualizado.date && r.id !== registroAtualizado.id
+      );
+      for (const antigo of antigosDoDia) {
+        await enfileirar(uid, {
+          tipo: 'delete',
+          colecao: 'records',
+          docId: String(antigo.id),
+        });
+      }
       await escreverNaConta(
         uid,
         ESPELHOS.REGISTROS,
-        [...registros.filter((r) => r.id !== registroAtualizado.id), registroAtualizado],
+        [
+          ...registros.filter(
+            (r) => r.id !== registroAtualizado.id && r.date !== registroAtualizado.date
+          ),
+          registroAtualizado,
+        ],
         {
           tipo: 'set',
           colecao: 'records',
@@ -544,13 +580,15 @@ export async function atualizarRegistro(registro) {
       return OK;
     }
     const registros = await obterRegistros();
-    const indice = registros.findIndex((r) => r.id === registroAtualizado.id);
-    if (indice !== -1) {
-      registros[indice] = registroAtualizado;
-      await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(registros));
-      return OK;
+    if (!registros.some((r) => r.id === registroAtualizado.id)) {
+      return falha('nao_encontrado');
     }
-    return falha('nao_encontrado');
+    const restantes = registros.filter(
+      (r) => r.id !== registroAtualizado.id && r.date !== registroAtualizado.date
+    );
+    restantes.push(registroAtualizado);
+    await AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(restantes));
+    return OK;
   } catch {
     return falha('rede');
   }
@@ -702,11 +740,16 @@ export async function definirEconomia(mapaDeEconomia) {
 // ─── Cálculo da economia ─────────────────────────────────────────────────────
 // Função pura de cálculo — não muda entre conta/convidado.
 
-export async function recalcularEconomia(registros, aparelho) {
+// O limite de cada dia sai de limiteDoDia() (utils/meta.js): a meta declarada
+// pelo usuário ganha da meta do aparelho a partir do startDate dela; antes
+// disso o dia continua valendo pelo aparelho. `meta` é opcional — sem ela a
+// função lê a atual, então quem não tem a meta em mãos chama com dois
+// argumentos, como antes.
+export async function recalcularEconomia(registros, aparelho, meta) {
   if (!aparelho) return {};
   const custoDaPuxada = custoPorPuxada(aparelho);
-  const meta = metaDiaria(aparelho);
-  if (custoDaPuxada === null || meta === null) return {};
+  if (custoDaPuxada === null) return {};
+  const metaAtual = meta !== undefined ? meta : await obterMeta();
 
   // Agrupa os registros por data
   const porData = {};
@@ -718,7 +761,9 @@ export async function recalcularEconomia(registros, aparelho) {
   const mapaDeEconomia = {};
   Object.entries(porData).forEach(([data, registrosDoDia]) => {
     const usadasHoje = somarPuxadas(registrosDoDia);
-    const naoDadas = Math.max(0, meta - usadasHoje);
+    // Sem limite nenhum pro dia não dá pra saber quanto foi poupado.
+    const limite = limiteDoDia(metaAtual, aparelho, data);
+    const naoDadas = limite === null ? 0 : Math.max(0, limite - usadasHoje);
     mapaDeEconomia[data] = parseFloat((naoDadas * custoDaPuxada).toFixed(2));
   });
 
@@ -1132,6 +1177,7 @@ export async function sincronizarGamificacao(entrada = {}) {
     registros,
     economia,
     sessoesDeCrise,
+    diasDeAbertura,
     meta,
     aparelho,
     missoesConcluidas,

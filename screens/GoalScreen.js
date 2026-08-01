@@ -23,6 +23,7 @@ import {
     salvarMeta,
     obterAparelho,
     obterRegistros,
+    recalcularEconomia,
     sincronizarGamificacao,
     dataDeHoje,
 } from '../utils/storage';
@@ -33,6 +34,7 @@ import {
     mediaDiariaNasDatas,
     janelaDeDias,
     deslocarData,
+    diferencaEmDias,
 } from '../utils/meta';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
@@ -61,6 +63,10 @@ export default function GoalScreen({ navigation }) {
     const [baseline, setBaseline] = useState('');
     const [alvo, setAlvo] = useState('');
     const [prazo, setPrazo] = useState(60);
+    // Início da rampa: null enquanto a meta é nova (aí vale hoje). Editar uma
+    // meta existente mantém o startDate salvo — recriá-lo zeraria o progresso
+    // da rampa e mudaria a data final sem o usuário pedir.
+    const [inicio, setInicio] = useState(null);
     const [temMetaSalva, setTemMetaSalva] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [sucessoVisivel, setSucessoVisivel] = useState(false);
@@ -75,6 +81,11 @@ export default function GoalScreen({ navigation }) {
                     setTemMetaSalva(true);
                     setBaseline(String(meta.baseline));
                     setAlvo(String(meta.target));
+                    // Rampa já vencida vira rampa nova: manter o startDate
+                    // antigo deixaria o limite colado no alvo desde o dia 1.
+                    const vencida = diferencaEmDias(dataDeHoje(), meta.endDate) <= 0;
+                    if (!vencida) setInicio(meta.startDate);
+                    setPrazo(diferencaEmDias(meta.startDate, meta.endDate));
                     return;
                 }
                 const sugerido = baselineSugerido(registros, aparelho, dataDeHoje());
@@ -101,12 +112,12 @@ export default function GoalScreen({ navigation }) {
 
     // Meta "em rascunho", só pra prévia.
     const metaDoFormulario = () => {
-        const hoje = dataDeHoje();
+        const partida = inicio || dataDeHoje();
         return {
             baseline: parseInt(baseline),
             target: parseInt(alvo),
-            startDate: hoje,
-            endDate: deslocarData(hoje, prazo),
+            startDate: partida,
+            endDate: deslocarData(partida, prazo),
         };
     };
 
@@ -117,19 +128,35 @@ export default function GoalScreen({ navigation }) {
         if (isNaN(a) || a < 0) { Alert.alert('Opa', 'Coloca um alvo válido (pode ser 0).'); return; }
         if (a >= b) { Alert.alert('Opa', 'O alvo precisa ser menor do que o seu consumo de hoje.'); return; }
 
-        setSalvando(true);
         const meta = metaDoFormulario();
+        // Editar uma meta em andamento com prazo curto pode jogar o fim antes
+        // de hoje — aí a rampa nasceria vencida.
+        if (diferencaEmDias(dataDeHoje(), meta.endDate) <= 0) {
+            Alert.alert('Opa', 'Esse prazo termina antes de hoje, contando da data em que sua meta começou. Escolha um prazo maior.');
+            return;
+        }
+
+        setSalvando(true);
         const resultado = await salvarMeta(meta);
         if (!resultado.ok) {
             setSalvando(false);
             mostrarErro('Não deu pra salvar a meta', 'Verifique sua conexão e tente de novo.');
             return;
         }
-        // Definir meta pode concluir missão de meta na hora, se o dia de hoje
-        // já estiver registrado abaixo dela.
-        const { recompensas } = await sincronizarGamificacao({ meta });
+        // A meta passa a valer como limite do dia, então a economia inteira é
+        // recalculada. Definir meta também pode concluir missão de meta na
+        // hora, se o dia de hoje já estiver registrado abaixo dela.
+        const [registros, aparelho] = await Promise.all([obterRegistros(), obterAparelho()]);
+        const economia = await recalcularEconomia(registros, aparelho, meta);
+        const { recompensas } = await sincronizarGamificacao({
+            registros,
+            economia,
+            meta,
+            aparelho,
+        });
         setSalvando(false);
         setTemMetaSalva(true);
+        setInicio(meta.startDate);
         mostrarSucesso();
         mostrarRecompensas(recompensas);
     };
@@ -143,13 +170,26 @@ export default function GoalScreen({ navigation }) {
                 onPress: async () => {
                     setSalvando(true);
                     const resultado = await salvarMeta(null);
-                    setSalvando(false);
                     if (!resultado.ok) {
+                        setSalvando(false);
                         mostrarErro('Não deu pra remover a meta', 'Verifique sua conexão e tente de novo.');
                         return;
                     }
+                    // Sem meta o limite volta a ser o do aparelho, então a
+                    // economia (e o que depende dela) precisa acompanhar.
+                    const [registros, aparelho] = await Promise.all([obterRegistros(), obterAparelho()]);
+                    const economia = await recalcularEconomia(registros, aparelho, null);
+                    const { recompensas } = await sincronizarGamificacao({
+                        registros,
+                        economia,
+                        meta: null,
+                        aparelho,
+                    });
+                    setSalvando(false);
+                    mostrarRecompensas(recompensas);
                     setTemMetaSalva(false);
                     setAlvo('');
+                    setInicio(null);
                     navigation.goBack();
                 },
             },
@@ -158,6 +198,9 @@ export default function GoalScreen({ navigation }) {
 
     const rascunho = metaDoFormulario();
     const metaDeHoje = metaDoDia(rascunho, dataDeHoje());
+    // Meta salva com prazo fora da lista padrão ainda precisa de chip próprio,
+    // senão editar o alvo trocaria o prazo em silêncio.
+    const prazosVisiveis = PRAZOS.includes(prazo) ? PRAZOS : [...PRAZOS, prazo].sort((x, y) => x - y);
     const estiloDoInput = [styles.input, { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text }];
 
     return (
@@ -195,7 +238,7 @@ export default function GoalScreen({ navigation }) {
 
                 <Text style={[styles.fieldLabel, { color: cores.text }]}>Em quanto tempo</Text>
                 <View style={styles.chipRow}>
-                    {PRAZOS.map((dias) => {
+                    {prazosVisiveis.map((dias) => {
                         const ativo = dias === prazo;
                         return (
                             <TouchableOpacity
@@ -226,6 +269,14 @@ export default function GoalScreen({ navigation }) {
                                 {Math.round(metaDeHoje)} puxadas
                             </Text>
                         </View>
+                        {inicio !== null && (
+                            <View style={styles.previewRow}>
+                                <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Começou em</Text>
+                                <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
+                                    {formatarData(inicio)}
+                                </Text>
+                            </View>
+                        )}
                         <View style={styles.previewRow}>
                             <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>Chega no alvo em</Text>
                             <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
@@ -253,7 +304,11 @@ export default function GoalScreen({ navigation }) {
                 {sucessoVisivel && (
                     <Animated.View style={[styles.successBox, { backgroundColor: cores.primaryLight, borderColor: cores.primary, opacity: animacaoDeFade }]}>
                         <Ionicons name="checkmark-circle" size={22} color={cores.primary} />
-                        <Text style={[styles.successText, { color: cores.primaryDark }]}>Meta salva! Ela já vale a partir de hoje. ✅</Text>
+                        <Text style={[styles.successText, { color: cores.primaryDark }]}>
+                            {inicio === null || inicio === dataDeHoje()
+                                ? 'Meta salva! Ela já vale a partir de hoje. ✅'
+                                : `Meta salva! Sua rampa continua contando desde ${formatarData(inicio)}. ✅`}
+                        </Text>
                     </Animated.View>
                 )}
             </View>

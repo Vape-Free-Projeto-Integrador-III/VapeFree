@@ -157,7 +157,9 @@ export default function RegisterScreen({ navigation }) {
         }
 
         // A trava evita que dois toques rápidos passem os dois pela checagem de
-        // registro existente e criem dois registros pro mesmo dia.
+        // registro existente e criem dois registros pro mesmo dia. Ela só é
+        // solta no finally do salvarDeFato (ou aqui, se a gente parar antes) —
+        // largar antes de chamar salvarDeFato reabriria a janela da corrida.
         if (salvandoRef.current) return;
         salvandoRef.current = true;
         setSalvando(true);
@@ -167,33 +169,49 @@ export default function RegisterScreen({ navigation }) {
         try {
             const todosOsRegistros = await obterRegistros();
             existente = todosOsRegistros.find((r) => r.date === dataSelecionada);
-        } finally {
+        } catch (erro) {
             salvandoRef.current = false;
             setSalvando(false);
+            Alert.alert('Erro', 'Não deu pra salvar o registro. Tenta de novo.');
+            return;
         }
 
         if (existente) {
+            // Confirmação depende do usuário: solta a trava e deixa o botão do
+            // Alert repegar ela em salvarComTrava.
+            salvandoRef.current = false;
+            setSalvando(false);
             setRegistroExistente(existente);
             Alert.alert(
                 'Dia já registrado',
                 `Você já registrou ${formatarRotuloDaDataSelecionada(dataSelecionada)}. Salvar de novo vai sobrescrever o registro anterior.`,
                 [
                     { text: 'Cancelar', style: 'cancel' },
-                    { text: 'Sobrescrever', style: 'destructive', onPress: () => salvarDeFato(existente) },
+                    { text: 'Sobrescrever', style: 'destructive', onPress: () => salvarComTrava(existente) },
                 ]
             );
             return;
         }
 
-        salvarDeFato(null);
+        await salvarDeFato(null);
     };
 
-    const salvarDeFato = async (existente) => {
+    // Entrada pro caminho que não vem do salvar() — pega a trava antes.
+    const salvarComTrava = async (existente) => {
         if (salvandoRef.current) return;
         salvandoRef.current = true;
         setSalvando(true);
+        await salvarDeFato(existente);
+    };
+
+    // Pressupõe salvandoRef.current === true; é ele quem solta a trava no finally.
+    const salvarDeFato = async (existente) => {
         try {
             const agora = new Date();
+            // Usou = pelo menos 1 puxada. O onBlur do campo não roda se o
+            // usuário digitar e tocar direto em Salvar, então normaliza aqui.
+            const puxadasFinais = usou ? Math.max(1, puxadas) : 0;
+            if (usou && puxadasFinais !== puxadas) setPuxadas(puxadasFinais);
             const rotulosDeGatilhos = GATILHOS.filter((t) => gatilhos.includes(t.id)).map((t) => t.rotulo);
             if (gatilhos.includes('outro') && gatilhoOutro.trim()) {
                 rotulosDeGatilhos.push(gatilhoOutro.trim());
@@ -207,7 +225,7 @@ export default function RegisterScreen({ navigation }) {
                 const registroAtualizado = {
                     ...existente,
                     used: usou,
-                    puffs: usou ? puxadas : 0,
+                    puffs: puxadasFinais,
                     triggers: rotulosDeGatilhos,
                     helps: rotulosDeAjudas,
                     intensity: intensidade,
@@ -226,7 +244,7 @@ export default function RegisterScreen({ navigation }) {
                     date: dataSelecionada,
                     time: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
                     used: usou,
-                    puffs: usou ? puxadas : 0,
+                    puffs: puxadasFinais,
                     triggers: rotulosDeGatilhos,
                     helps: rotulosDeAjudas,
                     intensity: intensidade,

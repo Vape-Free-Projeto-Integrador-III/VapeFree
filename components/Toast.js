@@ -11,9 +11,7 @@ import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
-import { usarConexao } from '../context/ConnectionContext';
-import { usarAuth } from '../context/AuthContext';
-import { ALTURA_DA_FAIXA_OFFLINE } from './OfflineBanner';
+import { ALTURA_DA_FAIXA_OFFLINE, usarFaixaDeTopoVisivel } from './OfflineBanner';
 
 export const DURACAO_DO_TOAST = 2200;
 export const DURACAO_DO_TOAST_LONGO = 3500;
@@ -21,13 +19,11 @@ export const DURACAO_DO_TOAST_LONGO = 3500;
 export default function Toast({ toast, aoEsconder }) {
     const { cores } = usarTema();
     const insets = useSafeAreaInsets();
-    const { online } = usarConexao();
-    const { usuario } = usarAuth();
     const animacao = useRef(new Animated.Value(0)).current;
 
-    // Mesma condição do OfflineBanner: quando a faixa está na tela, o toast
-    // desce a altura dela pra não cobrir o aviso de "sem internet".
-    const faixaOfflineVisivel = !online && !!usuario;
+    // Quando a faixa do OfflineBanner está na tela, o toast desce a altura
+    // dela pra não cobrir o aviso.
+    const faixaOfflineVisivel = usarFaixaDeTopoVisivel();
 
     useEffect(() => {
         if (!toast) return undefined;

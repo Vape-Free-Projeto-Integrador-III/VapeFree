@@ -37,7 +37,7 @@ Como cada operação se comporta:
 - **Conflito**: last-write-wins com a fila local vencendo — a mutação enfileirada sobrescreve o servidor.
 - **Compactação**: ao enfileirar, mutações anteriores do mesmo `(colecao, docId)` (ou do mesmo campo, no `merge_usuario`) são removidas, pra fila não crescer sem limite em dias offline.
 - **Valores derivados** (`economy`, `xp`, `appOpenDays`) sobem inteiros, não documento por documento. `podeEscreverDerivado` bloqueia essa escrita quando o espelho de origem ainda está frio **e** não há rede — senão um cálculo feito em cima de histórico vazio apagaria o que está na conta. A próxima leitura online refaz. As subcoleções não precisam disso: usam `set`/`delete` por doc.
-- Uma mutação que falha `LIMITE_DE_TENTATIVAS` (5) vezes é descartada — erro permanente (regra de segurança, dado inválido) não pode prender a fila inteira.
+- Uma mutação que falha `LIMITE_DE_TENTATIVAS` (5) vezes sai da fila — erro permanente (regra de segurança, dado inválido) não pode prender a fila inteira. Mas **não some calada**: vai pra lista de falhas (`@vapefree_failed_{uid}`, últimas `LIMITE_DE_FALHAS_GUARDADAS` = 20), `registrarFalha` avisa quem assinou `assinarFalhas`, e o `OfflineBanner` mostra faixa vermelha até o usuário tocar e confirmar. API: `lerFalhas(uid)`, `contarFalhas(uid)`, `limparFalhas(uid)`, `assinarFalhas(cb)`. `drenar`/`sincronizar` devolvem `{ enviadas, pendentes, falhas }`. A chave de falhas também é apagada por `limparCacheEFila`.
 
 Por que fila própria e não `enablePersistence()`: o `persistentLocalCache` do firebase JS SDK depende de IndexedDB, que não existe em React Native. Só o `@react-native-firebase` (SDK nativo) teria essa opção.
 
@@ -73,6 +73,8 @@ Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Con
 
 **Janela de criação**: `salvarRegistro` recusa (`{ ok: false, motivo: 'data_invalida' }`) qualquer `date` fora de `datasRegistraveis()` — hoje ou até `DIAS_PARA_TRAS_NO_REGISTRO` (7) dias atrás. Vale só pra criação: `atualizarRegistro` continua aceitando qualquer data, pra edição de registro antigo pelo histórico seguir funcionando. Existe porque o XP é derivado dos registros (ver `utils/xp.js`) — sem o limite dava pra preencher anos de dias limpos falsos e inflar XP/conquistas. A RegisterScreen usa a mesma lista pra montar o seletor de data, mas a checagem no storage é a que vale.
 
+**Um registro por dia**: `salvarRegistro` substitui qualquer registro já existente com o mesmo `date` (nos dois modos). A regra vive no storage, não na tela — a confirmação de "sobrescrever" da RegisterScreen é só UX. Sem isso, registro duplicado inflava XP (`registros.length * 10`) e dobrava o total de puxadas do dia. No modo conta, o doc antigo (id diferente, gerado por `Date.now()`) ganha um `delete` próprio na fila antes do `set` do novo. `atualizarRegistro` aplica a mesma regra: editar a data de um registro pra um dia que já tem outro substitui o outro. Efeito colateral no modo convidado: o registro editado vai pro fim do array (todo consumidor ordena antes de usar, então não muda nada na tela).
+
 **Device** (um por usuário):
 ```js
 { name, price, totalPuffs, days }
@@ -87,7 +89,7 @@ Firestore: campo `goal` no doc `users/{uid}`. Convidado: `@vapefree_goal`. Espel
 
 **Profile** (só modo conta): `{ nome, displayName, email }`, campos do doc `users/{uid}`, gravados uma vez no cadastro por `salvarPerfilDaConta(uid, { nome, email })`. Espelho `profile`. Convidado não tem perfil. Nenhuma tela lê esses campos hoje — quem exibe o nome usa `auth.currentUser.displayName`.
 
-**Economy**: mapa `{ [date]: valorEconomizadoNoDia }`, recalculado por `recalcularEconomia(records, device)` — nunca editado manualmente pela UI. Firestore: campo `economy` no doc `users/{uid}`. Convidado: `@vapefree_economy`.
+**Economy**: mapa `{ [date]: valorEconomizadoNoDia }`, recalculado por `recalcularEconomia(records, device, goal)` — nunca editado manualmente pela UI. Firestore: campo `economy` no doc `users/{uid}`. Convidado: `@vapefree_economy`.
 
 **Achievement (desbloqueada)**: `{ id, unlockedAt }`. Firestore: subcoleção `users/{uid}/achievements`, doc id = `String(achievementId)`. Convidado: array em `@vapefree_achievements`. Lista completa de conquistas possíveis (não persistida, é código) está em `utils/achievements.js` — ver `CONQUISTAS`. Cada `condicao(records, economy, completedMissions, context)` recebe em `contexto` o que não está nos registros: `{ crisisSessions, appOpenDays, meta, aparelho, hoje }` (montado por `verificarEDesbloquearConquistas`, ou passado pronto pela tela que já carregou esses dados).
 
@@ -109,9 +111,13 @@ metaDoDia(meta, data) = baseline - (baseline - target) * (diasPassados / diasTot
 
 Vocabulário da UI: o número do dia aparece pro usuário como **"limite"** ("seu limite de hoje: 70 puxadas"), nunca como "meta" — meta/objetivo é só o alvo final (`target` + `endDate`). Sem isso o card lia como se o app estivesse mandando puxar 70 vezes. No código os identificadores continuam `meta`/`metaDoDia`/`metaEfetiva`.
 
+Editar uma meta existente na `GoalScreen` **preserva o `startDate` salvo** (a tela o carrega junto com `baseline`/`target` e deriva o prazo de `diferencaEmDias(startDate, endDate)`): recriar o início zeraria o progresso da rampa e mudaria a data final sem o usuário pedir. `startDate` só volta a ser hoje quando a meta é nova ou quando a salva já venceu (`endDate` <= hoje). Como consequência, prazo curto demais numa rampa antiga é barrado na validação ("esse prazo termina antes de hoje").
+
 Fora do intervalo ela gruda nas pontas (antes do `startDate` vale o `baseline`, depois do `endDate`, o `target`), e `metaValida(meta)` exige `target < baseline` e `endDate > startDate`.
 
 **`metaEfetiva(meta, aparelho, data)` é a única fonte da meta em todo o app**: devolve a meta do usuário quando ela existe e cai em `metaDiaria(aparelho)` quando não existe. Nenhuma tela deve chamar `metaDiaria` direto — é o que garante que "a meta declarada ganha da derivada do aparelho" valha igual no alerta de excesso da Home, nas missões e nas conquistas.
+
+O cálculo da economia usa a variante `limiteDoDia(meta, aparelho, data)`, que é `metaEfetiva` valendo só do `startDate` em diante — ver [Cálculo de economia](#cálculo-de-economia).
 
 Também moram lá: `mediaDiariaNasDatas(registros, datas)` (média por dia contando só dias com registro), `janelaDeDias(ateData, n)` / `deslocarData` / `diferencaEmDias` (janela móvel usada pelas conquistas de redução) e `progressoDaMeta(meta, registros, hoje)`, que devolve de uma vez o que o card de meta da Home mostra.
 
@@ -119,9 +125,11 @@ Também moram lá: `mediaDiariaNasDatas(registros, datas)` (média por dia conta
 
 As duas contas derivadas do aparelho ficam em `utils/records.js`, puras: `custoPorPuxada(device)` (`price / totalPuffs`) e `metaDiaria(device)` (`totalPuffs / days`). Ambas devolvem `null` quando algum campo não é número positivo. Use elas em vez de repetir a fórmula — são as mesmas usadas pela prévia do `DeviceScreen` e pelo fallback de `metaEfetiva`.
 
-`recalcularEconomia(records, device)`: para cada dia com registro, `economia = max(0, metaDiaria - puffsUsados) * custoPorPuxada`. Grava o mapa inteiro via `definirEconomia`. Devolve `{}` sem gravar nada se o aparelho não permitir o cálculo. Chamado depois de qualquer `salvarRegistro`/`atualizarRegistro`/`excluirRegistro` e depois de salvar um `aparelho` novo.
+`recalcularEconomia(records, device, goal)`: para cada dia com registro, `economia = max(0, limiteDoDia - puffsUsados) * custoPorPuxada`. Grava o mapa inteiro via `definirEconomia`. Devolve `{}` sem gravar nada se o aparelho não permitir o cálculo (sem `price`/`totalPuffs`); dia cujo limite é `null` fica com economia `0`. O terceiro argumento é opcional — omitido, a função lê a meta atual por `obterMeta()`, então quem não tem a meta em mãos chama com dois argumentos. Chamado depois de qualquer `salvarRegistro`/`atualizarRegistro`/`excluirRegistro`, depois de salvar um `aparelho` novo e depois de salvar/remover a meta na `GoalScreen`.
 
-O `max(0, ...)` trunca o excesso: dia acima da meta vira economia `0` e o quanto passou não é persistido em lugar nenhum. Quem precisa desse número usa `excessoDoDia(registrosDoDia, device, metaDoDia)` (`utils/records.js`), que devolve `{ puxadasAMais, custoAMais }` derivado na hora do render — o terceiro argumento vem de `metaEfetiva`, e `custoAMais` é `null` quando existe meta mas não existe aparelho pra precificar.
+O limite de cada dia vem de `limiteDoDia(meta, aparelho, data)` (`utils/meta.js`): é o `metaEfetiva` do dia, **mas só a partir do `startDate` da meta** — dias anteriores continuam valendo pela `metaDiaria(aparelho)`. Motivo: fora do intervalo `metaDoDia` gruda no `baseline` (o consumo atual, quase sempre maior que a meta do aparelho), e usar isso no passado inflaria retroativamente a economia já registrada quando o usuário cria uma meta.
+
+O `max(0, ...)` trunca o excesso: dia acima do limite vira economia `0` e o quanto passou não é persistido em lugar nenhum. Quem precisa desse número usa `excessoDoDia(registrosDoDia, device, metaDoDia)` (`utils/records.js`), que devolve `{ puxadasAMais, custoAMais }` derivado na hora do render — o terceiro argumento vem de `metaEfetiva`, e `custoAMais` é `null` quando existe meta mas não existe aparelho pra precificar.
 
 ## Migração convidado → conta
 

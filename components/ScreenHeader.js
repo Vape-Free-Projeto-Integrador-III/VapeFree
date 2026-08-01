@@ -2,8 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { usarConexao } from '../context/ConnectionContext';
-import { usarAuth } from '../context/AuthContext';
+import { usarFaixaDeTopoVisivel } from './OfflineBanner';
 
 export default function ScreenHeader({
     titulo,
@@ -14,12 +13,10 @@ export default function ScreenHeader({
     mostrarConfiguracoes = false,
 }) {
     const insets = useSafeAreaInsets();
-    const { online } = usarConexao();
-    const { usuario } = usarAuth();
 
     // O OfflineBanner (quando visível) já fica acima do header e come o inset
     // do topo — somar de novo aqui abriria um vão dobrado.
-    const faixaOfflineVisivel = !online && !!usuario;
+    const faixaOfflineVisivel = usarFaixaDeTopoVisivel();
     const espacoDoTopo = (faixaOfflineVisivel ? 0 : insets.top) + 12;
 
     return (

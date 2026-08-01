@@ -53,12 +53,12 @@ A tela **não** repete os passos na mão: chama `sincronizarGamificacao(entrada?
 3. `verificarEDesbloquearConquistas(records, economy, completedMissions, ctx)` — a ordem importa: concluir missão pode desbloquear conquista (ex: `first_mission`).
 4. `atualizarXp(records, null, completedMissions)` por último, já com missão e conquista novas contabilizadas.
 
-Devolve `{ registros, economia, sessoesDeCrise, missoesConcluidas, resumo, recompensas }`. A tela então:
+Devolve `{ registros, economia, sessoesDeCrise, diasDeAbertura, meta, aparelho, missoesConcluidas, resumo, recompensas }`. A tela então:
 
 5. `mostrarRecompensas(recompensas)` (`context/ToastContext.js`) — `recompensas` já vem no shape `{ conquistas, missoes, ganho }`; quem quer customizar o toast espalha e sobrescreve (`{ ...recompensas, icone, titulo }`, como o `RegisterScreen`).
 6. Para exibir a lista, usa `verificarMissoes(ctx, missoesConcluidas)` — devolve o estado de todas as missões do período com `current`/`target`/`completed`.
 
-Chamam `sincronizarGamificacao`: `HomeScreen` (passando `diasDeAbertura` de `registrarAberturaDoApp`), `MissionsScreen`, `RegisterScreen` (após salvar), `CrisisScreen` (ao encerrar a sessão), `HistoryScreen` (após editar/excluir registro — muda puxadas e economia) e `DeviceScreen` (após salvar aparelho — recalcula a economia inteira). **Não** reimplemente a sequência numa tela nova.
+Chamam `sincronizarGamificacao`: `HomeScreen` (passando `diasDeAbertura` de `registrarAberturaDoApp`), `MissionsScreen`, `RegisterScreen` (após salvar), `CrisisScreen` (ao encerrar a sessão), `HistoryScreen` (após editar/excluir registro — muda puxadas e economia), `DeviceScreen` (após salvar aparelho — recalcula a economia inteira) e `AchievementsScreen` (ao focar — a lista exibida precisa do desbloqueio já persistido). **Não** reimplemente a sequência numa tela nova.
 
 ## UI
 

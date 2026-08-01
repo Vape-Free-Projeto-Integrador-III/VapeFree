@@ -12,7 +12,7 @@ Cabeçalho colorido (`cores.primary`) usado no topo de toda tela. Props: `titulo
 
 Toda tela nova deve renderizar `<ScreenHeader>` como primeiro filho do `ScrollView`, passando `cores` de `usarTema()` e `mostrarConfiguracoes`/`aoPressionarConfiguracoes` apontando para `Settings`.
 
-Espaço do topo é `useSafeAreaInsets().top + 12` (não é valor fixo — respeita notch/status bar alta). Quando o `OfflineBanner` está visível ele já consumiu o inset acima do header, então o header cai pra `12` puro; a condição é lida do próprio componente (`usarConexao()` + `usarAuth()`), sem prop.
+Espaço do topo é `useSafeAreaInsets().top + 12` (não é valor fixo — respeita notch/status bar alta). Quando o `OfflineBanner` está visível ele já consumiu o inset acima do header, então o header cai pra `12` puro; a condição vem do hook `usarFaixaDeTopoVisivel()` do próprio `OfflineBanner`, sem prop.
 
 ## `GradeDeCards` (`components/GradeDeCards.js`)
 
@@ -77,13 +77,18 @@ Card da `HomeScreen` com as missões **diárias** do dia. Props: `missoes` (já 
 
 ## `OfflineBanner` (`components/OfflineBanner.js`)
 
-Faixa fina no topo, sem props, montada uma única vez em `navigation/AppNavigator.js` acima do `NavigationContainer` — não replique por tela nem mexa no `ScreenHeader`. Lê `usarConexao()` (`context/ConnectionContext.js`) e só aparece quando está offline **e** tem usuário logado (convidado é sempre local, nunca tem pendência). Texto muda conforme `pendentes`: "Sem internet — N alterações vão sincronizar depois" ou, com a fila zerada, "Sem internet — seus dados estão salvos no aparelho". Ver [database.md](database.md).
+Faixa fina no topo, sem props, montada uma única vez em `navigation/AppNavigator.js` acima do `NavigationContainer` — não replique por tela nem mexa no `ScreenHeader`. Lê `usarConexao()` (`context/ConnectionContext.js`) e só aparece pra usuário logado (convidado é sempre local, nunca tem pendência). Dois estados, nessa prioridade:
 
-Altura fixa: `insets.top + ALTURA_DA_FAIXA_OFFLINE` (30), constante exportada pelo próprio arquivo porque o `Toast` a soma no seu `top` quando a faixa está visível. Se mudar o layout da faixa, ajuste a constante junto.
+1. **`falhas > 0`** — faixa vermelha (`cores.danger`), ícone de alerta, aparece **mesmo online**: "N alterações não foram salvas na sua conta — toque pra ver". Tocar abre um `Alert` explicando que o dado continua valendo neste aparelho mas pode não estar em outro; "Entendi" chama `descartarFalhas()` e some. É o aviso de mutação que a fila desistiu de enviar — antes isso sumia só com um `console.log`.
+2. **offline** — faixa neutra, texto conforme `pendentes`: "Sem internet — N alterações vão sincronizar depois" ou, com a fila zerada, "Sem internet — seus dados estão salvos no aparelho".
+
+Ver [database.md](database.md).
+
+Altura fixa: `insets.top + ALTURA_DA_FAIXA_OFFLINE` (30), constante exportada pelo próprio arquivo porque o `Toast` a soma no seu `top` quando a faixa está visível. Se mudar o layout da faixa, ajuste a constante junto. A condição de "tem faixa no topo" mora só aqui, no hook exportado `usarFaixaDeTopoVisivel()` — `Toast` e `ScreenHeader` importam esse hook em vez de recalcular `!online && usuario`.
 
 ## `Toast` (`components/Toast.js`) + `ToastProvider` (`context/ToastContext.js`)
 
-Popup pequeno no topo da tela. Carrega todo feedback efêmero do app — XP/missão, validação, erro, sucesso —, não só XP (o nome `XpToast`/`usarToastDeXp` era da primeira versão e foi renomeado). Não use o componente direto: chame `usarToast()` e enfileire. Posição: `insets.top + 8`, mais `ALTURA_DA_FAIXA_OFFLINE` quando o `OfflineBanner` está na tela (mesma condição: offline **e** logado), pra não cobrir a faixa.
+Popup pequeno no topo da tela. Carrega todo feedback efêmero do app — XP/missão, validação, erro, sucesso —, não só XP (o nome `XpToast`/`usarToastDeXp` era da primeira versão e foi renomeado). Não use o componente direto: chame `usarToast()` e enfileire. Posição: `insets.top + 8`, mais `ALTURA_DA_FAIXA_OFFLINE` quando o `OfflineBanner` está na tela (via `usarFaixaDeTopoVisivel()`), pra não cobrir a faixa.
 
 - `mostrarRecompensas({ conquistas, missoes, ganho, icone, titulo })` — um toast por conquista/missão nova, mais um genérico com o XP que sobrou (registro, dia limpo, streak). `icone`/`titulo` personalizam só esse genérico: a `RegisterScreen` usa "🚭 Dia sem cigarro eletrônico!" quando `used === false` e "📝 Registro feito, sem culpa" quando o usuário usou.
 - `mostrarXp({ icone, titulo, xp })` / `mostrarGanhoDeXp(xp)` para casos avulsos.

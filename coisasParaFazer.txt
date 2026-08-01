@@ -1,100 +1,3 @@
-*inserir recaptha
-
-*foto de perfil
-
-
-===========================================================================
-BUGS (do mais grave pro menos)
-===========================================================================
-
-
-
-[2] Economia ignora a meta do usuário
-    utils/storage.js recalcularEconomia() chama metaDiaria(aparelho)
-    direto. A regra 3.2 do CLAUDE.md diz que qualquer "meta de puxadas do
-    dia" tem que passar por metaEfetiva(meta, aparelho, data). Hoje quem
-    define uma meta de redução vê o limite mudar na Home/missões/heatmap
-    mas a economia continua calculada pelo aparelho.
-    Corrigir: recalcularEconomia recebe `meta` e usa metaEfetiva por dia.
-
-[3] Editar meta reinicia a rampa
-    screens/GoalScreen.js: metaDoFormulario() sempre usa
-    startDate = hoje e prazo = 60 (o prazo salvo nunca é restaurado do
-    endDate). Quem abre a tela pra só ajustar o alvo perde o progresso da
-    rampa e a data final vira outra sem avisar.
-    Corrigir: restaurar prazo/startDate da meta salva e só recriar
-    startDate quando for meta nova.
-
-[4] Um dia pode ter mais de um registro
-    A regra "um registro por dia" só existe na RegisterScreen (checagem +
-    confirmação de sobrescrever). utils/storage.js salvarRegistro() no
-    modo convidado faz push cego. Como o XP conta registros.length * 10
-    (utils/xp.js), registro duplicado = XP duplicado e total de puxadas
-    do dia somado duas vezes.
-    Corrigir: mover a dedupe por `date` pra dentro de salvarRegistro.
-
-[5] Tela de Conquistas não persiste nada
-    screens/AchievementsScreen.js usa verificarConquistas() (só calcula)
-    em vez de verificarEDesbloquearConquistas(). A tela mostra a
-    conquista como desbloqueada, mas ela não é salva, não dá XP e não
-    dispara a celebração até a Home ser focada. Offline fica pior.
-
-[6] Mutação descartada em silêncio (perda de dado)
-    utils/offline.js drenar(): depois de LIMITE_DE_TENTATIVAS (5) a
-    mutação é jogada fora só com um console.log. O usuário nunca fica
-    sabendo que o registro dele não subiu. Falta um estado de "falhou" e
-    aviso na UI (o OfflineBanner já é o lugar natural).
-
-[7] estaOnline() pode congelar
-    utils/offline.js: `conexaoConhecida` só é atualizado por
-    assinarConexao. Se o listener não estiver montado (ou depois de
-    desmontar), o último valor fica valendo pra sempre e nunca mais faz
-    NetInfo.fetch().
-    Corrigir: guardar timestamp e refazer fetch quando o valor estiver
-    velho, ou zerar conexaoConhecida no cleanup do listener.
-
-[8] Duração da sessão de crise inflada
-    screens/CrisisScreen.js: iniciadoEm = useRef(Date.now()) é setado no
-    mount e nunca reinicia. Ao voltar da tela de respiração (que
-    navega de volta pra Crisis), segundosDecorridos() conta desde a
-    primeira abertura.
-
-[9] Voltar trava na tela de crise
-    screens/CrisisScreen.js, listener 'beforeRemove': quando o modal de
-    desfecho já está aberto (pendente !== null), o e.preventDefault()
-    roda e nada acontece — o gesto de voltar simplesmente não funciona.
-    Deveria deixar sair (ou fechar o modal).
-
-[10] Duplo toque no salvar do registro
-     screens/RegisterScreen.js salvar(): o finally libera
-     salvandoRef.current antes de chamar salvarDeFato(), reabrindo a
-     janela que a trava existe pra fechar. Além disso o campo de puxadas
-     aceita 0 com usou=true se o usuário digitar e tocar direto em
-     Salvar sem tirar o foco (o Math.max(1,...) está só no onBlur).
-
-[11] Intensidade em formato antigo quebra o histórico
-     screens/HistoryScreen.js renderiza {reg.intensity}/10 e
-     iconeDaIntensidade(reg.intensity) direto. O @miblanchard/slider
-     entrega array ([n]) — existe normalizarIntensidade() em
-     utils/insights.js pra isso, mas a lista não usa. Registro antigo
-     salvo como array aparece torto.
-
-[12] Lembrete para depois de 7 dias sem abrir o app
-     utils/notifications.js agenda DIAS_DE_ANTECEDENCIA (7) datas fixas.
-     Quem não abre o app por uma semana nunca mais recebe notificação —
-     justamente quem mais precisa do lembrete.
-     Corrigir: manter os 7 dias com conteúdo específico + um trigger
-     DAILY genérico de fallback no fim da janela.
-
-[13] Aviso de streak repete número congelado
-     agendarNotificacaoDeStreak usa trigger DAILY com o texto montado uma
-     vez ("Você já está a N dias..."). O N nunca atualiza sozinho e a
-     frase pode ficar falsa (o usuário já registrou naquele dia).
-
-[14] Notificação do dia 0 agendada no passado
-     dataDoGatilho(0, hora, minuto): se o horário de hoje já passou, o
-     gatilho é uma data no passado. Pular o dia 0 nesse caso.
-
 ===========================================================================
 SEGURANÇA
 ===========================================================================
@@ -129,8 +32,6 @@ QUALIDADE / INFRA (o que falta no projeto)
 
 [19] Sem ESLint/Prettier — nenhuma checagem automática de nada.
 
-[20] Sem eas.json e sem CI (.github/). Build e publicação 100% manuais.
-
 [21] Sem ErrorBoundary: qualquer exceção em render derruba o app inteiro
      na tela branca, sem log e sem "tenta de novo".
 
@@ -143,12 +44,6 @@ QUALIDADE / INFRA (o que falta no projeto)
 
 [24] CalendarioMensal usa `whiteSpace: 'nowrap'` no StyleSheet — é CSS de
      web, inválido no nativo.
-
-[25] Sem acessibilidade: nenhum accessibilityLabel/accessibilityRole nos
-     botões de ícone (ScreenHeader, editar/excluir do histórico, olho da
-     senha). Leitor de tela não descreve nada.
-
-[26] Textos 100% hardcoded em pt-BR, sem camada de i18n.
 
 ===========================================================================
 FEATURES / IDEIAS (backlog)

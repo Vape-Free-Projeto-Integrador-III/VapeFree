@@ -3,51 +3,43 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-nati
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import {
-    obterRegistros,
-    obterEconomia,
+    sincronizarGamificacao,
     obterConquistas,
-    obterMissoes,
-    obterSessoesDeCrise,
-    obterDiasDeAbertura,
-    obterMeta,
-    obterAparelho,
     dataDeHoje,
 } from '../utils/storage';
 import { verificarConquistas } from '../utils/achievements';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
+import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 import GradeDeCards from '../components/GradeDeCards';
 
 export default function AchievementsScreen({ navigation }) {
     const { cores } = usarTema();
     const { colunas } = usarLayoutResponsivo();
+    const { mostrarRecompensas } = usarToast();
     const [conquistas, setConquistas] = useState([]);
 
+    // Persiste antes de exibir: sem `sincronizarGamificacao` a tela mostrava a
+    // conquista como desbloqueada sem salvar nada — nem XP, nem celebração, até
+    // a Home ser focada.
     const carregar = useCallback(async () => {
-        // O contexto vai completo de propósito: sem ele, as conquistas que
-        // dependem de crise/aberturas/meta apareceriam bloqueadas aqui até
-        // outra tela persistir o desbloqueio.
-        const [
+        const {
             registros,
             economia,
-            conquistasSalvas,
-            missoesConcluidas,
             sessoesDeCrise,
             diasDeAbertura,
             meta,
             aparelho,
-        ] = await Promise.all([
-            obterRegistros(),
-            obterEconomia(),
-            obterConquistas(),
-            obterMissoes(),
-            obterSessoesDeCrise(),
-            obterDiasDeAbertura(),
-            obterMeta(),
-            obterAparelho(),
-        ]);
+            missoesConcluidas,
+            recompensas,
+        } = await sincronizarGamificacao();
+
+        // Relido depois do sync pra já incluir o que acabou de ser desbloqueado.
+        // O contexto vai completo de propósito: sem ele, as conquistas que
+        // dependem de crise/aberturas/meta apareceriam bloqueadas aqui.
+        const conquistasSalvas = await obterConquistas();
         const resultados = await verificarConquistas(
             registros,
             economia,
@@ -56,7 +48,8 @@ export default function AchievementsScreen({ navigation }) {
             { sessoesDeCrise, diasDeAbertura, meta, aparelho, hoje: dataDeHoje() }
         );
         setConquistas(resultados);
-    }, []);
+        mostrarRecompensas(recompensas);
+    }, [mostrarRecompensas]);
 
     useFocusEffect(useCallback(() => { carregar(); }, [carregar]));
 

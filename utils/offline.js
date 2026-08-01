@@ -48,6 +48,7 @@ export const ESPELHOS = {
 
 const PREFIXO_DE_CACHE = '@vapefree_cache_';
 const PREFIXO_DE_FILA = '@vapefree_queue_';
+const PREFIXO_DE_FALHAS = '@vapefree_failed_';
 
 // Quanto tempo esperar uma escrita/leitura do Firestore antes de considerar
 // que não tem rede.
@@ -58,12 +59,20 @@ const TEMPO_LIMITE_PADRAO = 8000;
 // impossível prenderia a fila inteira pra sempre.
 const LIMITE_DE_TENTATIVAS = 5;
 
+// Quantas falhas guardar pro aviso da UI. É só pra o usuário saber que algo
+// não subiu — não precisa virar histórico infinito.
+const LIMITE_DE_FALHAS_GUARDADAS = 20;
+
 function chaveDeCache(uid, nome) {
   return `${PREFIXO_DE_CACHE}${uid}_${nome}`;
 }
 
 function chaveDeFila(uid) {
   return `${PREFIXO_DE_FILA}${uid}`;
+}
+
+function chaveDeFalhas(uid) {
+  return `${PREFIXO_DE_FALHAS}${uid}`;
 }
 
 // ─── Espelho ─────────────────────────────────────────────────────────────────
@@ -166,23 +175,108 @@ export async function enfileirar(uid, mutacao) {
   return escreverFila(uid, [...compactar(fila, nova), nova]);
 }
 
+// ─── Falhas ──────────────────────────────────────────────────────────────────
+//
+// Mutação que estourou LIMITE_DE_TENTATIVAS sai da fila (senão prende o
+// resto) mas não pode sumir calada: o usuário salvou um registro que nunca
+// subiu. Vai pra cá e o OfflineBanner avisa até ele descartar.
+//
+// Falha: { id, tipo, colecao, docId, motivo, em }
+
+export async function lerFalhas(uid) {
+  if (!uid) return [];
+  try {
+    const bruto = await AsyncStorage.getItem(chaveDeFalhas(uid));
+    const falhas = bruto ? JSON.parse(bruto) : [];
+    return Array.isArray(falhas) ? falhas : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function contarFalhas(uid) {
+  const falhas = await lerFalhas(uid);
+  return falhas.length;
+}
+
+export async function limparFalhas(uid) {
+  if (!uid) return false;
+  try {
+    await AsyncStorage.removeItem(chaveDeFalhas(uid));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// A drenagem também roda fora do ConnectionContext (storage.js chama
+// sincronizar direto depois de cada escrita), então o contexto precisa de um
+// aviso pra atualizar o banner na hora em que a falha aparece.
+let ouvintesDeFalha = [];
+
+export function assinarFalhas(aoFalhar) {
+  ouvintesDeFalha.push(aoFalhar);
+  return () => {
+    ouvintesDeFalha = ouvintesDeFalha.filter((o) => o !== aoFalhar);
+  };
+}
+
+async function registrarFalha(uid, mutacao, erro) {
+  const falha = {
+    id: mutacao.id,
+    tipo: mutacao.tipo,
+    colecao: mutacao.colecao ?? null,
+    docId: mutacao.docId ?? null,
+    motivo: erro?.message ?? String(erro ?? 'desconhecido'),
+    em: new Date().toISOString(),
+  };
+  const falhas = await lerFalhas(uid);
+  const atualizadas = [...falhas, falha].slice(-LIMITE_DE_FALHAS_GUARDADAS);
+  try {
+    await AsyncStorage.setItem(chaveDeFalhas(uid), JSON.stringify(atualizadas));
+  } catch {
+    // Se nem isso grava, não há o que fazer — o console.log do drenar fica.
+  }
+  ouvintesDeFalha.forEach((aoFalhar) => aoFalhar(atualizadas.length));
+  return atualizadas.length;
+}
+
 // ─── Conexão ─────────────────────────────────────────────────────────────────
 
 // Último estado conhecido, alimentado por assinarConexao. Evita um
 // NetInfo.fetch() a cada leitura de tela.
+//
+// Esse cache tem que poder envelhecer: se ninguém estiver escutando o NetInfo
+// (listener ainda não montou, ou já desmontou), nada mais atualiza a variável
+// e o último valor valeria pra sempre — o app ficaria achando que está
+// offline muito depois da rede voltar. Duas travas: o contador de assinantes
+// (ao cair pra zero o valor é jogado fora) e a validade por tempo.
 let conexaoConhecida = null;
+let conexaoConhecidaEm = 0;
+let assinantesDeConexao = 0;
+
+// Quanto tempo o valor em cache continua valendo sem nenhum evento novo.
+const VALIDADE_DA_CONEXAO = 30000;
 
 function ehConectado(estado) {
   return Boolean(estado?.isConnected) && estado?.isInternetReachable !== false;
 }
 
+function conexaoEmCacheValida() {
+  return conexaoConhecida !== null && Date.now() - conexaoConhecidaEm < VALIDADE_DA_CONEXAO;
+}
+
 export async function estaOnline() {
-  if (conexaoConhecida !== null) return conexaoConhecida;
+  if (conexaoEmCacheValida()) return conexaoConhecida;
   try {
-    return ehConectado(await NetInfo.fetch());
+    const online = ehConectado(await NetInfo.fetch());
+    conexaoConhecida = online;
+    conexaoConhecidaEm = Date.now();
+    return online;
   } catch {
     // Sem informação de rede, é melhor tentar do que bloquear: o
-    // comTempoLimite segura a tela se estiver mesmo offline.
+    // comTempoLimite segura a tela se estiver mesmo offline. Não guarda em
+    // cache — é chute, não leitura.
     return true;
   }
 }
@@ -190,11 +284,28 @@ export async function estaOnline() {
 // Chama `aoMudar(online)` a cada mudança de conectividade. Devolve a função
 // de cancelamento do listener.
 export function assinarConexao(aoMudar) {
-  return NetInfo.addEventListener((estado) => {
+  assinantesDeConexao += 1;
+  const cancelarNoNetInfo = NetInfo.addEventListener((estado) => {
     const online = ehConectado(estado);
     conexaoConhecida = online;
+    conexaoConhecidaEm = Date.now();
     aoMudar(online);
   });
+
+  let cancelado = false;
+  return () => {
+    if (cancelado) return;
+    cancelado = true;
+    cancelarNoNetInfo();
+    assinantesDeConexao -= 1;
+    if (assinantesDeConexao <= 0) {
+      assinantesDeConexao = 0;
+      // Sem ninguém escutando, o valor guardado não tem mais como se
+      // atualizar: a próxima leitura vai buscar no NetInfo.
+      conexaoConhecida = null;
+      conexaoConhecidaEm = 0;
+    }
+  };
 }
 
 // ─── Sincronização ───────────────────────────────────────────────────────────
@@ -232,10 +343,12 @@ let execucaoEmAndamento = null;
 
 async function drenar(uid) {
   const fila = await lerFila(uid);
-  if (fila.length === 0) return { enviadas: 0, pendentes: 0 };
+  if (fila.length === 0) {
+    return { enviadas: 0, pendentes: 0, falhas: await contarFalhas(uid) };
+  }
 
   if (!(await estaOnline())) {
-    return { enviadas: 0, pendentes: fila.length };
+    return { enviadas: 0, pendentes: fila.length, falhas: await contarFalhas(uid) };
   }
 
   const resolvidas = new Set();
@@ -250,9 +363,11 @@ async function drenar(uid) {
     } catch (e) {
       const tentativas = (mutacao.tentativas ?? 0) + 1;
       if (tentativas >= LIMITE_DE_TENTATIVAS) {
-        // Erro que não é de rede (regra de segurança, dado inválido): descarta
-        // pra não prender o resto da fila pra sempre.
+        // Erro que não é de rede (regra de segurança, dado inválido): sai da
+        // fila pra não prender o resto pra sempre, mas vai pra lista de falhas
+        // — o usuário precisa saber que essa alteração não subiu.
         console.log('Mutação descartada após tentativas demais:', mutacao.tipo, mutacao.colecao, e);
+        await registrarFalha(uid, mutacao, e);
         resolvidas.add(mutacao.id);
       } else {
         tentativasPorId[mutacao.id] = tentativas;
@@ -271,15 +386,15 @@ async function drenar(uid) {
     .map((m) => (tentativasPorId[m.id] ? { ...m, tentativas: tentativasPorId[m.id] } : m));
   await escreverFila(uid, restante);
 
-  return { enviadas, pendentes: restante.length };
+  return { enviadas, pendentes: restante.length, falhas: await contarFalhas(uid) };
 }
 
 export function sincronizar(uid) {
-  if (!uid) return Promise.resolve({ enviadas: 0, pendentes: 0 });
+  if (!uid) return Promise.resolve({ enviadas: 0, pendentes: 0, falhas: 0 });
   if (execucaoEmAndamento) return execucaoEmAndamento;
 
   execucaoEmAndamento = drenar(uid)
-    .catch(() => ({ enviadas: 0, pendentes: 0 }))
+    .catch(() => ({ enviadas: 0, pendentes: 0, falhas: 0 }))
     .finally(() => {
       execucaoEmAndamento = null;
     });
@@ -294,6 +409,7 @@ export async function limparCacheEFila(uid) {
   const chaves = [
     ...Object.values(ESPELHOS).map((nome) => chaveDeCache(uid, nome)),
     chaveDeFila(uid),
+    chaveDeFalhas(uid),
   ];
   try {
     await AsyncStorage.multiRemove(chaves);

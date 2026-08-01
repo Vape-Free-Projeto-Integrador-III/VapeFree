@@ -4,13 +4,14 @@
 // Expo Go (notificações remotas/push é que pararam de funcionar no Expo Go
 // a partir do SDK 53+, mas notificações locais continuam funcionando).
 //
-// Estratégia simples: agendamos UMA notificação diária (mesmo horário todo
-// dia) com uma frase motivacional escolhida aleatoriamente entre as DICAS
-// que já existem em utils/theme.js. Toda vez que o app é reaberto com o
-// usuário logado, reagendamos para sortear uma nova frase — então, quanto
-// mais o usuário abre o app, mais variadas ficam as mensagens. Se o app
-// ficar muitos dias sem abrir, a última frase agendada continua repetindo
-// todo dia naquele horário (não é tempo real, é um agendamento simples).
+// Estratégia: agendamos uma notificação por dia (mesmo horário) pros
+// próximos DIAS_DE_ANTECEDENCIA dias, com frases motivacionais sorteadas
+// entre as DICAS que já existem em utils/theme.js, mais um fallback
+// SEMANAL que começa onde essa janela acaba. Toda vez que o app é reaberto
+// com o usuário logado, reagendamos tudo — então, quanto mais o usuário
+// abre o app, mais variadas ficam as mensagens. Se o app ficar semanas sem
+// abrir, o fallback semanal segue lembrando (repetindo a mesma frase), em
+// vez de o usuário simplesmente nunca mais receber nada.
 
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -26,6 +27,10 @@ import {
 // assim cancelamos todos antes de criar os próximos (evita duplicar notificações).
 const ID_NOTIFICACAO_DIARIA = 'vapefree-motivational-daily';
 const ID_NOTIFICACAO_DE_STREAK = 'vapefree-streak-warning-daily';
+// Fallback semanal que começa onde a janela de DIAS_DE_ANTECEDENCIA acaba:
+// é o que garante que quem passa uma semana sem abrir o app continue
+// recebendo lembrete (as notificações DATE acabam e ninguém reagenda).
+const ID_NOTIFICACAO_DE_FALLBACK = 'vapefree-motivational-weekly-fallback';
 
 // Horário padrão do lembrete motivacional (9h da manhã) e do aviso de
 // streak (20h) — horários diferentes pra não mandar os dois banners juntos
@@ -123,14 +128,24 @@ function conteudoGenericoDoLembrete() {
 }
 
 // Calcula a data/hora do gatilho pro N-ésimo dia à frente (0 = hoje),
-// no horário informado. Se o horário de hoje já passou, o dia 0 dispara
-// no mesmo instante (expo-notifications já lida com isso reagendando pro
-// próximo minuto), mas aqui sempre miramos hora:minuto do dia calculado.
+// no horário informado. Pro dia 0 o resultado pode estar no passado (o
+// horário de hoje já passou) — quem chama é obrigado a checar isso e
+// pular o dia, ver horarioDeHojeJaPassou.
 function dataDoGatilho(diasAFrente, hora, minuto) {
   const data = new Date();
   data.setDate(data.getDate() + diasAFrente);
   data.setHours(hora, minuto, 0, 0);
   return data;
+}
+
+function horarioDeHojeJaPassou(hora, minuto) {
+  return dataDoGatilho(0, hora, minuto).getTime() <= Date.now();
+}
+
+// expo-notifications usa weekday 1 = domingo ... 7 = sábado; Date.getDay()
+// usa 0 = domingo.
+function diaDaSemanaDoGatilho(diasAFrente, hora, minuto) {
+  return dataDoGatilho(diasAFrente, hora, minuto).getDay() + 1;
 }
 
 async function conteudoDoAvisoDeStreak() {
@@ -169,15 +184,25 @@ export async function agendarNotificacoesMotivacionais(
   await garantirCanalAndroid();
 
   const conteudoDeHoje = await conteudoDoLembreteDiario();
+  const jaPassou = horarioDeHojeJaPassou(hora, minuto);
 
   // Cancela as notificações diárias anteriores (se existirem) para não duplicar.
-  await Promise.all(
-    Array.from({ length: DIAS_DE_ANTECEDENCIA }, (_, dia) =>
-      Notifications.cancelScheduledNotificationAsync(`${ID_NOTIFICACAO_DIARIA}-${dia}`).catch(() => {})
-    )
-  );
+  await cancelarNotificacoesMotivacionais();
 
-  for (let dia = 0; dia < DIAS_DE_ANTECEDENCIA; dia++) {
+  // Onde a janela de datas fixas acaba e o fallback semanal assume. O
+  // fallback é ancorado no dia da semana desse dia, então a primeira
+  // repetição dele cai exatamente aí — sem sobrepor nenhum dia DATE.
+  // Se o horário de hoje ainda não passou, o dia 0 conta na janela e o
+  // fallback só poderia cair daqui a 6 dias (weekday de ontem): o dia 6
+  // então sai da janela DATE e quem cobre ele é o próprio fallback.
+  const primeiroDiaDoFallback = jaPassou ? DIAS_DE_ANTECEDENCIA : DIAS_DE_ANTECEDENCIA - 1;
+
+  for (let dia = 0; dia < primeiroDiaDoFallback; dia++) {
+    // Dia 0 só entra se o horário de hoje ainda não passou — senão o
+    // gatilho seria uma data no passado (dispararia na hora).
+    if (dia === 0 && jaPassou) {
+      continue;
+    }
     const conteudo = dia === 0 ? conteudoDeHoje : conteudoGenericoDoLembrete();
     await Notifications.scheduleNotificationAsync({
       identifier: `${ID_NOTIFICACAO_DIARIA}-${dia}`,
@@ -189,6 +214,18 @@ export async function agendarNotificacoesMotivacionais(
       },
     });
   }
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: ID_NOTIFICACAO_DE_FALLBACK,
+    content: { ...conteudoGenericoDoLembrete(), sound: true },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+      weekday: diaDaSemanaDoGatilho(primeiroDiaDoFallback, hora, minuto),
+      hour: hora,
+      minute: minuto,
+      channelId: Platform.OS === 'android' ? 'motivational' : undefined,
+    },
+  });
 
   return true;
 }
@@ -212,7 +249,11 @@ export async function agendarNotificacaoDeStreak(
 
   await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_STREAK).catch(() => {});
 
-  if (!conteudo) {
+  // Sem streak ativo / já registrou hoje, ou o horário do aviso já passou:
+  // nada a agendar. O texto cita o número de dias da sequência, então ele
+  // só vale pro dia de hoje — um trigger DAILY repetiria um número
+  // congelado (e uma frase que pode já ter ficado falsa) todo dia.
+  if (!conteudo || horarioDeHojeJaPassou(hora, minuto)) {
     return true;
   }
 
@@ -220,9 +261,8 @@ export async function agendarNotificacaoDeStreak(
     identifier: ID_NOTIFICACAO_DE_STREAK,
     content: { ...conteudo, sound: true },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: hora,
-      minute: minuto,
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: dataDoGatilho(0, hora, minuto),
       channelId: Platform.OS === 'android' ? 'motivational' : undefined,
     },
   });
@@ -259,11 +299,12 @@ export async function cancelarNotificacoesMotivacionais() {
   if (Platform.OS === 'web') {
     return;
   }
-  await Promise.all(
-    Array.from({ length: DIAS_DE_ANTECEDENCIA }, (_, dia) =>
+  await Promise.all([
+    ...Array.from({ length: DIAS_DE_ANTECEDENCIA }, (_, dia) =>
       Notifications.cancelScheduledNotificationAsync(`${ID_NOTIFICACAO_DIARIA}-${dia}`).catch(() => {})
-    )
-  );
+    ),
+    Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_FALLBACK).catch(() => {}),
+  ]);
 }
 
 export async function cancelarNotificacaoDeStreak() {

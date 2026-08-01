@@ -67,6 +67,17 @@ export function metaEfetiva(meta, aparelho, data) {
   return metaDiaria(aparelho);
 }
 
+// Limite de puxadas usado pelo cálculo da economia. Igual a metaEfetiva, mas
+// só a partir de meta.startDate: antes disso a meta ainda não existia, e
+// metaDoDia gruda no baseline fora do intervalo — usar isso no passado
+// inflaria a economia já registrada.
+export function limiteDoDia(meta, aparelho, data) {
+  if (metaValida(meta) && diferencaEmDias(meta.startDate, data) < 0) {
+    return metaDiaria(aparelho);
+  }
+  return metaEfetiva(meta, aparelho, data);
+}
+
 // Média de puxadas por dia nas datas informadas, contando só os dias que têm
 // registro. null quando nenhum dia da janela foi registrado.
 export function mediaDiariaNasDatas(registros, datas) {

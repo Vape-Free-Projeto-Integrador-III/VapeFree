@@ -103,6 +103,10 @@ export default function CrisisScreen({ navigation, route }) {
 
     useFocusEffect(
         useCallback(() => {
+            // Cada volta pra cá recomeça a contagem da sessão: sem isso o tempo
+            // gasto na tela de respiração (que navega de volta pra cá) entrava
+            // de novo no durationSec da próxima sessão.
+            iniciadoEm.current = Date.now();
             carregar();
         }, [carregar])
     );
@@ -152,8 +156,12 @@ export default function CrisisScreen({ navigation, route }) {
     useEffect(() => {
         return navigation.addListener('beforeRemove', (e) => {
             if (saindoRef.current) return;
+            // Modal de desfecho já aberto: o usuário já foi perguntado. Voltar
+            // de novo sai sem registrar (igual "Agora não") — segurar aqui
+            // travava o gesto de voltar sem dar nenhum feedback.
+            if (pendente !== null) return;
             e.preventDefault();
-            if (pendente === null) encerrar(metodoAtivo, segundosDecorridos(), false);
+            encerrar(metodoAtivo, segundosDecorridos(), false);
         });
     }, [navigation, metodoAtivo, pendente]);
 
