@@ -8,6 +8,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ConnectionProvider } from './context/ConnectionContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import { configurarHandlerDeNotificacoes } from './utils/notifications';
 import './services/firebase';
 
@@ -24,7 +25,11 @@ function AppContent() {
             <StatusBar style="light" />
             <ConnectionProvider>
                 <ToastProvider>
-                    <AppNavigator />
+                    {/* Boundary interno: exceção numa tela remonta só a navegação,
+                        mantendo tema/auth/fila offline vivos ao "tentar de novo". */}
+                    <ErrorBoundary>
+                        <AppNavigator />
+                    </ErrorBoundary>
                 </ToastProvider>
             </ConnectionProvider>
         </SafeAreaProvider>
@@ -45,10 +50,15 @@ export default function App() {
     }
 
     return (
-        <AuthProvider>
-            <ThemeProvider>
-                <AppContent />
-            </ThemeProvider>
-        </AuthProvider>
+        // Boundary externo: cobre o que o interno não alcança (os próprios
+        // providers). Sem ele, um erro no AuthProvider/ThemeProvider volta a
+        // dar tela branca.
+        <ErrorBoundary>
+            <AuthProvider>
+                <ThemeProvider>
+                    <AppContent />
+                </ThemeProvider>
+            </AuthProvider>
+        </ErrorBoundary>
     );
 }

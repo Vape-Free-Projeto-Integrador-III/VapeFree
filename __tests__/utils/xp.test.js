@@ -111,11 +111,19 @@ describe('obterNivel', () => {
     expect(nivel.progresso).toBe(1);
   });
 
-  // BUG CANDIDATO: findIndex nao acha faixa pra XP negativo e o fallback cai
-  // no ultimo indice, entao XP negativo vira Lendario. Teste documenta o
-  // comportamento ATUAL; corrigir seria clampar o indice em 0.
-  it('XP negativo cai no ultimo nivel (comportamento atual, ver comentario)', () => {
-    expect(obterNivel(-5).nome).toBe('Lendário');
+  // findIndex nao acha faixa pra XP negativo; o fallback tem que cair no
+  // primeiro nivel, nao no ultimo.
+  it('XP negativo cai no primeiro nivel', () => {
+    const nivel = obterNivel(-5);
+    expect(nivel.nome).toBe('Iniciante');
+    expect(nivel.indice).toBe(0);
+  });
+
+  it('XP negativo nao gera derivado negativo', () => {
+    const nivel = obterNivel(-5);
+    expect(nivel.xpNoNivel).toBe(0);
+    expect(nivel.progresso).toBe(0);
+    expect(nivel.xpParaProximo).toBe(1000);
   });
 });
 

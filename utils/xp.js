@@ -99,7 +99,13 @@ export function calcularXp(registros = [], conquistasDesbloqueadas = [], missoes
 }
 
 export function obterNivel(xp = 0) {
-  const indiceEncontrado = NIVEIS.findIndex((nivel) => xp >= nivel.minimo && xp < nivel.maximo);
+  // XP abaixo do primeiro nível não existe pela UI hoje, mas se aparecer
+  // (qualquer parcela descontada) tem que virar piso, não estourar pro topo
+  // nem gerar progresso/faltante negativo — daí clampar antes de tudo.
+  const xpClampado = Math.max(xp, NIVEIS[0].minimo);
+  const indiceEncontrado = NIVEIS.findIndex(
+    (nivel) => xpClampado >= nivel.minimo && xpClampado < nivel.maximo
+  );
   const indice = indiceEncontrado === -1 ? NIVEIS.length - 1 : indiceEncontrado;
   const nivel = NIVEIS[indice];
   const ehMaximo = nivel.maximo === Infinity;
@@ -111,11 +117,11 @@ export function obterNivel(xp = 0) {
     icone: nivel.icone,
     minimo: nivel.minimo,
     maximo: nivel.maximo,
-    xpNoNivel: xp - nivel.minimo,
+    xpNoNivel: xpClampado - nivel.minimo,
     xpDoNivel: ehMaximo ? 0 : nivel.maximo - nivel.minimo,
-    xpParaProximo: ehMaximo ? 0 : nivel.maximo - xp,
+    xpParaProximo: ehMaximo ? 0 : nivel.maximo - xpClampado,
     nomeDoProximo: ehMaximo ? null : NIVEIS[indice + 1].nome,
-    progresso: ehMaximo ? 1 : (xp - nivel.minimo) / (nivel.maximo - nivel.minimo),
+    progresso: ehMaximo ? 1 : (xpClampado - nivel.minimo) / (nivel.maximo - nivel.minimo),
   };
 }
 

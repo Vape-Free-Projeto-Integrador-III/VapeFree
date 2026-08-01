@@ -86,6 +86,19 @@ Ver [database.md](database.md).
 
 Altura fixa: `insets.top + ALTURA_DA_FAIXA_OFFLINE` (30), constante exportada pelo próprio arquivo porque o `Toast` a soma no seu `top` quando a faixa está visível. Se mudar o layout da faixa, ajuste a constante junto. A condição de "tem faixa no topo" mora só aqui, no hook exportado `usarFaixaDeTopoVisivel()` — `Toast` e `ScreenHeader` importam esse hook em vez de recalcular `!online && usuario`.
 
+## `ErrorBoundary` (`components/ErrorBoundary.js`)
+
+Class component (é o único jeito: `getDerivedStateFromError`/`componentDidCatch` não têm versão em hook). Sem ele, qualquer exceção no render derrubava a árvore inteira — tela branca, sem log e sem saída. Captura, loga (`console.error` com o `componentStack`), chama a prop opcional `aoCapturar(erro, info)` e mostra uma tela de erro com botão **Tentar de novo**, que limpa o estado e remonta os filhos.
+
+Montado duas vezes em `App.js`, de propósito:
+
+1. **interno** — em volta do `<AppNavigator />`, dentro dos providers: crash de tela remonta só a navegação, mantendo tema, auth e fila offline vivos.
+2. **externo** — em volta de `AuthProvider`/`ThemeProvider`: cobre o que o interno não alcança (crash do próprio provider).
+
+Usa uma paleta fixa própria em vez de `usarTema()` (mesma exceção das telas de auth): o erro capturado pode ter vindo do `ThemeProvider`, e um fallback que dependesse do tema quebraria de novo ao tentar se desenhar. O detalhe técnico do erro só aparece com `__DEV__`.
+
+Testes em `__tests__/components/ErrorBoundary.test.js`. Nota de teste: o `render`/`rerender`/`fireEvent` do `@testing-library/react-native` é assíncrono nesta versão — sem `await` o resultado vem vazio ("`render` function has not been called").
+
 ## `Toast` (`components/Toast.js`) + `ToastProvider` (`context/ToastContext.js`)
 
 Popup pequeno no topo da tela. Carrega todo feedback efêmero do app — XP/missão, validação, erro, sucesso —, não só XP (o nome `XpToast`/`usarToastDeXp` era da primeira versão e foi renomeado). Não use o componente direto: chame `usarToast()` e enfileire. Posição: `insets.top + 8`, mais `ALTURA_DA_FAIXA_OFFLINE` quando o `OfflineBanner` está na tela (via `usarFaixaDeTopoVisivel()`), pra não cobrir a faixa.

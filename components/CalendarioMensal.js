@@ -134,7 +134,9 @@ export default function CalendarioMensal({
                             },
                         ]}
                     >
-                        <Text style={[styles.tooltipText, { color: cores.background }]}>{textoDoTooltip}</Text>
+                        <Text numberOfLines={1} style={[styles.tooltipText, { color: cores.background }]}>
+                            {textoDoTooltip}
+                        </Text>
                     </View>
                 ) : null}
             </View>
@@ -168,5 +170,5 @@ const styles = StyleSheet.create({
         borderRadius: RAIO.sm,
         zIndex: 10,
     },
-    tooltipText: { fontSize: 11, fontFamily: 'Poppins_600SemiBold', whiteSpace: 'nowrap' },
+    tooltipText: { fontSize: 11, fontFamily: 'Poppins_600SemiBold' },
 });
