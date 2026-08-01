@@ -25,6 +25,7 @@ import {
   obterEstadoDeXp,
 } from './storage';
 import { puxadasDoRegistro } from './records';
+import { dataDeHoje } from './datas';
 
 const COLUNAS_DO_CSV = [
   'data',
@@ -93,8 +94,7 @@ async function carregarDados() {
 }
 
 function nomeDoArquivo(formato) {
-  const hoje = new Date().toISOString().slice(0, 10);
-  return `vapefree-${hoje}.${formato}`;
+  return `vapefree-${dataDeHoje()}.${formato}`;
 }
 
 async function baixarNaWeb(nome, conteudo, tipo) {

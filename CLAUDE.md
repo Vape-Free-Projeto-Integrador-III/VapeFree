@@ -29,7 +29,7 @@ screens/             # uma tela por arquivo, PascalCase
 components/          # componentes reutilizáveis entre telas
 context/             # AuthContext, ThemeContext, ConnectionContext (React Context API)
 services/            # firebase.native.js / firebase.web.js
-utils/               # storage.js (dados), offline.js (espelho+fila), achievements.js, missions.js, records.js, meta.js, notifications.js, theme.js, responsivo.js (breakpoints/largura)
+utils/               # storage.js (dados), offline.js (espelho+fila), datas.js (data local, módulo folha), achievements.js, missions.js, records.js, meta.js, notifications.js, theme.js, responsivo.js (breakpoints/largura)
 assets/              # ícones/splash do app.json
 docs/                # documentação detalhada por assunto (este índice)
 coisasParaFazer.txt  # backlog/roadmap do projeto — ver antes de propor features novas
@@ -48,6 +48,7 @@ Não existe pasta `src/` — tudo fica na raiz.
 - **Sem TypeScript.** Não crie arquivos `.ts`/`.tsx` nem adicione `tsconfig.json` sem alinhar com o usuário antes.
 - **Sem Expo Router.** Novas telas entram como `Stack.Screen`/`Tab.Screen` em `navigation/AppNavigator.js`, não como arquivos em `app/`.
 - Registro (`Record`) tem `id` gerado com `Date.now()` — ao criar novo registro, siga o mesmo padrão (não use UUID nem index de array).
+- **Toda data de calendário `'YYYY-MM-DD'` sai de `utils/datas.js`** (`dataDeHoje`, `chaveDeData`, `chaveDeDataLocal`, `converterDataLocal`, `deslocarData`, `diferencaEmDias`, `inicioDaSemana`, ...). Nunca derive dia de calendário com `toISOString().slice(0, 10)`: isso devolve UTC e no Brasil (UTC-3) o app virava o dia às 21h. `toISOString()` completo continua certo para **timestamp de instante** (`unlockedAt`, `updatedAt`, `completedAt`) — instante é global, dia de calendário é local. `utils/datas.js` é módulo folha: não importa nada de `utils/`.
 
 ## Padrões de código
 

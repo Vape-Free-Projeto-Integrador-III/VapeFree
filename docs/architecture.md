@@ -8,10 +8,13 @@ components/        → UI reutilizável, sem lógica de dados própria
 context/            → estado global (auth, tema, conexão)
 utils/storage.js    → única porta de entrada para dados (decide AsyncStorage vs Firestore)
 utils/offline.js    → espelho local + fila de sincronização do modo conta (só storage.js usa)
+utils/datas.js      → módulo folha: toda data 'YYYY-MM-DD', sempre local (não importa nada)
 services/firebase.*  → inicialização do SDK Firebase
 ```
 
 Ao lado de `utils/storage.js` existem os **módulos puros de derivação** — `utils/achievements.js` (quais conquistas o histórico desbloqueia), `utils/insights.js` (quais padrões o histórico revela), `utils/records.js` (contas derivadas do aparelho) e `utils/meta.js` (a rampa da meta de redução). Eles não leem nem escrevem nada: recebem `registros`/`meta`/`aparelho` já carregados e devolvem o resultado calculado. Lógica nova que só transforma registros em informação deve entrar nesse formato, não dentro da tela.
+
+Abaixo de todos eles está `utils/datas.js`, o módulo **folha** que converte entre `Date` e a string `'YYYY-MM-DD'` — sempre em horário local, nunca via `toISOString()`. Ele não importa nada de `utils/` justamente porque `storage.js`, `meta.js`, `missions.js`, `achievements.js` e `xp.js` importam dele. Regras completas em [database.md](database.md#datas-utilsdatasjs).
 
 Uma regra vale pra toda a árvore: **a meta que aparece pro usuário sai de `metaEfetiva(meta, aparelho, data)`** (`utils/meta.js`), que devolve a meta declarada pelo usuário e só cai em `metaDiaria(aparelho)` quando ela não existe. Chamar `metaDiaria` direto numa tela ou numa missão quebraria o "meta do usuário ganha da do aparelho" em um lugar só, que é exatamente o tipo de divergência que essa camada existe pra evitar.
 

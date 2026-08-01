@@ -14,6 +14,7 @@
 // importam daqui, então um import de volta faria ciclo.
 
 import { somarPuxadas, metaDiaria } from './records';
+import { deslocarData, diferencaEmDias } from './datas';
 
 function numeroNaoNegativo(valor) {
   const n = Number(valor);
@@ -24,20 +25,9 @@ function ehDataValida(valor) {
   return typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(valor);
 }
 
-// Data 'YYYY-MM-DD' deslocada em N dias (N pode ser negativo). Meio-dia no
-// construtor evita o fuso puxar a data pro dia anterior.
-export function deslocarData(dataStr, dias) {
-  const data = new Date(`${dataStr}T12:00:00`);
-  data.setDate(data.getDate() + dias);
-  return data.toISOString().slice(0, 10);
-}
-
-// Diferença em dias entre duas datas 'YYYY-MM-DD' (b - a).
-export function diferencaEmDias(a, b) {
-  const inicio = new Date(`${a}T12:00:00`);
-  const fim = new Date(`${b}T12:00:00`);
-  return Math.round((fim - inicio) / 86400000);
-}
+// deslocarData/diferencaEmDias moram em utils/datas.js (fonte única de data
+// local). Reexportadas porque as telas historicamente importam daqui.
+export { deslocarData, diferencaEmDias } from './datas';
 
 // Janela móvel: as N datas que terminam em `ateData` (inclusive), em ordem.
 export function janelaDeDias(ateData, n) {

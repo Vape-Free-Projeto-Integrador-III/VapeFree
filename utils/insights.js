@@ -10,6 +10,7 @@
 
 import { puxadasDoRegistro } from './records';
 import { GATILHOS, AJUDAS } from './theme';
+import { converterDataLocal } from './datas';
 
 export const MIN_REGISTROS_PARA_INSIGHTS = 7;
 
@@ -32,10 +33,9 @@ export function normalizarIntensidade(valor) {
   return Number(bruto) || 0;
 }
 
-// Meio-dia evita o off-by-one de fuso que o parse UTC puro causaria.
-export function converterDataLocal(dataStr) {
-  return new Date(`${dataStr}T12:00:00`);
-}
+// converterDataLocal mora em utils/datas.js (fonte única de data local).
+// Reexportada porque HistoryScreen e calendario.js importam daqui.
+export { converterDataLocal } from './datas';
 
 export function emojiDoRotulo(rotulo) {
   const encontrado =

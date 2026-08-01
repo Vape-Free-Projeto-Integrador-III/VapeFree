@@ -17,27 +17,11 @@
 import { somarPuxadas } from './records';
 import { metaEfetiva } from './meta';
 import { calcularStreakDeDias } from './achievements';
+import { dataDeHoje, inicioDaSemana, diasDaSemana } from './datas';
 
-// Segunda-feira da semana de uma data 'YYYY-MM-DD' (mesma lógica de
-// rotuloSemana em storage.js, mas devolvendo a data inteira).
-export function inicioDaSemana(dataStr) {
-    const data = new Date(`${dataStr}T12:00:00`);
-    const diaDaSemana = data.getDay();
-    const diff = data.getDate() - diaDaSemana + (diaDaSemana === 0 ? -6 : 1);
-    data.setDate(diff);
-    return data.toISOString().slice(0, 10);
-}
-
-export function diasDaSemana(dataStr) {
-    const inicio = new Date(`${inicioDaSemana(dataStr)}T12:00:00`);
-    const dias = [];
-    for (let i = 0; i < 7; i++) {
-        const dia = new Date(inicio);
-        dia.setDate(inicio.getDate() + i);
-        dias.push(dia.toISOString().slice(0, 10));
-    }
-    return dias;
-}
+// inicioDaSemana/diasDaSemana moram em utils/datas.js (fonte única de data
+// local). Reexportadas porque este módulo é a casa histórica delas.
+export { inicioDaSemana, diasDaSemana } from './datas';
 
 export function chaveDePeriodo(missao, dataStr) {
     return missao.period === 'weekly' ? inicioDaSemana(dataStr) : dataStr;
@@ -216,7 +200,7 @@ export const MISSOES = [
 // posicionais) porque o contexto cresceu com meta/aparelho.
 export function montarContextoDeMissoes(entrada = {}) {
     const { registros = [], economia = {}, sessoesDeCrise = [], meta = null, aparelho = null, hoje } = entrada;
-    const data = hoje || new Date().toISOString().slice(0, 10);
+    const data = hoje || dataDeHoje();
     return {
         registros: Array.isArray(registros) ? registros : [],
         economia: economia && typeof economia === 'object' ? economia : {},

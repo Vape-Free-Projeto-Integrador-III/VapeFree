@@ -49,6 +49,7 @@ import { verificarConquistas, calcularStreak, calcularEstadoDeStreak } from './a
 import { montarContextoDeMissoes, verificarMissoes } from './missions';
 import { normalizarRegistro, somarPuxadas, metaDiaria, custoPorPuxada } from './records';
 import { resumoDeXp } from './xp';
+import { dataDeHoje, ultimosNDias, converterDataLocal, inicioDaSemana } from './datas';
 
 export { calcularStreak, calcularEstadoDeStreak };
 
@@ -734,51 +735,16 @@ export async function recalcularEconomia(registros, aparelho) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 // Funções puras (sem leitura/escrita de dados).
 
-export function dataDeHoje() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-export function ultimosNDias(n) {
-  const dias = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    dias.push(d.toISOString().slice(0, 10));
-  }
-  return dias;
-}
-
-export function ultimasNSemanas(n) {
-  const semanas = [];
-  const hoje = new Date();
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(hoje);
-    d.setDate(d.getDate() - i * 7);
-    semanas.push(d.toISOString().slice(0, 10));
-  }
-  return semanas;
-}
-
-export function ultimosNMeses(n) {
-  const meses = [];
-  const hoje = new Date();
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-    meses.push(d.toISOString().slice(0, 10));
-  }
-  return meses;
-}
+// Datas de calendário moram em utils/datas.js (fonte única, sempre local).
+// Reexportadas aqui porque as telas historicamente importam daqui.
+export { dataDeHoje, ultimosNDias, ultimasNSemanas, ultimosNMeses } from './datas';
 
 export function rotuloSemana(dataStr) {
-  const d = new Date(dataStr + 'T00:00:00');
-  const diaDaSemana = d.getDay();
-  const diff = d.getDate() - diaDaSemana + (diaDaSemana === 0 ? -6 : 1);
-  const segunda = new Date(d.setDate(diff));
-  return `${segunda.toISOString().slice(5, 10)}`;
+  return inicioDaSemana(dataStr).slice(5, 10);
 }
 
 export function rotuloMes(dataStr) {
-  const d = new Date(dataStr + 'T00:00:00');
+  const d = converterDataLocal(dataStr);
   const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   return `${meses[d.getMonth()]} ${d.getFullYear()}`;
 }

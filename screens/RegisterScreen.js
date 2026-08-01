@@ -26,6 +26,7 @@ import {
     DIAS_PARA_TRAS_NO_REGISTRO,
 } from '../utils/storage';
 import { aplicarPreferenciasDeNotificacao } from '../utils/notifications';
+import { deslocarData, converterDataLocal } from '../utils/datas';
 import {
     RAIO, SOMBRA,
     GATILHOS, AJUDAS, MENSAGENS_MOTIVACIONAIS,
@@ -46,11 +47,8 @@ function formatarRotuloDaDataSelecionada(dataStr) {
 function formatarOpcaoDeData(dataStr, hoje) {
     const [, mes, dia] = dataStr.split('-');
     if (dataStr === hoje) return `Hoje · ${dia}/${mes}`;
-    const data = new Date(`${dataStr}T12:00:00`);
-    const ontem = new Date(`${hoje}T12:00:00`);
-    ontem.setDate(ontem.getDate() - 1);
-    if (dataStr === ontem.toISOString().slice(0, 10)) return `Ontem · ${dia}/${mes}`;
-    return `${NOMES_DOS_DIAS[data.getDay()]} · ${dia}/${mes}`;
+    if (dataStr === deslocarData(hoje, -1)) return `Ontem · ${dia}/${mes}`;
+    return `${NOMES_DOS_DIAS[converterDataLocal(dataStr).getDay()]} · ${dia}/${mes}`;
 }
 
 export default function RegisterScreen({ navigation }) {

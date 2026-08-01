@@ -146,7 +146,30 @@ Como a migração, **exige internet** (devolve `{ ok: false, motivo: 'rede' }` o
 
 ## Helpers puros (sem I/O)
 
-`dataDeHoje()`, `ultimosNDias(n)`, `ultimasNSemanas(n)`, `ultimosNMeses(n)`, `rotuloSemana(dateStr)`, `rotuloMes(dateStr)` — todos em `utils/storage.js`, usados pelas telas para montar os gráficos. `calcularEstadoDeStreak(records)` e o atalho `calcularStreak(records)` vivem em `utils/achievements.js` e são re-exportados por `storage.js` — importe de onde for mais natural no arquivo, ambos funcionam.
+`dataDeHoje()`, `ultimosNDias(n)`, `ultimasNSemanas(n)`, `ultimosNMeses(n)`, `rotuloSemana(dateStr)`, `rotuloMes(dateStr)` — importáveis de `utils/storage.js`, usados pelas telas para montar os gráficos. `calcularEstadoDeStreak(records)` e o atalho `calcularStreak(records)` vivem em `utils/achievements.js` e são re-exportados por `storage.js` — importe de onde for mais natural no arquivo, ambos funcionam.
+
+### Datas (`utils/datas.js`)
+
+**Toda** string de dia de calendário `'YYYY-MM-DD'` — campo `date` do registro, chave do mapa de economia, `periodKey` de missão, célula do heatmap, `startDate`/`endDate` da meta — sai deste módulo, e sempre em **horário local**.
+
+| Função | O que faz |
+|---|---|
+| `chaveDeData(ano, mes, dia)` | monta a string (`mes` 0-11, igual `Date.getMonth()`) |
+| `chaveDeDataLocal(data)` | `Date` → `'YYYY-MM-DD'` pelos getters locais — primitivo de todo o resto |
+| `converterDataLocal(dataStr)` | `'YYYY-MM-DD'` → `Date` ao meio-dia local (evita off-by-one do parse UTC) |
+| `dataDeHoje()` | hoje, no fuso do aparelho |
+| `ultimosNDias/ultimasNSemanas/ultimosNMeses(n)` | janelas dos gráficos |
+| `deslocarData(dataStr, dias)` / `diferencaEmDias(a, b)` | aritmética de dias |
+| `inicioDaSemana(dataStr)` / `diasDaSemana(dataStr)` | segunda-feira da semana / as 7 datas dela |
+
+`storage.js`, `meta.js`, `insights.js`, `calendario.js` e `missions.js` **reexportam** o que historicamente morava neles, então os imports antigos continuam valendo — mas em código novo importe direto de `utils/datas.js`.
+
+Duas regras que não podem ser quebradas:
+
+1. **Nunca** derive dia de calendário com `new Date().toISOString().slice(0, 10)`. Isso devolve UTC: no Brasil (UTC-3) o app virava o dia às 21h — registro noturno caía na data seguinte, streak quebrava, missão diária não contava, heatmap deslocava, economia ia pra data errada.
+2. `toISOString()` **completo** continua correto para timestamp de instante (`unlockedAt`, `updatedAt`, `completedAt`, `exportadoEm`). Instante é global; dia de calendário é local. São coisas diferentes.
+
+`utils/datas.js` é módulo **folha**: não importa nada de `utils/`, porque `storage.js`, `meta.js`, `missions.js`, `achievements.js` e `xp.js` dependem dele e um import de volta faria ciclo.
 
 `calcularEstadoDeStreak` devolve `{ streak, escudos, progresso, diasProtegidos, ultimoDiaProtegido, gastouEscudoNoUltimoDia }`, simulando o histórico **pra frente**, do primeiro ao último dia com registro (dias depois do último registro não são avaliados, senão o streak quebraria sozinho antes de o usuário registrar hoje). Regras do escudo de streak:
 

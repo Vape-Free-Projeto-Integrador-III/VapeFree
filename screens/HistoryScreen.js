@@ -13,7 +13,8 @@ import ScreenHeader from '../components/ScreenHeader';
 import InsightsCard from '../components/InsightsCard';
 import CalendarioMensal from '../components/CalendarioMensal';
 import GradeDeCards from '../components/GradeDeCards';
-import { normalizarIntensidade, converterDataLocal, emojiDoRotulo } from '../utils/insights';
+import { normalizarIntensidade, emojiDoRotulo } from '../utils/insights';
+import { converterDataLocal, chaveDeData, inicioDaSemana } from '../utils/datas';
 import {
     MESES_CURTOS,
     formatarDataCompleta,
@@ -60,17 +61,12 @@ const METRICAS = [
 const DIAS_ATE_AGRUPAR_POR_SEMANA = 31;
 const DIAS_ATE_AGRUPAR_POR_MES = 180;
 
-function chaveDoInicioDaSemana(dataStr) {
-    const data = converterDataLocal(dataStr);
-    const diaDaSemana = data.getDay();
-    const diff = diaDaSemana === 0 ? -6 : 1 - diaDaSemana;
-    data.setDate(data.getDate() + diff);
-    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
-}
+// Agrupamento por semana usa a mesma segunda-feira das missões semanais.
+const chaveDoInicioDaSemana = inicioDaSemana;
 
 function chaveDoInicioDoMes(dataStr) {
     const data = converterDataLocal(dataStr);
-    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-01`;
+    return chaveDeData(data.getFullYear(), data.getMonth(), 1);
 }
 
 function formatarRotuloDaSemana(dataStr) {

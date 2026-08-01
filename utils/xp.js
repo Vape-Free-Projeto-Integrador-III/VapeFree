@@ -8,6 +8,7 @@
 // do último valor calculado, pra quem precisar do XP sem recalcular tudo.
 
 import { CONQUISTAS } from './achievements';
+import { deslocarData } from './datas';
 
 export const REGRAS_DE_XP = {
   REGISTRO: 10,       // por registro feito
@@ -56,9 +57,7 @@ export function calcularMelhorStreak(registros) {
 }
 
 function ehDiaSeguinte(dataAnterior, data) {
-  const cursor = new Date(`${dataAnterior}T12:00:00`);
-  cursor.setDate(cursor.getDate() + 1);
-  return cursor.toISOString().slice(0, 10) === data;
+  return deslocarData(dataAnterior, 1) === data;
 }
 
 export function contarDiasLimpos(registros) {

@@ -1,6 +1,7 @@
 
-import { metaValida, metaDoDia, mediaDiariaNasDatas, janelaDeDias, deslocarData } from './meta';
+import { metaValida, metaDoDia, mediaDiariaNasDatas, janelaDeDias } from './meta';
 import { somarPuxadas } from './records';
+import { dataDeHoje, deslocarData, chaveDeDataLocal, converterDataLocal } from './datas';
 
 // Mínimo de dias registrados numa janela de 7 pra ela poder ser comparada com
 // outra. A média ignora dia sem registro, então sem esse piso um único dia
@@ -233,7 +234,7 @@ export const CONQUISTAS = [
     descricao: 'Sua média diária caiu pela metade em relação à semana anterior',
     icone: '📉',
     condicao: (registros, economia, missoesConcluidas, contexto) => {
-      const hoje = contexto?.hoje || new Date().toISOString().slice(0, 10);
+      const hoje = contexto?.hoje || dataDeHoje();
       const datasAgora = janelaDeDias(hoje, 7);
       const datasAnteriores = janelaDeDias(deslocarData(hoje, -7), 7);
       const mediaAgora = mediaDiariaNasDatas(registros, datasAgora);
@@ -266,7 +267,7 @@ export const CONQUISTAS = [
     condicao: (registros, economia, missoesConcluidas, contexto) => {
       const meta = contexto?.meta;
       if (!metaValida(meta)) return false;
-      const hoje = contexto?.hoje || new Date().toISOString().slice(0, 10);
+      const hoje = contexto?.hoje || dataDeHoje();
       const datas = janelaDeDias(hoje, 7);
       return datas.every((data) => {
         const doDia = (registros || []).filter((registro) => registro.date === data);
@@ -291,9 +292,7 @@ export function calcularStreakDeDias(datas) {
   let atual = 1;
 
   for (let i = 1; i < unicas.length; i++) {
-    const anterior = new Date(`${unicas[i - 1]}T12:00:00`);
-    anterior.setDate(anterior.getDate() + 1);
-    if (anterior.toISOString().slice(0, 10) === unicas[i]) {
+    if (deslocarData(unicas[i - 1], 1) === unicas[i]) {
       atual += 1;
       melhor = Math.max(melhor, atual);
     } else {
@@ -367,7 +366,7 @@ export function calcularEstadoDeStreak(registros) {
   const registrosPorData = agruparRegistrosPorData(registros);
   const datas = Object.keys(registrosPorData).sort();
   const dataDoUltimoRegistro = datas[datas.length - 1];
-  const cursor = new Date(`${datas[0]}T12:00:00`);
+  const cursor = converterDataLocal(datas[0]);
 
   let streak = 0;
   let escudos = 0;
@@ -375,7 +374,7 @@ export function calcularEstadoDeStreak(registros) {
   const diasProtegidos = [];
 
   while (true) {
-    const chaveDaData = cursor.toISOString().slice(0, 10);
+    const chaveDaData = chaveDeDataLocal(cursor);
     const registrosDoDia = registrosPorData[chaveDaData] || [];
     const temRegistro = registrosDoDia.length > 0;
     const limpo = temRegistro && !registrosDoDia.some((registro) => registro.used === true);

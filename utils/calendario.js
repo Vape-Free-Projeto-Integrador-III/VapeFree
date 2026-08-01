@@ -7,8 +7,10 @@
 // do registro. O parse sempre passa por converterDataLocal (meio-dia), que é
 // o que evita o off-by-one de fuso.
 
-import { converterDataLocal } from './insights';
+import { converterDataLocal, chaveDeData } from './datas';
 import { somarPuxadas } from './records';
+
+export { chaveDeData };
 
 export const MESES_CURTOS = [
   'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
@@ -23,11 +25,6 @@ export const MESES_POR_EXTENSO = [
 // Semana começando na segunda, mesma convenção de chaveDoInicioDaSemana
 // (HistoryScreen). Sábado e domingo ficam no fim.
 export const DIAS_DA_SEMANA_CURTOS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
-
-// mes é 0-11, igual Date.getMonth().
-export function chaveDeData(ano, mes, dia) {
-  return `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-}
 
 export function mesDeData(dataStr) {
   const data = converterDataLocal(dataStr);
