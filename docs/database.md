@@ -189,3 +189,13 @@ Duas regras que não podem ser quebradas:
 **O escudo não é dado persistido.** É derivado dos registros a cada leitura, o que torna impossível ele ficar dessincronizado: editar ou apagar um registro antigo recalcula tudo. A versão anterior guardava estado incremental (`streakShield` no Firestore) e ficava permanentemente errada depois de qualquer inconsistência.
 
 Dia protegido conta **só para o streak**. Para XP (`utils/xp.js`), missões, gráficos e economia ele continua sendo dia de uso.
+
+## Testes desta camada
+
+`__tests__/utils/storage.test.js` cobre as ramificações que este documento descreve: convidado x conta,
+online x offline, espelho x servidor, e as travas (`podeEscreverDerivado`, janela de dias do registro,
+migração e exclusão exigindo rede). Ver [deployment.md](deployment.md) para como o arquivo é montado
+e as duas armadilhas de sincronia que ele precisa contornar.
+
+Ao mexer em `storage.js`, rode `npm test` — é a camada que quebra em silêncio, porque o caminho
+offline só aparece em condição que não dá pra reproduzir à mão de forma confiável.

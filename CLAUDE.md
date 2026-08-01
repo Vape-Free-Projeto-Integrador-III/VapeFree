@@ -15,7 +15,8 @@ Detalhes por assunto ficam em `docs/`. Este arquivo só traz regras permanentes 
 - **StyleSheet.create** do React Native para estilos — sem NativeWind/Tailwind, sem styled-components.
 - `react-native-chart-kit` (gráficos), `@miblanchard/react-native-slider` (sliders), `@expo/vector-icons` (ícones Ionicons).
 - `react-native-view-shot` + `expo-sharing` — só no compartilhamento de conquista (`components/AchievementCelebration.js`).
-- Sem ESLint, Prettier, Jest, `babel.config.js`, `metro.config.js` ou `eas.json` no repo — projeto roda só com os defaults do Expo.
+- **Jest** (`jest-expo`) para os utils puros + `utils/offline.js` e `utils/storage.js` em `__tests__/utils/`, mais **`@testing-library/react-native`** em `__tests__/screens/` (só a regra do `{ ok }` nas telas de escrita — não se testa aparência). **ESLint 9** flat config (`eslint-config-expo` + `eslint-config-prettier`) e **Prettier**. `babel.config.js` existe só pra declarar `babel-preset-expo` ao `babel-jest`.
+- Sem `metro.config.js`, `eas.json` ou CI no repo — build/deploy segue manual.
 
 Ver `docs/architecture.md` para como as camadas se conectam.
 
@@ -55,12 +56,14 @@ Não existe pasta `src/` — tudo fica na raiz.
 - Componente de tela: `export default function NomeScreen({ navigation }) { ... }`, hooks primeiro, depois handlers, depois JSX, `StyleSheet.create` no fim do arquivo.
 - Dado de tela recarrega com `useFocusEffect(useCallback(() => { load(); }, [...]))`, não `useEffect` puro — evita dado desatualizado ao voltar de outra tela.
 - Confirmações/formulários simples usam `Alert.alert` (nativo) — só use `Modal` customizado quando o design realmente precisa (edição, date picker, escolha de dados de convidado).
-- Erros de operação assíncrona nunca propagam exceção da camada `utils/`. Duas formas: **escrita iniciada pelo usuário** (`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `definirEconomia`, `salvarSessaoDeCrise`) devolve `{ ok, motivo }` e a tela é obrigada a checar `ok` e chamar `mostrarErro` do `usarToast()` antes de dar sucesso/XP; o resto (leituras e escritas de gamificação) continua com `catch { return false/[]/null }` silencioso. Ver `docs/database.md`.
+- Erros de operação assíncrona nunca propagam exceção da camada `utils/`. Duas formas: **escrita iniciada pelo usuário** (`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `definirEconomia`, `salvarSessaoDeCrise`) devolve `{ ok, motivo }` e a tela é obrigada a checar `ok` e chamar `mostrarErro` do `usarToast()` antes de dar sucesso/XP; o resto (leituras e escritas de gamificação) continua com `catch { return false/[]/null }` silencioso. Tela de escrita nova precisa entrar em `__tests__/screens/escrita-checa-ok.test.js` — é lá que essa regra fica travada. Ver `docs/database.md`.
 
 ## Fluxo de desenvolvimento
 
 - Instalar: `npm install`. Rodar: `npm start` (Metro), `npm run android`, `npm run ios`, `npm run web`.
-- Sem lint/test configurados — não existe `npm run lint` nem `npm test` para rodar antes de commit.
+- Verificar antes de commit: `npm test` e `npm run lint` (nenhum dos dois é porta automática — não há CI). `npm run format` roda o Prettier, mas hoje só `__tests__/` está formatado por ele; o resto do repo tem indentação mista e formatar tudo de uma vez viraria um diff de ~57 arquivos.
+- Teste novo em `__tests__/utils/<modulo>.test.js`, `describe`/`it` em português. **Nenhum teste pode depender do dia atual** — data fixa hardcoded, nunca `dataDeHoje()`. Única exceção: o que testa `dataEhRegistravel`, que é relativo a hoje por natureza. Ver `docs/deployment.md`.
+- Ao mudar `utils/storage.js`, rodar `npm test` é obrigatório: as ramificações convidado/conta e online/offline estão cobertas, e é a camada que quebra em silêncio.
 - Sem CI configurado (`.github/` não existe) e sem `eas.json` — build/deploy ainda é manual. Ver `docs/deployment.md`.
 - Antes de propor uma feature nova, olhe `coisasParaFazer.txt` — é o backlog vivo do projeto, mantido pelo usuário.
 

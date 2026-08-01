@@ -169,7 +169,7 @@ export default function RegisterScreen({ navigation }) {
         try {
             const todosOsRegistros = await obterRegistros();
             existente = todosOsRegistros.find((r) => r.date === dataSelecionada);
-        } catch (erro) {
+        } catch {
             salvandoRef.current = false;
             setSalvando(false);
             Alert.alert('Erro', 'Não deu pra salvar o registro. Tenta de novo.');
@@ -265,7 +265,7 @@ export default function RegisterScreen({ navigation }) {
 
             const msg = MENSAGENS_MOTIVACIONAIS[Math.floor(Math.random() * MENSAGENS_MOTIVACIONAIS.length)];
             mostrarSucesso(msg);
-        } catch (erro) {
+        } catch {
             Alert.alert('Erro', 'Não deu pra salvar o registro. Tenta de novo.');
         } finally {
             salvandoRef.current = false;

@@ -16,6 +16,7 @@ export const estiloDoConteudo = {
 // useWindowDimensions (e não Dimensions.get) porque reage a resize da janela
 // do navegador — Dimensions.get lido no topo do módulo congela na primeira carga.
 export function usarLayoutResponsivo() {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- hook custom em português (`usar*`), o lint só reconhece `use*`
     const { width } = useWindowDimensions();
     const colunas = width >= QUEBRA_DUAS_COLUNAS ? 2 : 1;
     return { largura: width, colunas, ehLargo: colunas > 1 };

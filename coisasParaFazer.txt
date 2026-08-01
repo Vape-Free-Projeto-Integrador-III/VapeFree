@@ -24,26 +24,25 @@ SEGURANÇA
 QUALIDADE / INFRA (o que falta no projeto)
 ===========================================================================
 
-[18] Nenhum teste. As funções puras são o coração do app e são fáceis de
-     cobrir: utils/meta.js (rampa, metaEfetiva), utils/xp.js (streak,
-     níveis), utils/achievements.js (escudo), utils/records.js,
-     utils/calendario.js, utils/offline.js (compactar/drenar).
-     Um Jest com uns 40 casos já pegaria a maioria dos bugs acima.
-
-[19] Sem ESLint/Prettier — nenhuma checagem automática de nada.
-
 [21] Sem ErrorBoundary: qualquer exceção em render derruba o app inteiro
      na tela branca, sem log e sem "tenta de novo".
 
 [22] app.json com version "1.0.0", buildNumber "1" e versionCode 1
      fixos — vai travar a segunda submissão nas lojas.
 
-[23] Tema não segue o sistema na primeira abertura. ThemeContext lê só a
-     flag salva e cai em claro; o app.json já está em "automatic".
-     Usar Appearance.getColorScheme() como padrão inicial.
-
 [24] CalendarioMensal usa `whiteSpace: 'nowrap'` no StyleSheet — é CSS de
      web, inválido no nativo.
+
+[25] obterNivel() com XP negativo devolve "Lendário" (utils/xp.js).
+     O findIndex não acha faixa pra xp < 0, devolve -1, e o fallback
+     `indiceEncontrado === -1 ? NIVEIS.length - 1 : ...` joga pro último
+     nível em vez do primeiro. Hoje calcularXp() só soma parcelas não
+     negativas, então não dá pra chegar lá pela UI — é bug latente, e
+     vira real no dia em que aparecer qualquer XP descontado.
+     Fazer: clampar o índice em 0 quando o xp for menor que NIVEIS[0].minimo.
+     Já existe teste documentando o comportamento atual em
+     __tests__/utils/xp.test.js ("XP negativo cai no ultimo nivel")
+     ao corrigir, inverter a expectativa desse teste pra 'Iniciante'.
 
 ===========================================================================
 FEATURES / IDEIAS (backlog)

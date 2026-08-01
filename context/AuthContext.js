@@ -159,5 +159,6 @@ export function AuthProvider({ children }) {
 }
 
 export function usarAuth() {
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- hook custom em português (`usar*`), o lint só reconhece `use*`
   return useContext(AuthContext);
 }

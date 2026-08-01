@@ -160,6 +160,7 @@ export function ToastProvider({ children }) {
 }
 
 export function usarToast() {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- hook custom em português (`usar*`), o lint só reconhece `use*`
     const contexto = useContext(ToastContext);
     if (!contexto) {
         throw new Error('usarToast precisa estar dentro de um ToastProvider');
