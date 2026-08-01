@@ -82,6 +82,19 @@ Antes de configurar EAS, CI ou variáveis de ambiente, alinhar com o usuário �
 - Plugins: `expo-web-browser`, `expo-notifications` (ícone/cor de notificação), `expo-font`.
 - Não existe campo `notification` nem `android.permissions` no `app.json`, de propósito: `notification` é legado (o plugin `expo-notifications` já cobre ícone/cor) e `POST_NOTIFICATIONS`/`RECEIVE_BOOT_COMPLETED` entram pelo manifest da própria lib, mesclados no build. Declarar de novo é redundante.
 
+## Regras do Firestore
+
+`firestore.rules` é versionado na raiz e apontado por `firebase.json`. A regra é uma só:
+`match /users/{uid}/{document=**}` liberado apenas para `request.auth.uid == uid` — cobre o
+documento do usuário e todas as subcoleções (`records`, `achievements`, `crisisSessions`,
+`missions`), que é o único lugar onde o app grava.
+
+Publicar depois de editar: `npx firebase-tools deploy --only firestore:rules` (precisa de
+`npx firebase-tools login` uma vez). O pacote é `firebase-tools`, não `firebase` — `npx firebase`
+resolve pro SDK JS que já está em `node_modules` e falha com `could not determine executable to
+run`. Sem esse deploy o arquivo no repo não vale nada — o que manda é o que está publicado no
+console.
+
 ## Trocar o package quebra registro externo
 
 Os OAuth clients de Android/iOS do Google são amarrados ao `com.vapefree.app` (ver

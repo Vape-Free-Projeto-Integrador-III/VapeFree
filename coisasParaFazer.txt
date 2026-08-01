@@ -1,24 +1,8 @@
 ===========================================================================
-SEGURANÇA
-===========================================================================
-
-[15] Regras do Firestore não estão no repositório
-     Não existe firestore.rules nem firebase.json versionado. Sem
-     conferir, não dá pra afirmar que users/{uid} e as subcoleções
-     (records, achievements, crisisSessions, missions) só são
-     lidas/escritas pelo dono. Se o projeto ainda estiver em modo teste,
-     qualquer pessoa autenticada lê os dados de todo mundo.
-     Fazer: escrever, versionar e publicar as rules
-     (match /users/{uid}/{document=**} com request.auth.uid == uid).
-
-[16] debug.keystore commitado
-     Está na raiz do repositório. O .gitignore ignora *.jks mas não
-     debug.keystore. Tirar do versionamento (git rm --cached).
-
-===========================================================================
 QUALIDADE / INFRA (o que falta no projeto)
 ===========================================================================
 
 [22] app.json com version "1.0.0", buildNumber "1" e versionCode 1
      fixos — vai travar a segunda submissão nas lojas.
-
+     Resolver junto com o eas.json (autoIncrement), na hora de montar
+     o build de release; hoje não bloqueia nada.
