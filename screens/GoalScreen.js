@@ -1,10 +1,19 @@
 //
-// Meta de redução: "quero cair pra X puxadas/dia até tal data". A meta é uma
-// rampa linear entre o ponto de partida e o alvo (ver utils/meta.js) — quem
-// usa 100 por dia não recebe "sua meta é 10" já no primeiro dia.
+// As duas metas do app, uma em cada card:
+//
+//   1. Meta de REDUÇÃO ("quero cair pra X puxadas/dia até tal data"): rampa
+//      linear entre o ponto de partida e o alvo (ver utils/meta.js) — quem usa
+//      100 por dia não recebe "sua meta é 10" já no primeiro dia. É uma
+//      restrição, e vira o limite diário do app inteiro.
+//   2. Meta de DINHEIRO ("quero juntar R$ X"): alvo pro que já ficou no bolso
+//      (ver utils/metaDeDinheiro.js). É uma recompensa, não tem prazo, e não
+//      mexe em limite nenhum — por isso salvá-la não recalcula a economia.
+//
+// São dados separados de propósito: mexer numa não mexe na outra.
 //
 // Mesmo formato da DeviceScreen: ScreenHeader + card, escrita por
-// salvarMeta() (utils/storage.js) com checagem de `ok` antes de dar sucesso.
+// salvarMeta()/salvarMetaDeDinheiro() (utils/storage.js) com checagem de `ok`
+// antes de dar sucesso.
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -22,7 +31,10 @@ import { Ionicons } from '@expo/vector-icons';
 import {
     obterMeta,
     salvarMeta,
+    obterMetaDeDinheiro,
+    salvarMetaDeDinheiro,
     obterAparelho,
+    obterEconomia,
     obterRegistros,
     recalcularEconomia,
     sincronizarGamificacao,
@@ -37,6 +49,7 @@ import {
     deslocarData,
     diferencaEmDias,
 } from '../utils/meta';
+import { progressoDaMetaDeDinheiro } from '../utils/metaDeDinheiro';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
@@ -80,6 +93,35 @@ export default function GoalScreen({ navigation }) {
     const [mesDoSeletor, setMesDoSeletor] = useState(() => mesDeData(dataDeHoje()));
     const animacaoDeFade = useState(new Animated.Value(0))[0];
 
+    // Meta de dinheiro: estado próprio e independente do da meta de redução —
+    // as duas se salvam e se removem separadamente.
+    const [valorDaMeta, setValorDaMeta] = useState('');
+    const [rotuloDaMeta, setRotuloDaMeta] = useState('');
+    const [temMetaDeDinheiroSalva, setTemMetaDeDinheiroSalva] = useState(false);
+    const [salvandoDinheiro, setSalvandoDinheiro] = useState(false);
+    const [sucessoDeDinheiroVisivel, setSucessoDeDinheiroVisivel] = useState(false);
+    // A prévia da meta de dinheiro precisa do que já está no bolso.
+    const [economia, setEconomia] = useState({});
+    const animacaoDeFadeDoDinheiro = useState(new Animated.Value(0))[0];
+
+    useEffect(() => {
+        let montado = true;
+        Promise.all([obterMetaDeDinheiro(), obterEconomia()]).then(
+            ([metaDeDinheiro, economiaSalva]) => {
+                if (!montado) return;
+                setEconomia(economiaSalva || {});
+                if (metaDeDinheiro && Number(metaDeDinheiro.amount) > 0) {
+                    setTemMetaDeDinheiroSalva(true);
+                    setValorDaMeta(String(Math.round(Number(metaDeDinheiro.amount))));
+                    setRotuloDaMeta(metaDeDinheiro.label || '');
+                }
+            }
+        );
+        return () => {
+            montado = false;
+        };
+    }, []);
+
     useEffect(() => {
         let montado = true;
         Promise.all([obterMeta(), obterRegistros(), obterAparelho()]).then(
@@ -116,6 +158,79 @@ export default function GoalScreen({ navigation }) {
             Animated.delay(2000),
             Animated.timing(animacaoDeFade, { toValue: 0, duration: 300, useNativeDriver: true }),
         ]).start(() => setSucessoVisivel(false));
+    };
+
+    const mostrarSucessoDoDinheiro = () => {
+        setSucessoDeDinheiroVisivel(true);
+        Animated.sequence([
+            Animated.timing(animacaoDeFadeDoDinheiro, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+            Animated.delay(2000),
+            Animated.timing(animacaoDeFadeDoDinheiro, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+        ]).start(() => setSucessoDeDinheiroVisivel(false));
+    };
+
+    const salvarDinheiro = async () => {
+        const alvo = parseInt(valorDaMeta);
+        if (isNaN(alvo) || alvo <= 0) {
+            Alert.alert('Opa', 'Quanto você quer juntar? Coloca um valor maior que zero.');
+            return;
+        }
+
+        setSalvandoDinheiro(true);
+        const resultado = await salvarMetaDeDinheiro({
+            amount: alvo,
+            label: rotuloDaMeta.trim(),
+            createdAt: new Date().toISOString(),
+        });
+        setSalvandoDinheiro(false);
+        if (!resultado.ok) {
+            mostrarErro(
+                'Não deu pra salvar a meta de dinheiro',
+                'Verifique sua conexão e tente de novo.'
+            );
+            return;
+        }
+        // Sem recalcularEconomia nem sincronizarGamificacao: a meta de dinheiro
+        // não é limite de puxadas, não muda nenhum número já calculado.
+        setTemMetaDeDinheiroSalva(true);
+        mostrarSucessoDoDinheiro();
+    };
+
+    const removerDinheiro = () => {
+        Alert.alert(
+            'Remover meta de dinheiro',
+            'Sua economia continua contando — você só deixa de ter um alvo.',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                    text: 'Remover',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setSalvandoDinheiro(true);
+                        const resultado = await salvarMetaDeDinheiro(null);
+                        setSalvandoDinheiro(false);
+                        if (!resultado.ok) {
+                            mostrarErro(
+                                'Não deu pra remover a meta de dinheiro',
+                                'Verifique sua conexão e tente de novo.'
+                            );
+                            return;
+                        }
+                        setTemMetaDeDinheiroSalva(false);
+                        setValorDaMeta('');
+                        setRotuloDaMeta('');
+                    },
+                },
+            ]
+        );
     };
 
     // Meta "em rascunho", só pra prévia.
@@ -251,6 +366,11 @@ export default function GoalScreen({ navigation }) {
         styles.input,
         { borderColor: cores.border, backgroundColor: cores.inputBg, color: cores.text },
     ];
+    const previaDoDinheiro = progressoDaMetaDeDinheiro(
+        { amount: parseInt(valorDaMeta), label: rotuloDaMeta },
+        economia,
+        dataDeHoje()
+    );
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
@@ -260,8 +380,8 @@ export default function GoalScreen({ navigation }) {
                 keyboardShouldPersistTaps="handled"
             >
                 <ScreenHeader
-                    titulo="Sua Meta"
-                    subtitulo="Até onde você quer chegar"
+                    titulo="Suas Metas"
+                    subtitulo="Até onde você quer chegar e o que quer conquistar"
                     cores={cores}
                     mostrarConfiguracoes
                     aoPressionarConfiguracoes={() => navigation.navigate('Settings')}
@@ -269,6 +389,10 @@ export default function GoalScreen({ navigation }) {
                 />
 
                 <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                    <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                        🎯 Meta de redução
+                    </Text>
+
                     <Text style={[styles.fieldLabel, { color: cores.text }]}>
                         Quantas puxadas por dia hoje
                     </Text>
@@ -429,12 +553,141 @@ export default function GoalScreen({ navigation }) {
                     )}
                 </View>
 
+                {/* Meta de dinheiro — irmã da de cima, salva e removida à parte */}
+                <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                    <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
+                        💰 Meta de dinheiro
+                    </Text>
+
+                    <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                        Quanto você quer juntar
+                    </Text>
+                    <TextInput
+                        style={estiloDoInput}
+                        placeholder="Ex: 400"
+                        placeholderTextColor={cores.textMuted}
+                        value={valorDaMeta}
+                        onChangeText={aoDigitarInteiro(setValorDaMeta)}
+                        keyboardType="number-pad"
+                    />
+
+                    <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                        Pra quê (opcional)
+                    </Text>
+                    <TextInput
+                        style={estiloDoInput}
+                        placeholder="Ex: um fone novo"
+                        placeholderTextColor={cores.textMuted}
+                        value={rotuloDaMeta}
+                        onChangeText={setRotuloDaMeta}
+                        maxLength={40}
+                    />
+
+                    {previaDoDinheiro !== null && (
+                        <View style={[styles.previewBox, { backgroundColor: cores.primaryLight }]}>
+                            <Text style={[styles.previewTitle, { color: cores.primaryDark }]}>
+                                Prévia
+                            </Text>
+                            <View style={styles.previewRow}>
+                                <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>
+                                    Já no bolso
+                                </Text>
+                                <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
+                                    R$ {previaDoDinheiro.acumulado.toFixed(2)}
+                                </Text>
+                            </View>
+                            <View style={styles.previewRow}>
+                                <Text style={[styles.previewLabel, { color: cores.textSecondary }]}>
+                                    {previaDoDinheiro.concluida ? 'Situação' : 'Falta'}
+                                </Text>
+                                <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
+                                    {previaDoDinheiro.concluida
+                                        ? 'Já alcançada! 🎉'
+                                        : `R$ ${previaDoDinheiro.faltando.toFixed(2)}`}
+                                </Text>
+                            </View>
+                            {!previaDoDinheiro.concluida && (
+                                <View style={styles.previewRow}>
+                                    <Text
+                                        style={[
+                                            styles.previewLabel,
+                                            { color: cores.textSecondary },
+                                        ]}
+                                    >
+                                        No seu ritmo
+                                    </Text>
+                                    <Text style={[styles.previewVal, { color: cores.primaryDark }]}>
+                                        {previaDoDinheiro.diasEstimados === null
+                                            ? 'sem estimativa ainda'
+                                            : `~${previaDoDinheiro.diasEstimados} ${
+                                                  previaDoDinheiro.diasEstimados === 1
+                                                      ? 'dia'
+                                                      : 'dias'
+                                              }`}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+                    <TouchableOpacity
+                        style={[
+                            styles.saveBtn,
+                            { backgroundColor: cores.primary },
+                            salvandoDinheiro && styles.saveBtnDisabled,
+                        ]}
+                        onPress={salvarDinheiro}
+                        disabled={salvandoDinheiro}
+                    >
+                        <Ionicons
+                            name={salvandoDinheiro ? 'hourglass-outline' : 'wallet-outline'}
+                            size={20}
+                            color="#fff"
+                        />
+                        <Text style={styles.saveBtnText}>
+                            {salvandoDinheiro ? 'Salvando...' : 'Salvar meta de dinheiro'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {temMetaDeDinheiroSalva && (
+                        <TouchableOpacity
+                            style={styles.removeBtn}
+                            onPress={removerDinheiro}
+                            disabled={salvandoDinheiro}
+                        >
+                            <Text style={[styles.removeBtnText, { color: cores.danger }]}>
+                                Remover minha meta de dinheiro
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {sucessoDeDinheiroVisivel && (
+                        <Animated.View
+                            style={[
+                                styles.successBox,
+                                {
+                                    backgroundColor: cores.primaryLight,
+                                    borderColor: cores.primary,
+                                    opacity: animacaoDeFadeDoDinheiro,
+                                },
+                            ]}
+                        >
+                            <Ionicons name="checkmark-circle" size={22} color={cores.primary} />
+                            <Text style={[styles.successText, { color: cores.primaryDark }]}>
+                                Meta de dinheiro salva! Acompanhe na tela inicial. ✅
+                            </Text>
+                        </Animated.View>
+                    )}
+                </View>
+
                 <View style={[styles.infoBox, { backgroundColor: cores.primaryLight }]}>
                     <Ionicons name="information-circle-outline" size={18} color={cores.primary} />
                     <Text style={[styles.infoText, { color: cores.primaryDark }]}>
                         Seu limite de puxadas desce um pouco a cada dia até o alvo, em vez de cair
                         de uma vez — é o que torna a redução possível. Enquanto essa meta existir, é
-                        ela que vale no lugar do consumo do aparelho.
+                        ela que vale no lugar do consumo do aparelho. A meta de dinheiro é
+                        independente: não tem prazo e não muda seu limite, só dá um destino pro que
+                        você já economizou.
                     </Text>
                 </View>
 
@@ -494,6 +747,13 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
     card: { borderRadius: RAIO.lg, padding: 18, marginHorizontal: 16, marginTop: 16 },
+    cardTitle: {
+        fontSize: 12,
+        fontFamily: 'Poppins_700Bold',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+        marginBottom: 14,
+    },
     fieldLabel: { fontSize: 14, fontFamily: 'Poppins_700Bold', marginBottom: 8, marginTop: 4 },
     input: {
         borderWidth: 1.5,

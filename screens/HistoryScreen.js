@@ -38,7 +38,7 @@ import {
     sincronizarGamificacao,
     dataDeHoje,
 } from '../utils/storage';
-import { puxadasDoRegistro, MAX_PUXADAS_DIA, limitarPuxadas } from '../utils/records';
+import { puxadasDoRegistro, MAX_PUXADAS_DIA, MAX_NOTA, limitarPuxadas } from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS } from '../utils/theme';
 import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
@@ -707,6 +707,16 @@ export default function HistoryScreen({ navigation }) {
                                               )}
                                           </View>
                                       )}
+                                      {reg.note ? (
+                                          <Text
+                                              style={[
+                                                  styles.histNote,
+                                                  { color: cores.textSecondary },
+                                              ]}
+                                          >
+                                              “{reg.note}”
+                                          </Text>
+                                      ) : null}
                                   </View>
                               ))
                             : null}
@@ -1189,6 +1199,41 @@ export default function HistoryScreen({ navigation }) {
                                                 </>
                                             )}
 
+                                            <Text
+                                                style={[styles.fieldLabel, { color: cores.text }]}
+                                            >
+                                                Anotação
+                                            </Text>
+                                            <TextInput
+                                                style={[
+                                                    styles.noteInput,
+                                                    {
+                                                        borderColor: cores.border,
+                                                        backgroundColor: cores.inputBg,
+                                                        color: cores.text,
+                                                    },
+                                                ]}
+                                                placeholder="Como foi esse dia? (opcional)"
+                                                placeholderTextColor={cores.textMuted}
+                                                value={registroEmEdicao.note ?? ''}
+                                                onChangeText={(texto) =>
+                                                    setRegistroEmEdicao({
+                                                        ...registroEmEdicao,
+                                                        note: texto.slice(0, MAX_NOTA),
+                                                    })
+                                                }
+                                                multiline
+                                                maxLength={MAX_NOTA}
+                                            />
+                                            <Text
+                                                style={[
+                                                    styles.noteCount,
+                                                    { color: cores.textMuted },
+                                                ]}
+                                            >
+                                                {(registroEmEdicao.note ?? '').length}/{MAX_NOTA}
+                                            </Text>
+
                                             <TouchableOpacity
                                                 style={[
                                                     styles.saveBtn,
@@ -1285,6 +1330,23 @@ const styles = StyleSheet.create({
     histTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
     histTag: { borderRadius: RAIO.full, paddingVertical: 3, paddingHorizontal: 10 },
     histTagText: { fontSize: 11, fontFamily: 'Poppins_500Medium' },
+    histNote: { fontSize: 12, fontFamily: 'Poppins_400Regular', fontStyle: 'italic', marginTop: 8 },
+    noteInput: {
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+        padding: 12,
+        minHeight: 80,
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
+        textAlignVertical: 'top',
+    },
+    noteCount: {
+        fontSize: 11,
+        fontFamily: 'Poppins_400Regular',
+        alignSelf: 'flex-end',
+        marginTop: 4,
+        marginBottom: 10,
+    },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
     modalContent: { borderTopLeftRadius: RAIO.xl, borderTopRightRadius: RAIO.xl, maxHeight: '80%' },
     modalHeader: {

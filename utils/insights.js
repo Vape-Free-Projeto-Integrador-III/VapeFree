@@ -82,29 +82,49 @@ export function gatilhoMaisFrequente(registros) {
     return topo ? topo.rotulo : null;
 }
 
-function diaDaSemanaMaisArriscado(registros) {
+// Um único registro num dia da semana não é padrão, é coincidência.
+export const MIN_REGISTROS_PARA_DIA_DE_RISCO = 2;
+
+// O dia da semana em que a pessoa mais usa, com a média de puxadas dele.
+// `dia` segue Date.getDay() (0 = domingo).
+//
+// Como horarioDeRiscoDeCrise, alimenta tanto o insight `dia_semana` (texto)
+// quanto o lembrete semanal agendado nesse dia (utils/notifications.js) — os
+// dois olham o mesmo dado, então nunca divergem.
+export function diaDeRiscoDaSemana(registros) {
+    const lista = Array.isArray(registros) ? registros : [];
     const porDiaDaSemana = {};
-    registros.forEach((registro) => {
+    lista.forEach((registro) => {
         const dia = converterDataLocal(registro.date).getDay();
         if (!porDiaDaSemana[dia]) porDiaDaSemana[dia] = { total: 0, contagem: 0 };
         porDiaDaSemana[dia].total += puxadasDoRegistro(registro);
         porDiaDaSemana[dia].contagem += 1;
     });
 
-    // Um único registro num dia da semana não é padrão, é coincidência.
     const candidatos = Object.entries(porDiaDaSemana)
-        .filter(([, { contagem }]) => contagem >= 2)
-        .map(([dia, { total, contagem }]) => ({ dia: Number(dia), media: total / contagem }))
+        .filter(([, { contagem }]) => contagem >= MIN_REGISTROS_PARA_DIA_DE_RISCO)
+        .map(([dia, { total, contagem }]) => ({
+            dia: Number(dia),
+            contagem,
+            media: total / contagem,
+        }))
         .filter(({ media }) => media > 0);
 
     if (candidatos.length === 0) return null;
 
     candidatos.sort((a, b) => b.media - a.media);
     const topo = candidatos[0];
+    return { ...topo, rotulo: DIAS_DA_SEMANA[topo.dia] };
+}
+
+function diaDaSemanaMaisArriscado(registros) {
+    const topo = diaDeRiscoDaSemana(registros);
+    if (!topo) return null;
+
     return {
         id: 'dia_semana',
         icone: '📅',
-        titulo: `Você usa mais ${DIAS_DA_SEMANA[topo.dia]}`,
+        titulo: `Você usa mais ${topo.rotulo}`,
         detalhe: `Média de ${Math.round(topo.media)} puxadas nesse dia da semana.`,
     };
 }

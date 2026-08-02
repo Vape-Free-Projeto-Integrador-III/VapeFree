@@ -63,6 +63,7 @@ const CHAVES = {
     REGISTROS: '@vapefree_records',
     APARELHO: '@vapefree_device',
     META: '@vapefree_goal',
+    META_DE_DINHEIRO: '@vapefree_money_goal',
     ECONOMIA: '@vapefree_economy',
     CONQUISTAS: '@vapefree_achievements',
     CRISE: '@vapefree_crisis',
@@ -187,6 +188,7 @@ export async function precarregarEspelho() {
         obterMissoes(),
         obterAparelho(),
         obterMeta(),
+        obterMetaDeDinheiro(),
         obterEconomia(),
         obterEstadoDeXp(),
         obterDiasDeAbertura(),
@@ -212,6 +214,7 @@ export async function obterDadosLocaisDoConvidado() {
         registros,
         aparelho,
         meta,
+        metaDeDinheiro,
         economia,
         conquistas,
         sessoesDeCrise,
@@ -222,6 +225,7 @@ export async function obterDadosLocaisDoConvidado() {
         lerJson(CHAVES.REGISTROS, []),
         lerJson(CHAVES.APARELHO, null),
         lerJson(CHAVES.META, null),
+        lerJson(CHAVES.META_DE_DINHEIRO, null),
         lerJson(CHAVES.ECONOMIA, {}),
         lerJson(CHAVES.CONQUISTAS, []),
         lerJson(CHAVES.CRISE, []),
@@ -234,6 +238,8 @@ export async function obterDadosLocaisDoConvidado() {
         registros: Array.isArray(registros) ? registros : [],
         aparelho: aparelho ?? null,
         meta: meta && typeof meta === 'object' ? meta : null,
+        metaDeDinheiro:
+            metaDeDinheiro && typeof metaDeDinheiro === 'object' ? metaDeDinheiro : null,
         economia: economia && typeof economia === 'object' ? economia : {},
         conquistas: Array.isArray(conquistas) ? conquistas : [],
         sessoesDeCrise: Array.isArray(sessoesDeCrise) ? sessoesDeCrise : [],
@@ -249,6 +255,7 @@ export async function temDadosLocaisDoConvidado() {
         dados.registros.length > 0 ||
         dados.aparelho !== null ||
         dados.meta !== null ||
+        dados.metaDeDinheiro !== null ||
         Object.keys(dados.economia).length > 0 ||
         dados.conquistas.length > 0 ||
         dados.sessoesDeCrise.length > 0 ||
@@ -303,11 +310,17 @@ export async function reiniciarOnboarding() {
 // batem (ver horarioDeRiscoDeCrise em utils/insights.js). Só sai do papel
 // quando existe crise suficiente pra apontar um período — então liga por
 // padrão sem incomodar quem nunca usou o modo crise.
+//
+// `diaCritico`: aviso semanal no dia da semana em que o usuário mais usa (ver
+// diaDeRiscoDaSemana em utils/insights.js). Mesma ideia do `risco`, só que por
+// dia da semana em vez de horário — também liga por padrão porque só existe
+// quando há registro suficiente pra apontar um dia.
 export const PREFERENCIAS_DE_NOTIFICACAO_PADRAO = {
     ativas: true,
     hora: 9,
     minuto: 0,
     risco: true,
+    diaCritico: true,
 };
 
 export async function obterPreferenciasDeNotificacao() {
@@ -322,6 +335,7 @@ export async function obterPreferenciasDeNotificacao() {
             ? salvo.minuto
             : PREFERENCIAS_DE_NOTIFICACAO_PADRAO.minuto,
         risco: salvo.risco !== false,
+        diaCritico: salvo.diaCritico !== false,
     };
 }
 
@@ -396,6 +410,7 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
                 {
                     device: dados.aparelho ?? null,
                     goal: dados.meta ?? null,
+                    moneyGoal: dados.metaDeDinheiro ?? null,
                     economy:
                         dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
                     xp: dados.xp ?? null,
@@ -425,6 +440,7 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
         escreverCache(uid, ESPELHOS.MISSOES, dados.missoes),
         escreverCache(uid, ESPELHOS.APARELHO, dados.aparelho ?? null),
         escreverCache(uid, ESPELHOS.META, dados.meta ?? null),
+        escreverCache(uid, ESPELHOS.META_DE_DINHEIRO, dados.metaDeDinheiro ?? null),
         escreverCache(uid, ESPELHOS.ECONOMIA, dados.economia),
         escreverCache(uid, ESPELHOS.XP, dados.xp ?? null),
         escreverCache(uid, ESPELHOS.ABERTURAS, dados.diasDeAbertura),
@@ -468,7 +484,14 @@ async function apagarDadosDaConta(uid) {
     await comTempoLimite(
         setDoc(
             doc(db, 'users', uid),
-            { device: null, goal: null, economy: deleteField(), xp: null, appOpenDays: [] },
+            {
+                device: null,
+                goal: null,
+                moneyGoal: null,
+                economy: deleteField(),
+                xp: null,
+                appOpenDays: [],
+            },
             { merge: true }
         )
     );
@@ -482,6 +505,7 @@ async function apagarDadosDaConta(uid) {
         escreverCache(uid, ESPELHOS.MISSOES, []),
         escreverCache(uid, ESPELHOS.APARELHO, null),
         escreverCache(uid, ESPELHOS.META, null),
+        escreverCache(uid, ESPELHOS.META_DE_DINHEIRO, null),
         escreverCache(uid, ESPELHOS.ECONOMIA, {}),
         escreverCache(uid, ESPELHOS.XP, null),
         escreverCache(uid, ESPELHOS.ABERTURAS, []),
@@ -800,6 +824,54 @@ export async function salvarMeta(meta) {
             return OK;
         }
         await AsyncStorage.setItem(CHAVES.META, JSON.stringify(valor));
+        return OK;
+    } catch {
+        return falha('rede');
+    }
+}
+
+// ─── Meta de dinheiro ───────────────────────────────────────────────────────
+// Modo conta: campo "moneyGoal" dentro do documento users/{uid}.
+// Modo convidado: AsyncStorage.
+//
+// Irmã da meta de redução, e igualmente dado de ENTRADA — mesmo padrão, sem
+// podeEscreverDerivado. As duas são independentes de propósito: remover uma não
+// mexe na outra. Salvar esta NÃO recalcula a economia, porque ela não é limite
+// de puxadas — só um alvo pro que já ficou no bolso.
+
+export async function obterMetaDeDinheiro() {
+    const uid = obterUid();
+    if (uid) {
+        return lerDaConta(
+            uid,
+            ESPELHOS.META_DE_DINHEIRO,
+            async () => {
+                const snap = await getDoc(doc(db, 'users', uid));
+                return snap.exists() ? (snap.data().moneyGoal ?? null) : null;
+            },
+            null
+        );
+    }
+    return lerJson(CHAVES.META_DE_DINHEIRO, null);
+}
+
+export async function salvarMetaDeDinheiro(metaDeDinheiro) {
+    const uid = obterUid();
+    const valor = metaDeDinheiro ?? null;
+    marcarGamificacaoSuja();
+    try {
+        if (uid) {
+            await escreverNaConta(uid, ESPELHOS.META_DE_DINHEIRO, valor, {
+                tipo: 'merge_usuario',
+                dados: { moneyGoal: valor },
+            });
+            return OK;
+        }
+        if (valor === null) {
+            await AsyncStorage.removeItem(CHAVES.META_DE_DINHEIRO);
+            return OK;
+        }
+        await AsyncStorage.setItem(CHAVES.META_DE_DINHEIRO, JSON.stringify(valor));
         return OK;
     } catch {
         return falha('rede');

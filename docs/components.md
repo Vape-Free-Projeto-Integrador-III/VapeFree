@@ -60,7 +60,7 @@ O componente **não sabe o que as cores significam**: quem decide é o `estiloDo
 
 - **`HomeScreen`** — heatmap "Seu mês": verde = dia limpo, claro = dentro do limite, vermelho = acima, cinza = sem registro. Sem toque nos dias.
 - **`HistoryScreen`** — seleção do intervalo do filtro "Período": 1º toque define o início, 2º o fim (inverte se for anterior), o 3º recomeça.
-- **`GoalScreen`** — escolha da data final da meta (`minimo` = amanhã, `bloquearVolta` no mês da data mínima). O toque converte a data em prazo: `prazo = diferencaEmDias(inicio, data)` — o prazo em dias continua sendo a fonte única do formulário, os chips 30/60/90 são só atalhos.
+- **`GoalScreen`** — escolha da data final da meta de redução (`minimo` = amanhã, `bloquearVolta` no mês da data mínima). O toque converte a data em prazo: `prazo = diferencaEmDias(inicio, data)` — o prazo em dias continua sendo a fonte única do formulário, os chips 30/60/90 são só atalhos.
 
 Toda a matemática de data mora em `utils/calendario.js` (`gradeDoMes`, `estadoDoDia`, `resumoDoMes`, `datasNoIntervalo`, `diasNoIntervalo`, `estaNoIntervalo`), funções puras no mesmo estilo de `utils/records.js`. `estadoDoDia` recebe a meta do dia já resolvida — quem chama `metaEfetiva(meta, aparelho, data)` é a tela, nunca `metaDiaria()` direto.
 
@@ -71,6 +71,14 @@ Modal central usado ao encerrar uma sessão de modo crise (`CrisisScreen`) e ao 
 Os três desfechos vêm de `DESFECHOS_DE_CRISE` (`utils/insights.js`), fonte única compartilhada com a `CrisisHistoryScreen`, que exibe o mesmo rótulo/emoji no badge de cada sessão.
 
 É um dos poucos casos legítimos de `Modal` em vez de `Alert` (escolha de dados + texto livre). A resposta vira o campo `outcome` da `CrisisSession` e alimenta `metodoDeCriseRecomendado` — sem ela, o app não tem como aprender qual método funciona pra aquele usuário. O texto de "Acabei usando" é deliberadamente sem julgamento.
+
+## `HealthMilestonesCard` (`components/HealthMilestonesCard.js`)
+
+Card "Sua saúde" da `HomeScreen`, entre o card do dia e o calendário do mês. Props: `registros` (lista completa), `cores`. Apresentação pura — todo o cálculo vive em `calcularMarcosDeSaude` (`utils/saude.js`).
+
+Mostra o último marco atingido (título + benefício), o próximo marco com barra de progresso e contagem regressiva, e a lista completa dos 12 marcos (20 min → 1 ano) num bloco que abre/fecha no toque. Sem registro nenhum (`pronto: false`) o card não renderiza.
+
+O relógio **não é o streak**: streak soma dia protegido por escudo, e dia protegido teve uso — recuperação do corpo não tem escudo. O tempo limpo conta da meia-noite do dia seguinte ao último dia com `used: true` (o app não guarda a hora da puxada, então esse é o piso conservador) e dia sem registro não zera nada. Marco novo = entrada nova em `MARCOS_DE_SAUDE`, em ordem crescente de `minutos`; o componente não muda.
 
 ## `MissionsCard` (`components/MissionsCard.js`)
 
@@ -150,4 +158,5 @@ Esses padrões existem em várias telas com estilo copiado, não como componente
 - **Toast de sucesso**: `Animated.Value` iniciado em 0, sequência `timing(1) → delay(2000) → timing(0)`, guardado em `useRef`/`useState`. Ver `DeviceScreen.js`/`RegisterScreen.js`.
 - **Modal bottom-sheet** (edição, seletor de data): `Modal transparent animationType="slide"`, overlay `rgba(0,0,0,0.5)` + `justifyContent: 'flex-end'`, conteúdo com `borderTopLeftRadius/borderTopRightRadius: RAIO.xl`.
 - **Modal de confirmação central** (excluir registro): mesmo overlay, mas `justifyContent: 'center'`, card com `width: '80%', maxWidth: 300`.
+- **Barra de progresso**: não existe componente compartilhado — cada card monta a sua com dois `View` (`xpTrack` com `overflow: 'hidden'` + `xpFill` com `width: '{n}%'`). Usada no card de XP, no card de meta e no bloco da meta de dinheiro (`HomeScreen`), e em `MissionsCard`/`HealthMilestonesCard`.
 - **Faixa de status dentro de card**: row com ícone Ionicons + texto, `padding: 10`, `RAIO.md`, `borderWidth: 1`, fundo suave e borda na cor do estado. Duas na `HomeScreen`, no card "Como você foi hoje?": `shieldRow` (escudo do streak, tons de `primary`) e `excessRow` (uso acima da meta do aparelho, `cores.danger` com fundo `cores.danger + '22'` — mesmo truque de opacidade do `ConfirmModal`). O `excessRow` só aparece quando `excessoDoDia(registrosDeHoje, aparelho)` (`utils/records.js`) devolve `puxadasAMais > 0`; sem aparelho cadastrado, nunca aparece.

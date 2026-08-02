@@ -207,6 +207,8 @@ const registroDeHoje = (extras = {}) => ({
     used: true,
     puffs: 100,
     triggers: [],
+    // normalizarRegistro sempre grava a anotação livre, null quando não tem.
+    note: null,
     ...extras,
 });
 
@@ -303,6 +305,30 @@ describe('modo convidado (sem uid)', () => {
 
         await storage.salvarMeta(null);
         expect(await storage.obterMeta()).toBeNull();
+    });
+
+    it('meta de dinheiro vai pro AsyncStorage; salvarMetaDeDinheiro(null) remove', async () => {
+        const metaDeDinheiro = {
+            amount: 400,
+            label: 'fone novo',
+            createdAt: '2024-03-14T12:00:00Z',
+        };
+
+        expect(await storage.salvarMetaDeDinheiro(metaDeDinheiro)).toEqual({ ok: true });
+        expect(await storage.obterMetaDeDinheiro()).toEqual(metaDeDinheiro);
+
+        await storage.salvarMetaDeDinheiro(null);
+        expect(await storage.obterMetaDeDinheiro()).toBeNull();
+    });
+
+    it('remover a meta de redução não mexe na meta de dinheiro', async () => {
+        await storage.salvarMeta({ baseline: 100, target: 10 });
+        await storage.salvarMetaDeDinheiro({ amount: 400 });
+
+        await storage.salvarMeta(null);
+
+        expect(await storage.obterMeta()).toBeNull();
+        expect(await storage.obterMetaDeDinheiro()).toEqual({ amount: 400 });
     });
 
     it('limparDadosLocaisDoConvidado preserva onboarding e preferência de notificação', async () => {
@@ -998,6 +1024,7 @@ describe('preferências locais', () => {
             hora: 21,
             minuto: 0,
             risco: true,
+            diaCritico: true,
         });
     });
 

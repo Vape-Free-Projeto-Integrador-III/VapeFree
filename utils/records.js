@@ -22,6 +22,21 @@ export function limitarPuxadas(valor) {
     return Math.min(n, MAX_PUXADAS_DIA);
 }
 
+// Teto da anotação livre do dia (campo `note`). Existe pelo mesmo motivo do
+// teto de puxadas: o texto vai inteiro pro documento do Firestore e pro
+// espelho local, então não pode virar um despejo de texto sem limite. 280
+// caracteres dão pra contar o dia sem virar diário.
+export const MAX_NOTA = 280;
+
+// Normaliza a anotação livre: string aparada e cortada no teto, ou null quando
+// não tem nada escrito. null (e não undefined) porque é o que o Firestore
+// aceita gravar — mesmo padrão da nota da sessão de crise.
+export function normalizarNota(valor) {
+    if (typeof valor !== 'string') return null;
+    const limpa = valor.trim().slice(0, MAX_NOTA);
+    return limpa === '' ? null : limpa;
+}
+
 // Puxadas efetivas do registro — 0 quando não houve uso.
 export function puxadasDoRegistro(registro) {
     return registro?.used ? registro.puffs || 0 : 0;
@@ -34,9 +49,11 @@ export function somarPuxadas(registros) {
 
 // Normaliza antes de persistir: sem uso = sem puxadas e sem gatilhos; com uso,
 // puxadas presas no teto (última linha de defesa — a tela já limita o input).
+// A anotação livre vale nos dois casos — o dia sem uso também rende texto.
 export function normalizarRegistro(registro) {
-    if (registro.used) return { ...registro, puffs: limitarPuxadas(registro.puffs) };
-    return { ...registro, puffs: 0, triggers: [] };
+    const note = normalizarNota(registro.note);
+    if (registro.used) return { ...registro, puffs: limitarPuxadas(registro.puffs), note };
+    return { ...registro, puffs: 0, triggers: [], note };
 }
 
 // ─── Aparelho ────────────────────────────────────────────────────────────────

@@ -15,7 +15,7 @@ AppNavigator
 │    │    ├─ History       (HistoryScreen)      label "Histórico"
 │    │    └─ Achievements  (AchievementsScreen)  label "Conquistas"
 │    ├─ Device    (DeviceScreen)
-│    ├─ Goal      (GoalScreen)      meta de redução, a partir da Home ou das Configurações
+│    ├─ Goal      (GoalScreen)      metas de redução e de dinheiro, a partir da Home ou das Configurações
 │    ├─ Profile   (Profile)
 │    ├─ Settings  (SettingsScreen)
 │    ├─ Account   (AccountScreen)    nome/e-mail/senha e exclusão de conta (só logado)

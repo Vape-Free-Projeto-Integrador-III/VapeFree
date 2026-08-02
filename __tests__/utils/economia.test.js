@@ -1,4 +1,5 @@
 import {
+    totalEconomizado,
     economiaAcumuladaAte,
     serieDeEconomiaAcumulada,
     ganhoDaSerie,
@@ -10,6 +11,18 @@ const ECONOMIA = {
     '2024-03-02': 1.5,
     '2024-03-04': 4,
 };
+
+describe('totalEconomizado', () => {
+    it('soma o mapa inteiro', () => {
+        expect(totalEconomizado(ECONOMIA)).toBe(8);
+    });
+
+    it('devolve 0 sem economia e ignora valor não numérico', () => {
+        expect(totalEconomizado(null)).toBe(0);
+        expect(totalEconomizado({})).toBe(0);
+        expect(totalEconomizado({ '2024-03-01': 'abc', '2024-03-02': 3 })).toBe(3);
+    });
+});
 
 describe('economiaAcumuladaAte', () => {
     it('soma só os dias anteriores à data', () => {

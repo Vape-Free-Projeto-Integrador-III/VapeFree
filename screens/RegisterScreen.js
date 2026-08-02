@@ -27,7 +27,7 @@ import {
 } from '../utils/storage';
 import { aplicarPreferenciasDeNotificacao } from '../utils/notifications';
 import { deslocarData, converterDataLocal } from '../utils/datas';
-import { MAX_PUXADAS_DIA, limitarPuxadas } from '../utils/records';
+import { MAX_PUXADAS_DIA, MAX_NOTA, limitarPuxadas, normalizarNota } from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS, MENSAGENS_MOTIVACIONAIS } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
@@ -59,6 +59,7 @@ export default function RegisterScreen({ navigation }) {
     const [ajudas, setAjudas] = useState([]);
     const [ajudaOutro, setAjudaOutro] = useState('');
     const [intensidade, setIntensidade] = useState(5);
+    const [nota, setNota] = useState('');
     const [salvando, setSalvando] = useState(false);
     const [mensagemDeSucesso, setMensagemDeSucesso] = useState('');
     const [dataSelecionada, setDataSelecionada] = useState(dataDeHoje());
@@ -76,6 +77,10 @@ export default function RegisterScreen({ navigation }) {
             if (!montado) return;
             const existente = todosOsRegistros.find((r) => r.date === dataSelecionada);
             setRegistroExistente(existente || null);
+            // A anotação é o único campo que volta preenchido ao trocar de data:
+            // salvar sobrescreve o registro do dia, e texto escrito à mão sumindo
+            // em silêncio dói bem mais que um chip perdido.
+            setNota(existente?.note ?? '');
         };
         verificarRegistroExistente();
         return () => {
@@ -105,6 +110,7 @@ export default function RegisterScreen({ navigation }) {
         setAjudas([]);
         setAjudaOutro('');
         setIntensidade(5);
+        setNota('');
         setMensagemDeSucesso('');
     };
 
@@ -245,6 +251,7 @@ export default function RegisterScreen({ navigation }) {
                     triggers: rotulosDeGatilhos,
                     helps: rotulosDeAjudas,
                     intensity: intensidade,
+                    note: normalizarNota(nota),
                     time: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
                 };
                 const resultado = await atualizarRegistro(registroAtualizado);
@@ -264,6 +271,7 @@ export default function RegisterScreen({ navigation }) {
                     triggers: rotulosDeGatilhos,
                     helps: rotulosDeAjudas,
                     intensity: intensidade,
+                    note: normalizarNota(nota),
                 };
                 const resultado = await salvarRegistro(registro);
                 if (!resultado.ok) {
@@ -628,6 +636,29 @@ export default function RegisterScreen({ navigation }) {
                                     </Text>
                                 </View>
                             </View>
+
+                            <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                                Quer anotar alguma coisa?
+                            </Text>
+                            <TextInput
+                                style={[
+                                    styles.noteInput,
+                                    {
+                                        borderColor: cores.border,
+                                        backgroundColor: cores.inputBg,
+                                        color: cores.text,
+                                    },
+                                ]}
+                                placeholder="Como foi o dia, o que passou pela cabeça... (opcional)"
+                                placeholderTextColor={cores.textMuted}
+                                value={nota}
+                                onChangeText={(texto) => setNota(texto.slice(0, MAX_NOTA))}
+                                multiline
+                                maxLength={MAX_NOTA}
+                            />
+                            <Text style={[styles.noteCount, { color: cores.textMuted }]}>
+                                {nota.length}/{MAX_NOTA}
+                            </Text>
                         </>
                     )}
 
@@ -735,6 +766,22 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: 'Poppins_400Regular',
         marginBottom: 14,
+    },
+    noteInput: {
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+        padding: 12,
+        minHeight: 80,
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
+        textAlignVertical: 'top',
+    },
+    noteCount: {
+        fontSize: 11,
+        fontFamily: 'Poppins_400Regular',
+        alignSelf: 'flex-end',
+        marginTop: 4,
+        marginBottom: 10,
     },
     sliderWrap: { marginBottom: 18 },
     slider: { width: '100%', height: 40 },

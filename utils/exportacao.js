@@ -18,6 +18,7 @@ import {
     obterRegistros,
     obterAparelho,
     obterMeta,
+    obterMetaDeDinheiro,
     obterEconomia,
     obterConquistas,
     obterSessoesDeCrise,
@@ -35,6 +36,7 @@ const COLUNAS_DO_CSV = [
     'gatilhos',
     'ajudas',
     'intensidade',
+    'anotacao',
     'economia_do_dia',
 ];
 
@@ -64,6 +66,9 @@ export function registrosParaCsv(registros, economia = {}) {
                     listaParaCampo(registro.triggers),
                     listaParaCampo(registro.helps),
                     registro.intensity ?? '',
+                    // A anotação é multilinha: quebra de linha vira espaço pra
+                    // uma linha do CSV continuar sendo um registro só.
+                    (registro.note ?? '').replace(/\s*\n\s*/g, ' '),
                     economia[registro.date] ?? '',
                 ]
                     .map(campoCsv)
@@ -78,19 +83,39 @@ export function registrosParaCsv(registros, economia = {}) {
 // abre no Excel); o JSON leva o resto junto, pra exportação ser de verdade um
 // backup do progresso.
 async function carregarDados() {
-    const [registros, aparelho, meta, economia, conquistas, sessoesDeCrise, missoes, xp] =
-        await Promise.all([
-            obterRegistros(),
-            obterAparelho(),
-            obterMeta(),
-            obterEconomia(),
-            obterConquistas(),
-            obterSessoesDeCrise(),
-            obterMissoes(),
-            obterEstadoDeXp(),
-        ]);
+    const [
+        registros,
+        aparelho,
+        meta,
+        metaDeDinheiro,
+        economia,
+        conquistas,
+        sessoesDeCrise,
+        missoes,
+        xp,
+    ] = await Promise.all([
+        obterRegistros(),
+        obterAparelho(),
+        obterMeta(),
+        obterMetaDeDinheiro(),
+        obterEconomia(),
+        obterConquistas(),
+        obterSessoesDeCrise(),
+        obterMissoes(),
+        obterEstadoDeXp(),
+    ]);
 
-    return { registros, aparelho, meta, economia, conquistas, sessoesDeCrise, missoes, xp };
+    return {
+        registros,
+        aparelho,
+        meta,
+        metaDeDinheiro,
+        economia,
+        conquistas,
+        sessoesDeCrise,
+        missoes,
+        xp,
+    };
 }
 
 function nomeDoArquivo(formato) {

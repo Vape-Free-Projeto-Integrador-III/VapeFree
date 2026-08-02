@@ -23,7 +23,7 @@ import {
     obterPreferenciasDeNotificacao,
     obterSessoesDeCrise,
 } from './storage';
-import { horarioDeRiscoDeCrise } from './insights';
+import { horarioDeRiscoDeCrise, diaDeRiscoDaSemana } from './insights';
 
 // Identificador base: um id por dia agendado (ID_NOTIFICACAO_DIARIA-0, -1, ...),
 // assim cancelamos todos antes de criar os próximos (evita duplicar notificações).
@@ -36,6 +36,9 @@ const ID_NOTIFICACAO_DE_FALLBACK = 'vapefree-motivational-weekly-fallback';
 // Lembrete no horário de risco: chega ANTES da hora em que a vontade costuma
 // bater (ver horarioDeRiscoDeCrise em utils/insights.js).
 const ID_NOTIFICACAO_DE_RISCO = 'vapefree-risk-window-daily';
+// Lembrete no dia da semana em que a pessoa mais usa (ver diaDeRiscoDaSemana
+// em utils/insights.js): chega de manhã, avisando que hoje é o dia difícil.
+const ID_NOTIFICACAO_DE_DIA_CRITICO = 'vapefree-risk-weekday-weekly';
 
 // Horário padrão do lembrete motivacional (9h da manhã) e do aviso de
 // streak (20h) — horários diferentes pra não mandar os dois banners juntos
@@ -59,6 +62,16 @@ const MINUTOS_ANTES_DO_RISCO = 30;
 // dois banners quase juntos viram ruído e o usuário desliga tudo.
 const MINUTOS_MINIMOS_ENTRE_LEMBRETES = 60;
 
+// Quantos registros no mesmo dia da semana são necessários pro lembrete
+// semanal. Mais alto que o mínimo do insight (2): o texto do insight o
+// usuário lê quando quer, a notificação chega sozinha toda semana — não pode
+// nascer de duas quartas-feiras soltas.
+const MIN_REGISTROS_PARA_LEMBRETE_DE_DIA = 3;
+// Quanto depois do lembrete motivacional o aviso do dia crítico chega. Ele
+// segue o horário escolhido pelo usuário (em vez de uma hora fixa) pra nunca
+// cair de madrugada, e vem depois pra os dois banners não colarem.
+const MINUTOS_DEPOIS_DO_LEMBRETE = 120;
+
 // Frases do lembrete de risco: falam do momento ("agora vem sua hora
 // difícil"), não do dia em geral — por isso não reaproveitam DICAS.
 const MENSAGENS_DE_RISCO = [
@@ -66,6 +79,15 @@ const MENSAGENS_DE_RISCO = [
     'Daqui a pouco é o horário em que a vontade costuma vir. Já pensa no que vai fazer no lugar.',
     'Vem aí seu período de risco. Se a vontade apertar, abre o modo crise em vez de ceder.',
     'Falta pouco pro seu horário complicado. Sai pra andar um pouco, ocupa as mãos.',
+];
+
+// Segunda metade do texto do dia crítico — a primeira cita o dia da semana
+// (montada em conteudoDoDiaCritico).
+const MENSAGENS_DE_DIA_CRITICO = [
+    'Já decide agora o que vai fazer quando a vontade aparecer.',
+    'Hoje vale ficar de olho: registra tudo e usa o modo crise se apertar.',
+    'Saber disso já é meia batalha. Segura hoje e a semana inteira fica mais fácil.',
+    'Deixa água por perto e evita os seus gatilhos de sempre hoje.',
 ];
 
 // Define como a notificação se comporta quando chega com o app ABERTO
@@ -288,10 +310,11 @@ export async function agendarNotificacaoDeStreak(
     return true;
 }
 
-function subtrairMinutos(hora, minuto, minutos) {
-    // Volta pro dia anterior quando dá negativo (crise às 00h vira lembrete às
-    // 23h30 do dia anterior — como o gatilho é diário, é o mesmo horário).
-    const total = (((hora * 60 + minuto - minutos) % 1440) + 1440) % 1440;
+// Desloca um horário do dia em `minutos` (negativo puxa pra trás), dando a
+// volta na meia-noite (crise às 00h vira lembrete às 23h30 do dia anterior —
+// como o gatilho é diário, é o mesmo horário).
+function deslocarMinutos(hora, minuto, minutos) {
+    const total = (((hora * 60 + minuto + minutos) % 1440) + 1440) % 1440;
     return { hora: Math.floor(total / 60), minuto: total % 60 };
 }
 
@@ -314,7 +337,7 @@ export async function calcularHorarioDoLembreteDeRisco(
         return null;
     }
 
-    const horario = subtrairMinutos(risco.hora, 0, MINUTOS_ANTES_DO_RISCO);
+    const horario = deslocarMinutos(risco.hora, 0, -MINUTOS_ANTES_DO_RISCO);
     const perto =
         distanciaEmMinutos(horario, { hora: horaDoLembrete, minuto: minutoDoLembrete }) <
         MINUTOS_MINIMOS_ENTRE_LEMBRETES;
@@ -372,6 +395,88 @@ export async function cancelarLembreteDeRisco() {
     await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_RISCO).catch(() => {});
 }
 
+// Dia da semana crítico + a que horas o aviso dele tocaria, ou null quando
+// ainda não dá pra dizer nada (poucos registros naquele dia da semana) ou
+// quando ele cairia colado no lembrete de risco. Não precisa checar distância
+// pro lembrete motivacional: o horário é derivado dele (+2h).
+export async function calcularLembreteDeDiaCritico(
+    horaDoLembrete = HORA_PADRAO,
+    minutoDoLembrete = MINUTO_PADRAO
+) {
+    const registros = await obterRegistros();
+    const dia = diaDeRiscoDaSemana(registros);
+    if (!dia || dia.contagem < MIN_REGISTROS_PARA_LEMBRETE_DE_DIA) {
+        return null;
+    }
+
+    const horario = deslocarMinutos(horaDoLembrete, minutoDoLembrete, MINUTOS_DEPOIS_DO_LEMBRETE);
+    const risco = await calcularHorarioDoLembreteDeRisco(horaDoLembrete, minutoDoLembrete);
+    if (risco && distanciaEmMinutos(horario, risco) < MINUTOS_MINIMOS_ENTRE_LEMBRETES) {
+        return null;
+    }
+
+    return { ...horario, dia: dia.dia, rotulo: dia.rotulo, media: dia.media };
+}
+
+// Agenda o aviso semanal no dia da semana em que o usuário mais usa. WEEKLY
+// como o fallback motivacional: o texto cita o dia da semana (que não muda de
+// uma semana pra outra) e nenhum estado que envelheça, então pode se repetir
+// sozinho com o app fechado. A cada abertura recalculamos e reagendamos — se o
+// padrão mudar de dia, o aviso muda junto.
+export async function agendarLembreteDeDiaCritico(
+    horaDoLembrete = HORA_PADRAO,
+    minutoDoLembrete = MINUTO_PADRAO
+) {
+    if (Platform.OS === 'web') {
+        return false;
+    }
+
+    const permitido = await pedirPermissaoDeNotificacoes();
+    if (!permitido) {
+        return false;
+    }
+
+    await garantirCanalAndroid();
+    await cancelarLembreteDeDiaCritico();
+
+    const lembrete = await calcularLembreteDeDiaCritico(horaDoLembrete, minutoDoLembrete);
+    if (!lembrete) {
+        return true;
+    }
+
+    const frase =
+        MENSAGENS_DE_DIA_CRITICO[Math.floor(Math.random() * MENSAGENS_DE_DIA_CRITICO.length)];
+
+    await Notifications.scheduleNotificationAsync({
+        identifier: ID_NOTIFICACAO_DE_DIA_CRITICO,
+        content: {
+            title: 'VapeFree 📅',
+            body: `Você costuma usar mais ${lembrete.rotulo} — e hoje é esse dia. ${frase}`,
+            sound: true,
+        },
+        trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            // expo-notifications usa weekday 1 = domingo; diaDeRiscoDaSemana
+            // devolve o índice de Date.getDay() (0 = domingo).
+            weekday: lembrete.dia + 1,
+            hour: lembrete.hora,
+            minute: lembrete.minuto,
+            channelId: Platform.OS === 'android' ? 'motivational' : undefined,
+        },
+    });
+
+    return true;
+}
+
+export async function cancelarLembreteDeDiaCritico() {
+    if (Platform.OS === 'web') {
+        return;
+    }
+    await Notifications.cancelScheduledNotificationAsync(ID_NOTIFICACAO_DE_DIA_CRITICO).catch(
+        () => {}
+    );
+}
+
 // Ponto único de agendamento: lê a preferência do aparelho (liga/desliga +
 // horário do lembrete, ver utils/storage.js) e agenda ou cancela tudo de
 // acordo. É o que a SettingsScreen chama depois de mudar a preferência e o que
@@ -389,6 +494,7 @@ export async function aplicarPreferenciasDeNotificacao() {
         await cancelarNotificacoesMotivacionais();
         await cancelarNotificacaoDeStreak();
         await cancelarLembreteDeRisco();
+        await cancelarLembreteDeDiaCritico();
         return { ...preferencias, permitido: true };
     }
 
@@ -399,6 +505,12 @@ export async function aplicarPreferenciasDeNotificacao() {
         await agendarLembreteDeRisco(preferencias.hora, preferencias.minuto);
     } else {
         await cancelarLembreteDeRisco();
+    }
+
+    if (preferencias.diaCritico) {
+        await agendarLembreteDeDiaCritico(preferencias.hora, preferencias.minuto);
+    } else {
+        await cancelarLembreteDeDiaCritico();
     }
 
     return { ...preferencias, permitido: agendou };

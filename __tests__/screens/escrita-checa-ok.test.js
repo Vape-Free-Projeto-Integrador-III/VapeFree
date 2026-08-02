@@ -23,6 +23,7 @@ const mockSalvarRegistro = jest.fn();
 const mockAtualizarRegistro = jest.fn();
 const mockSalvarAparelho = jest.fn();
 const mockSalvarMeta = jest.fn();
+const mockSalvarMetaDeDinheiro = jest.fn();
 const mockAtualizarSessaoDeCrise = jest.fn();
 const mockExcluirSessaoDeCrise = jest.fn();
 const mockSincronizarGamificacao = jest.fn();
@@ -50,6 +51,8 @@ jest.mock('../../utils/storage', () => {
         atualizarRegistro: (...args) => mockAtualizarRegistro(...args),
         salvarAparelho: (...args) => mockSalvarAparelho(...args),
         salvarMeta: (...args) => mockSalvarMeta(...args),
+        salvarMetaDeDinheiro: (...args) => mockSalvarMetaDeDinheiro(...args),
+        obterMetaDeDinheiro: jest.fn(() => Promise.resolve(null)),
         atualizarSessaoDeCrise: (...args) => mockAtualizarSessaoDeCrise(...args),
         excluirSessaoDeCrise: (...args) => mockExcluirSessaoDeCrise(...args),
         sincronizarGamificacao: (...args) => mockSincronizarGamificacao(...args),
@@ -276,6 +279,33 @@ describe('GoalScreen', () => {
         await preencherEnviar();
 
         await waitFor(() => expect(mockMostrarRecompensas).toHaveBeenCalled());
+        expect(mockMostrarErro).not.toHaveBeenCalled();
+    });
+
+    // A meta de dinheiro não gera XP (não mexe em limite nem em economia), então
+    // o sinal de sucesso aqui é a confirmação na tela, não a premiação.
+    const preencherEnviarDinheiro = async () => {
+        await fireEvent.changeText(screen.getByPlaceholderText('Ex: 400'), '400');
+        await fireEvent.press(screen.getByText('Salvar meta de dinheiro'));
+    };
+
+    it('salvarMetaDeDinheiro falhando não dá sucesso', async () => {
+        mockSalvarMetaDeDinheiro.mockResolvedValue(falhaDeRede);
+        await render(<GoalScreen navigation={navegacao} />);
+
+        await preencherEnviarDinheiro();
+
+        await waitFor(() => expect(mockMostrarErro).toHaveBeenCalled());
+        expect(screen.queryByText(/Meta de dinheiro salva/)).toBeNull();
+    });
+
+    it('salvarMetaDeDinheiro dando ok confirma na tela', async () => {
+        mockSalvarMetaDeDinheiro.mockResolvedValue(OK);
+        await render(<GoalScreen navigation={navegacao} />);
+
+        await preencherEnviarDinheiro();
+
+        await waitFor(() => expect(screen.getByText(/Meta de dinheiro salva/)).toBeTruthy());
         expect(mockMostrarErro).not.toHaveBeenCalled();
     });
 });

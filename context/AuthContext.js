@@ -24,6 +24,7 @@ import {
     cancelarNotificacoesMotivacionais,
     cancelarNotificacaoDeStreak,
     cancelarLembreteDeRisco,
+    cancelarLembreteDeDiaCritico,
 } from '../utils/notifications';
 
 const CHAVE_MODO_CONVIDADO = '@vapefree_guest_mode';
@@ -132,6 +133,9 @@ export function AuthProvider({ children }) {
             );
             cancelarLembreteDeRisco().catch((erro) =>
                 console.log('Erro ao cancelar lembrete de risco:', erro)
+            );
+            cancelarLembreteDeDiaCritico().catch((erro) =>
+                console.log('Erro ao cancelar lembrete de dia crítico:', erro)
             );
         }
     }, [usuario, ehConvidado, inicializando]);

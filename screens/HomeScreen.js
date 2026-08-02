@@ -7,6 +7,7 @@ import {
     obterRegistros,
     obterAparelho,
     obterMeta,
+    obterMetaDeDinheiro,
     obterEconomia,
     ultimosNDias,
     obterSessoesDeCrise,
@@ -17,8 +18,14 @@ import {
     forcarLeituraRemota,
 } from '../utils/storage';
 import { somarPuxadas, excessoDoDia } from '../utils/records';
-import { serieDeEconomiaAcumulada, ganhoDaSerie, rotulosEspacados } from '../utils/economia';
+import {
+    serieDeEconomiaAcumulada,
+    ganhoDaSerie,
+    rotulosEspacados,
+    totalEconomizado,
+} from '../utils/economia';
 import { metaEfetiva, progressoDaMeta, metaValida, comparativoSemanal } from '../utils/meta';
+import { progressoDaMetaDeDinheiro } from '../utils/metaDeDinheiro';
 import { obterNivel } from '../utils/xp';
 import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 import { DIAS_PARA_ESCUDO } from '../utils/achievements';
@@ -30,6 +37,7 @@ import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 import MissionsCard from '../components/MissionsCard';
 import CalendarioMensal from '../components/CalendarioMensal';
+import HealthMilestonesCard from '../components/HealthMilestonesCard';
 import GradeDeCards from '../components/GradeDeCards';
 
 const DIAS_DA_ECONOMIA = 30;
@@ -43,6 +51,7 @@ export default function HomeScreen({ navigation }) {
     const [registros, setRegistros] = useState([]);
     const [aparelho, setAparelho] = useState(null);
     const [meta, setMeta] = useState(null);
+    const [metaDeDinheiro, setMetaDeDinheiro] = useState(null);
     const [economia, setEconomia] = useState({});
     const [missoes, setMissoes] = useState([]);
     const [xp, setXp] = useState(0);
@@ -53,17 +62,19 @@ export default function HomeScreen({ navigation }) {
         // Home é a porta de entrada do app — marcar aqui o dia de abertura
         // alimenta a conquista de presença diária (app_open_7).
         const diasDeAbertura = await registrarAberturaDoApp();
-        const [r, d, e, c, m] = await Promise.all([
+        const [r, d, e, c, m, md] = await Promise.all([
             obterRegistros(),
             obterAparelho(),
             obterEconomia(),
             obterSessoesDeCrise(),
             obterMeta(),
+            obterMetaDeDinheiro(),
         ]);
         setRegistros(r);
         setAparelho(d);
         setEconomia(e);
         setMeta(m);
+        setMetaDeDinheiro(md);
 
         const { missoesConcluidas, resumo, recompensas } = await sincronizarGamificacao({
             registros: r,
@@ -166,13 +177,20 @@ export default function HomeScreen({ navigation }) {
             const serie = serieDeEconomiaAcumulada(economia, dias);
             return {
                 economiaDeHoje: economia[hoje] || 0,
-                economiaTotal: Object.values(economia).reduce((a, v) => a + v, 0),
+                economiaTotal: totalEconomizado(economia),
                 ultimos30Dias: dias,
                 dadosDaEconomia: serie.map((ponto) => ponto.acumulado),
                 ganhoDoPeriodo: ganhoDaSerie(serie),
             };
         }, [economia, hoje]);
     const mostrarGraficoDeEconomia = !!aparelho && economiaTotal > 0;
+
+    // Meta de dinheiro: alvo pro que já está no bolso. Sem prazo — a data de
+    // chegada é estimada pelo ritmo dos últimos dias.
+    const progressoDoDinheiro = useMemo(
+        () => progressoDaMetaDeDinheiro(metaDeDinheiro, economia, hoje),
+        [metaDeDinheiro, economia, hoje]
+    );
 
     // Escudo: derivado dos registros, protege um dia com uso registrado.
     const temEscudo = escudos > 0;
@@ -401,6 +419,8 @@ export default function HomeScreen({ navigation }) {
                                 </View>
                             ) : null}
                         </View>
+
+                        <HealthMilestonesCard registros={registros} cores={cores} />
 
                         <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
                             <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
@@ -702,7 +722,99 @@ export default function HomeScreen({ navigation }) {
                                         </Text>
                                     </View>
                                 </View>
-                            ) : (
+                            ) : null}
+
+                            {/* Meta de dinheiro: barra alimentada pelo mesmo
+                                total no bolso mostrado logo acima. */}
+                            {aparelho && progressoDoDinheiro !== null && (
+                                <TouchableOpacity
+                                    style={[styles.goalBlock, { borderTopColor: cores.border }]}
+                                    onPress={() => navigation.navigate('Goal')}
+                                >
+                                    <Text style={[styles.goalLabel, { color: cores.text }]}>
+                                        {progressoDoDinheiro.label
+                                            ? `🎯 ${progressoDoDinheiro.label}`
+                                            : '🎯 Sua meta de dinheiro'}
+                                    </Text>
+                                    <View
+                                        style={[styles.xpTrack, { backgroundColor: cores.inputBg }]}
+                                    >
+                                        <View
+                                            style={[
+                                                styles.xpFill,
+                                                {
+                                                    width: `${progressoDoDinheiro.percentual}%`,
+                                                    backgroundColor: cores.primary,
+                                                },
+                                            ]}
+                                        />
+                                    </View>
+                                    <Text style={[styles.goalHint, { color: cores.textSecondary }]}>
+                                        R$ {progressoDoDinheiro.acumulado.toFixed(2)} de R${' '}
+                                        {progressoDoDinheiro.alvo.toFixed(2)}
+                                    </Text>
+                                    {progressoDoDinheiro.concluida ? (
+                                        <Text
+                                            style={[styles.goalHint, { color: cores.primaryDark }]}
+                                        >
+                                            🎉 Meta alcançada! Toque pra definir a próxima.
+                                        </Text>
+                                    ) : (
+                                        progressoDoDinheiro.dataEstimada !== null && (
+                                            <Text
+                                                style={[
+                                                    styles.goalHint,
+                                                    { color: cores.textSecondary },
+                                                ]}
+                                            >
+                                                No seu ritmo, ~{progressoDoDinheiro.diasEstimados}{' '}
+                                                {progressoDoDinheiro.diasEstimados === 1
+                                                    ? 'dia'
+                                                    : 'dias'}{' '}
+                                                ·{' '}
+                                                {progressoDoDinheiro.dataEstimada
+                                                    .split('-')
+                                                    .slice(1)
+                                                    .reverse()
+                                                    .join('/')}
+                                            </Text>
+                                        )
+                                    )}
+                                </TouchableOpacity>
+                            )}
+
+                            {/* Sem meta, mas já com dinheiro no bolso: o número
+                                sozinho não tem destino — o convite dá um. */}
+                            {aparelho && progressoDoDinheiro === null && economiaTotal > 0 && (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.devicePrompt,
+                                        {
+                                            backgroundColor: cores.primaryLight,
+                                            borderColor: cores.primary,
+                                            marginTop: 14,
+                                        },
+                                    ]}
+                                    onPress={() => navigation.navigate('Goal')}
+                                >
+                                    <Ionicons
+                                        name="wallet-outline"
+                                        size={20}
+                                        color={cores.primary}
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.devicePromptText,
+                                            { color: cores.primaryDark },
+                                        ]}
+                                    >
+                                        Define uma meta de dinheiro e veja esse total virar algo que
+                                        você quer 🎯
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+
+                            {!aparelho && (
                                 <TouchableOpacity
                                     style={[
                                         styles.devicePrompt,
@@ -1061,6 +1173,9 @@ const styles = StyleSheet.create({
     xpTotal: { fontSize: 16, fontFamily: 'Poppins_800ExtraBold' },
     xpTrack: { height: 10, borderRadius: RAIO.md, overflow: 'hidden' },
     xpFill: { height: '100%', borderRadius: RAIO.md },
+    goalBlock: { borderTopWidth: 1, marginTop: 14, paddingTop: 14, gap: 8 },
+    goalLabel: { fontSize: 14, fontFamily: 'Poppins_700Bold' },
+    goalHint: { fontSize: 12, fontFamily: 'Poppins_400Regular' },
     moneyRow: { flexDirection: 'row', gap: 10 },
     moneyBox: {
         flex: 1,

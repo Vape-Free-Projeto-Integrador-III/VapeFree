@@ -10,6 +10,14 @@ function valorDoDia(economia, data) {
     return isNaN(n) ? 0 : n;
 }
 
+// Tudo o que já ficou no bolso, sem recorte de data — é o "Total no bolso" do
+// card de economia e o acumulado da barra da meta de dinheiro. Os dois têm que
+// sair da mesma conta, senão o card se contradiz com a barra logo abaixo.
+export function totalEconomizado(economia) {
+    if (!economia) return 0;
+    return Object.keys(economia).reduce((soma, dia) => soma + valorDoDia(economia, dia), 0);
+}
+
 // Soma tudo que foi economizado antes de `data` (exclusivo). É o ponto de
 // partida do acumulado: sem isso o gráfico começaria do zero e contradiria o
 // total mostrado no card de economia.

@@ -31,7 +31,7 @@ import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 // Nomes de espelho válidos. Os quatro primeiros são subcoleções de
-// users/{uid}; os seis últimos são campos do documento users/{uid} (PERFIL
+// users/{uid}; os sete últimos são campos do documento users/{uid} (PERFIL
 // espelha os campos nome/displayName/email de uma vez só).
 export const ESPELHOS = {
     REGISTROS: 'records',
@@ -40,6 +40,7 @@ export const ESPELHOS = {
     MISSOES: 'missions',
     APARELHO: 'device',
     META: 'goal',
+    META_DE_DINHEIRO: 'moneyGoal',
     ECONOMIA: 'economy',
     XP: 'xp',
     ABERTURAS: 'appOpenDays',

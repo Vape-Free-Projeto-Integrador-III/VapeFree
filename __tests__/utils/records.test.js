@@ -6,7 +6,9 @@ import {
     custoPorPuxada,
     excessoDoDia,
     limitarPuxadas,
+    normalizarNota,
     MAX_PUXADAS_DIA,
+    MAX_NOTA,
 } from '../../utils/records';
 
 const APARELHO = { price: 50, totalPuffs: 5000, days: 10 };
@@ -43,16 +45,46 @@ describe('normalizarRegistro', () => {
     it('zera puffs e triggers quando nao houve uso', () => {
         expect(
             normalizarRegistro({ date: '2026-03-05', used: false, puffs: 7, triggers: ['stress'] })
-        ).toEqual({ date: '2026-03-05', used: false, puffs: 0, triggers: [] });
+        ).toEqual({ date: '2026-03-05', used: false, puffs: 0, triggers: [], note: null });
     });
 
     it('preserva os campos quando houve uso', () => {
         const registro = { date: '2026-03-05', used: true, puffs: 7, triggers: ['stress'] };
-        expect(normalizarRegistro(registro)).toEqual(registro);
+        expect(normalizarRegistro(registro)).toEqual({ ...registro, note: null });
     });
 
     it('prende puffs no teto quando houve uso', () => {
         expect(normalizarRegistro({ used: true, puffs: 999999 }).puffs).toBe(MAX_PUXADAS_DIA);
+    });
+
+    it('mantem a anotacao no dia com uso e no dia sem uso', () => {
+        expect(normalizarRegistro({ used: true, puffs: 3, note: '  dia corrido ' }).note).toBe(
+            'dia corrido'
+        );
+        expect(normalizarRegistro({ used: false, note: 'segurei a onda' }).note).toBe(
+            'segurei a onda'
+        );
+    });
+});
+
+describe('normalizarNota', () => {
+    it('devolve null pra nota vazia, só espaço ou ausente', () => {
+        expect(normalizarNota('')).toBeNull();
+        expect(normalizarNota('   ')).toBeNull();
+        expect(normalizarNota(undefined)).toBeNull();
+        expect(normalizarNota(null)).toBeNull();
+    });
+
+    it('apara as bordas', () => {
+        expect(normalizarNota('  hoje foi dificil  ')).toBe('hoje foi dificil');
+    });
+
+    it('corta no teto de caracteres', () => {
+        expect(normalizarNota('a'.repeat(MAX_NOTA + 50))).toHaveLength(MAX_NOTA);
+    });
+
+    it('ignora valor que nao e string', () => {
+        expect(normalizarNota(42)).toBeNull();
     });
 });
 

@@ -22,14 +22,17 @@ import { RAIO, SOMBRA } from '../utils/theme';
 import {
     apagarTodosOsDados,
     obterMeta,
+    obterMetaDeDinheiro,
     obterPreferenciasDeNotificacao,
     reiniciarOnboarding,
     salvarPreferenciasDeNotificacao,
 } from '../utils/storage';
 import { metaValida } from '../utils/meta';
+import { metaDeDinheiroValida } from '../utils/metaDeDinheiro';
 import {
     aplicarPreferenciasDeNotificacao,
     calcularHorarioDoLembreteDeRisco,
+    calcularLembreteDeDiaCritico,
 } from '../utils/notifications';
 import { exportarDados } from '../utils/exportacao';
 import ScreenHeader from '../components/ScreenHeader';
@@ -52,6 +55,17 @@ const MOTIVO_DA_EXPORTACAO = {
     falhou: 'Não deu pra gerar o arquivo. Tenta de novo daqui a pouco.',
 };
 
+// A linha de metas cobre as duas (redução e dinheiro), que são independentes:
+// qualquer combinação das duas pode existir.
+function descricaoDasMetas(meta, metaDeDinheiro) {
+    const partes = [];
+    if (metaValida(meta)) partes.push(`Chegar a ${meta.target} puxadas/dia`);
+    if (metaDeDinheiroValida(metaDeDinheiro)) {
+        partes.push(`juntar R$ ${Number(metaDeDinheiro.amount).toFixed(2)}`);
+    }
+    return partes.length === 0 ? 'Nenhuma meta definida' : partes.join(' · ');
+}
+
 export default function SettingsScreen({ navigation }) {
     const { cores, estaEscuro, alternarTema } = usarTema();
     const { ehConvidado } = usarAuth();
@@ -59,7 +73,9 @@ export default function SettingsScreen({ navigation }) {
 
     const [preferencias, setPreferencias] = useState(null);
     const [horarioDeRisco, setHorarioDeRisco] = useState(null);
+    const [lembreteDeDiaCritico, setLembreteDeDiaCritico] = useState(null);
     const [meta, setMeta] = useState(null);
+    const [metaDeDinheiro, setMetaDeDinheiro] = useState(null);
     const [seletorDeHorarioVisivel, setSeletorDeHorarioVisivel] = useState(false);
     const [apagando, setApagando] = useState(false);
     const [exportando, setExportando] = useState(false);
@@ -76,9 +92,16 @@ export default function SettingsScreen({ navigation }) {
                 // preferência: aqui só mostramos que horas o lembrete cairia.
                 const risco = await calcularHorarioDoLembreteDeRisco(salvas.hora, salvas.minuto);
                 if (montado) setHorarioDeRisco(risco);
+                // Mesma coisa pro dia crítico: sai dos registros, não da
+                // preferência.
+                const diaCritico = await calcularLembreteDeDiaCritico(salvas.hora, salvas.minuto);
+                if (montado) setLembreteDeDiaCritico(diaCritico);
             });
             obterMeta().then((salva) => {
                 if (montado) setMeta(salva);
+            });
+            obterMetaDeDinheiro().then((salva) => {
+                if (montado) setMetaDeDinheiro(salva);
             });
             return () => {
                 montado = false;
@@ -103,6 +126,7 @@ export default function SettingsScreen({ navigation }) {
         // Mudar o horário do lembrete diário pode empurrar o de risco pra perto
         // demais dele (aí ele é pulado), então recalcula junto.
         setHorarioDeRisco(await calcularHorarioDoLembreteDeRisco(salvas.hora, salvas.minuto));
+        setLembreteDeDiaCritico(await calcularLembreteDeDiaCritico(salvas.hora, salvas.minuto));
 
         const resultado = await aplicarPreferenciasDeNotificacao();
         if (salvas.ativas && !resultado.permitido) {
@@ -223,6 +247,11 @@ export default function SettingsScreen({ navigation }) {
     const descricaoDoRisco = horarioDeRisco
         ? `Toca às ${formatarHorario(horarioDeRisco.hora, horarioDeRisco.minuto)}, antes da vontade bater ${horarioDeRisco.rotulo}`
         : 'Ainda sem crises suficientes pra saber sua hora difícil';
+    // Idem: sem dia calculado, ou faltam registros repetidos no mesmo dia da
+    // semana, ou o aviso cairia colado no lembrete de risco.
+    const descricaoDoDiaCritico = lembreteDeDiaCritico
+        ? `Toca ${lembreteDeDiaCritico.rotulo}, às ${formatarHorario(lembreteDeDiaCritico.hora, lembreteDeDiaCritico.minuto)}`
+        : 'Ainda sem registros suficientes pra saber seu dia mais arriscado';
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
@@ -260,10 +289,8 @@ export default function SettingsScreen({ navigation }) {
 
                     {renderizarLinha({
                         icone: 'flag-outline',
-                        rotulo: 'Minha meta',
-                        descricao: metaValida(meta)
-                            ? `Chegar a ${meta.target} puxadas/dia`
-                            : 'Nenhuma meta definida',
+                        rotulo: 'Minhas metas',
+                        descricao: descricaoDasMetas(meta, metaDeDinheiro),
                         aoPressionar: () => navigation.navigate('Goal'),
                     })}
 
@@ -318,6 +345,23 @@ export default function SettingsScreen({ navigation }) {
                             <Switch
                                 value={!!preferencias?.risco}
                                 onValueChange={(risco) => atualizarPreferencias({ risco })}
+                                disabled={!preferencias || !preferencias.ativas}
+                            />
+                        ),
+                    })}
+
+                    {divisor}
+
+                    {renderizarLinha({
+                        icone: 'calendar-outline',
+                        rotulo: 'Aviso no dia mais arriscado',
+                        descricao: descricaoDoDiaCritico,
+                        direita: (
+                            <Switch
+                                value={!!preferencias?.diaCritico}
+                                onValueChange={(diaCritico) =>
+                                    atualizarPreferencias({ diaCritico })
+                                }
                                 disabled={!preferencias || !preferencias.ativas}
                             />
                         ),

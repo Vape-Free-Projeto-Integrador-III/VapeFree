@@ -13,12 +13,12 @@ function getUid() {
 ```
 
 - **Logado** (`uid` existe) → Cloud Firestore, sob `users/{uid}/...`.
-- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_goal`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
+- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_goal`, `@vapefree_money_goal`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
 
 Exceção às duas regras acima, as preferências **do aparelho** — como `@vapefree_dark_mode` e `@vapefree_guest_mode`, elas nunca vão pro Firestore, não têm espelho e ficam de fora de `CHAVES` de propósito, pra `limparDadosLocaisDoConvidado()` não apagá-las:
 
 - `@vapefree_onboarding` — flag `'true'` do tutorial de boas-vindas (`onboardingFoiConcluido()`/`concluirOnboarding()`/`reiniciarOnboarding()`). Fora de `CHAVES` pra o tutorial não reaparecer depois de um login.
-- `@vapefree_notifications` — `{ ativas, hora, minuto }` do lembrete diário (`obterPreferenciasDeNotificacao()`/`salvarPreferenciasDeNotificacao()`). Quem agenda é o próprio aparelho, então guardar na conta não faria sentido. Ver [notifications.md](notifications.md).
+- `@vapefree_notifications` — `{ ativas, hora, minuto, risco, diaCritico }` do lembrete diário (`obterPreferenciasDeNotificacao()`/`salvarPreferenciasDeNotificacao()`). Quem agenda é o próprio aparelho, então guardar na conta não faria sentido. Ver [notifications.md](notifications.md).
 
 O modo convidado fala direto com o `AsyncStorage`. O modo conta **não** fala direto com o Firestore: passa pelo espelho local + fila de `utils/offline.js` (ver abaixo).
 
@@ -26,8 +26,8 @@ O modo convidado fala direto com o `AsyncStorage`. O modo conta **não** fala di
 
 `utils/offline.js` é o motor; só `utils/storage.js` importa dele (a UI usa `context/ConnectionContext.js`). Duas peças:
 
-- **Espelho** — cópia local do que está no Firestore, no `AsyncStorage`, sob `@vapefree_cache_{uid}_{nome}`, com `nome` ∈ `records`, `achievements`, `crisisSessions`, `missions`, `device`, `goal`, `economy`, `xp`, `appOpenDays`, `profile`.
-- **Fila** — `@vapefree_queue_{uid}`, array ordenado de mutações `{ id, tipo, colecao, docId, dados, tentativas }`, com `tipo` ∈ `'set' | 'delete' | 'merge_usuario'` (esse último = `setDoc(users/{uid}, dados, { mergeFields: Object.keys(dados) })`, usado por device/goal/economy/xp/appOpenDays/profile). É `mergeFields` e **não** `merge: true` de propósito: `merge: true` faz merge **profundo** de map, e como `economy`/`device`/`goal`/`profile` são maps escritos sempre inteiros, a chave que sumiu do valor novo (dia excluído da economia) sobrevivia no servidor com o valor velho. `mergeFields` substitui cada campo listado por completo e não toca nos outros.
+- **Espelho** — cópia local do que está no Firestore, no `AsyncStorage`, sob `@vapefree_cache_{uid}_{nome}`, com `nome` ∈ `records`, `achievements`, `crisisSessions`, `missions`, `device`, `goal`, `moneyGoal`, `economy`, `xp`, `appOpenDays`, `profile`.
+- **Fila** — `@vapefree_queue_{uid}`, array ordenado de mutações `{ id, tipo, colecao, docId, dados, tentativas }`, com `tipo` ∈ `'set' | 'delete' | 'merge_usuario'` (esse último = `setDoc(users/{uid}, dados, { mergeFields: Object.keys(dados) })`, usado por device/goal/moneyGoal/economy/xp/appOpenDays/profile). É `mergeFields` e **não** `merge: true` de propósito: `merge: true` faz merge **profundo** de map, e como `economy`/`device`/`goal`/`profile` são maps escritos sempre inteiros, a chave que sumiu do valor novo (dia excluído da economia) sobrevivia no servidor com o valor velho. `mergeFields` substitui cada campo listado por completo e não toca nos outros.
 
 Como cada operação se comporta:
 
@@ -59,7 +59,7 @@ A validade é descartada em: `precarregarEspelho()` (login/reconexão), `limparC
 
 Escritas **iniciadas pelo usuário** devolvem `{ ok: true }` ou `{ ok: false, motivo }`:
 
-`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `salvarMeta`, `definirEconomia`, `salvarSessaoDeCrise`, `atualizarSessaoDeCrise`, `excluirSessaoDeCrise`.
+`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `salvarMeta`, `salvarMetaDeDinheiro`, `definirEconomia`, `salvarSessaoDeCrise`, `atualizarSessaoDeCrise`, `excluirSessaoDeCrise`.
 
 Motivos: `'rede'` (falha de AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`/`atualizarSessaoDeCrise`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToast()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou.
 
@@ -82,13 +82,16 @@ Escritas **de fundo** continuam retornando boolean silencioso: `salvarConquista`
         puffs /* number */,
         triggers /* string[] label */,
         helps /* string[] label */,
-        intensity); /* 0-10 */
+        intensity /* 0-10 */,
+        note); /* string ou null — anotação livre do dia */
 }
 ```
 
 Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Convidado: array em `@vapefree_records`.
 
 `salvarRegistro`/`atualizarRegistro` passam o registro por `normalizarRegistro` (`utils/records.js`) antes de gravar: com `used: false`, `puffs` vira `0` e `triggers` vira `[]`. Para somar puxadas em qualquer lugar (gráficos, totais, economia, insights) use `puxadasDoRegistro(record)` / `somarPuxadas(records)` do mesmo arquivo — nunca `record.puffs` direto, porque registros salvos antes dessa normalização podem ter `puffs > 0` com `used: false` (foi editado de "usei" para "não usei").
+
+**Anotação livre** (`note`): campo opcional do dia, mesmo espírito da nota da sessão de crise. `normalizarRegistro` passa por `normalizarNota`: apara, corta em `MAX_NOTA` (280, `utils/records.js`) e devolve `null` quando não sobra nada — `null` e não `undefined` porque é o que o Firestore grava. Vale tanto no dia com uso quanto no dia sem. Preenchido no RegisterScreen e editável no modal do HistoryScreen; aparece no card do histórico e na coluna `anotacao` do CSV exportado. Registro salvo antes disso não tem o campo — sempre leia com `record.note ?? ''`.
 
 **Teto de puxadas**: `MAX_PUXADAS_DIA` (2000, `utils/records.js`) limita `puffs` de um dia. `normalizarRegistro` prende o valor na faixa `[0, MAX_PUXADAS_DIA]`, então nenhuma escrita passa disso — é a última linha de defesa. As duas telas que aceitam puxadas (RegisterScreen e o modal de edição do HistoryScreen) já limitam o input com `limitarPuxadas(texto)` e mostram um aviso ao bater no teto. Sem o teto, um `999999` digitado sem querer estourava a escala do gráfico do histórico e inflava a economia, que é puxadas × `custoPorPuxada`.
 
@@ -115,6 +118,18 @@ Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`.
 ```
 
 Firestore: campo `goal` no doc `users/{uid}`. Convidado: `@vapefree_goal`. Espelho `goal`. `null` = sem meta, e `salvarMeta(null)` é o "remover meta". É dado **de entrada** (o usuário declara o objetivo), então segue `salvarAparelho` e **não** passa por `podeEscreverDerivado` como a economia. Escrito pela `GoalScreen`, pelo passo 7 do tutorial (ver [navigation.md](navigation.md)) e por nada mais.
+
+**MoneyGoal** (meta de dinheiro, uma por usuário):
+
+```js
+{
+    (amount, label, createdAt);
+}
+```
+
+Firestore: campo `moneyGoal` no doc `users/{uid}`. Convidado: `@vapefree_money_goal`. Espelho `moneyGoal`. `null` = sem meta, e `salvarMetaDeDinheiro(null)` remove. Também é dado **de entrada**, mesmo padrão de `goal`: não passa por `podeEscreverDerivado`. `amount` é o valor em reais a juntar, `label` é o texto livre do "pra quê" (opcional, ≤ 40 caracteres), `createdAt` é **instante** (`toISOString()` completo, como `unlockedAt`) e não entra em conta nenhuma.
+
+É **independente** da `goal`: as duas são metas irmãs, salvas e removidas à parte, e mexer numa não mexe na outra. Ao contrário da `goal`, não tem prazo declarado (a data de chegada é estimada) e **não** dispara `recalcularEconomia` — não é limite de puxadas, só um alvo pra economia que já existe. Escrita pela `GoalScreen` e por nada mais. Helpers puros em `utils/metaDeDinheiro.js` (ver "Meta de dinheiro" abaixo).
 
 **Profile** (só modo conta): `{ nome, displayName, email }`, campos do doc `users/{uid}`, gravados uma vez no cadastro por `salvarPerfilDaConta(uid, { nome, email })`. Espelho `profile`. Convidado não tem perfil. Nenhuma tela lê esses campos hoje — quem exibe o nome usa `auth.currentUser.displayName`.
 
@@ -152,6 +167,18 @@ O cálculo da economia usa a variante `limiteDoDia(meta, aparelho, data)`, que �
 
 Também moram lá: `mediaDiariaNasDatas(registros, datas)` (média por dia contando só dias com registro), `janelaDeDias(ateData, n)` / `deslocarData` / `diferencaEmDias` (janela móvel usada pelas conquistas de redução) e `progressoDaMeta(meta, registros, hoje)`, que devolve de uma vez o que o card de meta da Home mostra. `comparativoSemanal(registros, hoje)` põe as duas janelas de 7 dias lado a lado (`{ mediaAtual, mediaAnterior, diasAtuais, diasAnteriores, diferenca, percentual, direcao }`) para o card "📊 Esta semana x semana passada" da Home: `direcao` é `'queda' | 'alta' | 'estavel'` (empate = diferença menor que meia puxada/dia) e vira `null` — junto com `diferenca` — quando alguma das semanas não tem nenhum dia registrado; `percentual` é `null` quando a semana anterior fechou em zero.
 
+## Meta de dinheiro
+
+`utils/metaDeDinheiro.js` guarda os helpers puros da meta de dinheiro (importa `utils/economia.js`, `utils/datas.js` e o `janelaDeDias` de `utils/meta.js`; nenhum I/O). É a contraparte de `utils/meta.js`, com a diferença de fundo: a meta de redução é uma **restrição com prazo**, esta é uma **recompensa sem prazo**.
+
+- `metaDeDinheiroValida(metaDeDinheiro)` — objeto com `amount` numérico `> 0`.
+- `ritmoDiario(economia, hoje, janela = 14)` — média diária de economia na janela que termina em `hoje`, dividindo pelos dias **com entrada** na economia, não pelo tamanho da janela (mesma escolha de `mediaDiariaNasDatas`: dia sem registro é dia sem dado, não dia de economia zero). `null` quando a janela inteira está vazia.
+- `progressoDaMetaDeDinheiro(metaDeDinheiro, economia, hoje)` — o que o card da Home mostra numa chamada só: `{ alvo, label, acumulado, faltando, percentual, concluida, ritmoDiario, diasEstimados, dataEstimada }`. `null` com meta inválida.
+
+O `acumulado` é `totalEconomizado(economia)`, o total **desde sempre** — o mesmo número do "Total no bolso" mostrado logo acima da barra na Home, senão o card se contradiria consigo mesmo. `percentual` é capado em 100.
+
+Não há prazo declarado: `dataEstimada` é derivada de `deslocarData(hoje, ceil(faltando / ritmoDiario))`. Ela e `diasEstimados` são `null` quando não há ritmo ou quando a estimativa passa de 3650 dias — ritmo baixo demais gera uma data que só desanima. Meta concluída tem `diasEstimados` `0` e `dataEstimada` `null`.
+
 ## Cálculo de economia
 
 As duas contas derivadas do aparelho ficam em `utils/records.js`, puras: `custoPorPuxada(device)` (`price / totalPuffs`) e `metaDiaria(device)` (`totalPuffs / days`). Ambas devolvem `null` quando algum campo não é número positivo. Use elas em vez de repetir a fórmula — são as mesmas usadas pela prévia do `DeviceScreen` e pelo fallback de `metaEfetiva`.
@@ -166,7 +193,7 @@ Leitura do mapa de economia para gráfico fica em `utils/economia.js` (puro, mó
 
 ## Migração convidado → conta
 
-`migrarDadosDoConvidadoParaConta(uid)`: lê tudo do `AsyncStorage`, grava `device`/`goal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements`, `crisisSessions` e `missions` (é uma sobreposição, não um merge de listas), preenche o espelho local com o que subiu e só então limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
+`migrarDadosDoConvidadoParaConta(uid)`: lê tudo do `AsyncStorage`, grava `device`/`goal`/`moneyGoal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements`, `crisisSessions` e `missions` (é uma sobreposição, não um merge de listas), preenche o espelho local com o que subiu e só então limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
 
 A substituição (`substituirDocsDaColecao`) roda em `writeBatch` de **500 operações** (limite do Firestore) e na ordem **escreve o novo → apaga o que sobrou** (só os ids que não foram reescritos). Cada commit é atômico, então falhar no meio deixa dado **a mais** (docs velhos que ainda não saíram), nunca a menos — a próxima tentativa reescreve e limpa. A ordem inversa (apagar antes) perderia tudo se a rede caísse entre as duas fases.
 
@@ -179,7 +206,7 @@ O `estaOnline()` da entrada não basta: a rede pode cair depois dele, e aí o SD
 `apagarTodosOsDados()` (Configurações → "Apagar todos os meus dados") zera o progresso mantendo a conta:
 
 - **Convidado**: `limparDadosLocaisDoConvidado()` — o tutorial, o tema e a preferência de notificação sobrevivem (ficam fora de `CHAVES`).
-- **Conta**: apaga todos os docs das quatro subcoleções, zera `device`/`goal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (o `economy` sai com `deleteField()`, não com `{}`: merge de map no Firestore é profundo, então escrever `{}` num map é no-op e as chaves de data antigas voltariam na próxima leitura online) e deixa o espelho **quente e vazio** (`[]`/`{}`/`null`), pra leitura offline não confundir "apagado" com "ainda não carregado".
+- **Conta**: apaga todos os docs das quatro subcoleções, zera `device`/`goal`/`moneyGoal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (o `economy` sai com `deleteField()`, não com `{}`: merge de map no Firestore é profundo, então escrever `{}` num map é no-op e as chaves de data antigas voltariam na próxima leitura online) e deixa o espelho **quente e vazio** (`[]`/`{}`/`null`), pra leitura offline não confundir "apagado" com "ainda não carregado".
 
 Como a migração, **exige internet** (devolve `{ ok: false, motivo: 'rede' }` offline): apagar subcoleção depende de listar o que está no servidor. A fila é descartada antes da limpeza — escrita pendente que subisse depois ressuscitaria dado que o usuário mandou apagar.
 
