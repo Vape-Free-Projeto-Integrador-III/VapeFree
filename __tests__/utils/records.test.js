@@ -5,6 +5,8 @@ import {
     metaDiaria,
     custoPorPuxada,
     excessoDoDia,
+    limitarPuxadas,
+    MAX_PUXADAS_DIA,
 } from '../../utils/records';
 
 const APARELHO = { price: 50, totalPuffs: 5000, days: 10 };
@@ -44,9 +46,33 @@ describe('normalizarRegistro', () => {
         ).toEqual({ date: '2026-03-05', used: false, puffs: 0, triggers: [] });
     });
 
-    it('devolve o registro intacto quando houve uso', () => {
+    it('preserva os campos quando houve uso', () => {
         const registro = { date: '2026-03-05', used: true, puffs: 7, triggers: ['stress'] };
-        expect(normalizarRegistro(registro)).toBe(registro);
+        expect(normalizarRegistro(registro)).toEqual(registro);
+    });
+
+    it('prende puffs no teto quando houve uso', () => {
+        expect(normalizarRegistro({ used: true, puffs: 999999 }).puffs).toBe(MAX_PUXADAS_DIA);
+    });
+});
+
+describe('limitarPuxadas', () => {
+    it('prende no teto', () => {
+        expect(limitarPuxadas(999999)).toBe(MAX_PUXADAS_DIA);
+    });
+
+    it('aceita string do TextInput', () => {
+        expect(limitarPuxadas('42')).toBe(42);
+    });
+
+    it('devolve 0 pro que nao e numero, pra vazio e pra negativo', () => {
+        expect(limitarPuxadas('')).toBe(0);
+        expect(limitarPuxadas('abc')).toBe(0);
+        expect(limitarPuxadas(-5)).toBe(0);
+    });
+
+    it('trunca decimal', () => {
+        expect(limitarPuxadas(3.9)).toBe(3);
     });
 });
 

@@ -27,6 +27,7 @@ import {
 } from '../utils/storage';
 import { aplicarPreferenciasDeNotificacao } from '../utils/notifications';
 import { deslocarData, converterDataLocal } from '../utils/datas';
+import { MAX_PUXADAS_DIA, limitarPuxadas } from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS, MENSAGENS_MOTIVACIONAIS } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
@@ -69,12 +70,17 @@ export default function RegisterScreen({ navigation }) {
     const datasDisponiveis = datasRegistraveis().slice().reverse();
 
     React.useEffect(() => {
+        let montado = true;
         const verificarRegistroExistente = async () => {
             const todosOsRegistros = await obterRegistros();
+            if (!montado) return;
             const existente = todosOsRegistros.find((r) => r.date === dataSelecionada);
             setRegistroExistente(existente || null);
         };
         verificarRegistroExistente();
+        return () => {
+            montado = false;
+        };
     }, [dataSelecionada]);
 
     const animacaoDeFade = useRef(new Animated.Value(0)).current;
@@ -216,7 +222,7 @@ export default function RegisterScreen({ navigation }) {
             const agora = new Date();
             // Usou = pelo menos 1 puxada. O onBlur do campo não roda se o
             // usuário digitar e tocar direto em Salvar, então normaliza aqui.
-            const puxadasFinais = usou ? Math.max(1, puxadas) : 0;
+            const puxadasFinais = usou ? Math.max(1, limitarPuxadas(puxadas)) : 0;
             if (usou && puxadasFinais !== puxadas) setPuxadas(puxadasFinais);
             const rotulosDeGatilhos = GATILHOS.filter((t) => gatilhos.includes(t.id)).map(
                 (t) => t.rotulo
@@ -472,13 +478,17 @@ export default function RegisterScreen({ navigation }) {
                                     ]}
                                     keyboardType="number-pad"
                                     value={String(puxadas)}
-                                    onChangeText={(texto) => {
-                                        const numero = parseInt(texto.replace(/[^0-9]/g, ''), 10);
-                                        setPuxadas(Number.isNaN(numero) ? 0 : numero);
-                                    }}
+                                    onChangeText={(texto) =>
+                                        setPuxadas(limitarPuxadas(texto.replace(/[^0-9]/g, '')))
+                                    }
                                     onBlur={() => setPuxadas((p) => Math.max(1, p))}
                                 />
                             </View>
+                            {puxadas >= MAX_PUXADAS_DIA && (
+                                <Text style={[styles.limitHint, { color: cores.warning }]}>
+                                    Máximo de {MAX_PUXADAS_DIA} puxadas por dia.
+                                </Text>
+                            )}
 
                             <Text style={[styles.fieldLabel, { color: cores.text }]}>
                                 O que te deu vontade?
@@ -702,6 +712,13 @@ const styles = StyleSheet.create({
         borderRadius: RAIO.md,
         paddingVertical: 6,
         paddingHorizontal: 16,
+    },
+    limitHint: {
+        fontSize: 12,
+        fontFamily: 'Poppins_500Medium',
+        textAlign: 'center',
+        marginTop: -10,
+        marginBottom: 14,
     },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     chip: {

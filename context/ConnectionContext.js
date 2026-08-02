@@ -15,6 +15,7 @@ import {
     assinarFalhas,
     contarFalhas,
     contarPendencias,
+    estaOnline,
     limparFalhas,
     sincronizar,
 } from '../utils/offline';
@@ -80,13 +81,32 @@ export function ConnectionProvider({ children }) {
     }, [uid]);
 
     useEffect(() => {
-        const cancelar = assinarConexao((estaOnline) => {
-            setOnline(estaOnline);
-            if (estaOnline) {
+        let ativo = true;
+        let jaTeveEvento = false;
+
+        const cancelar = assinarConexao((estaConectado) => {
+            jaTeveEvento = true;
+            setOnline(estaConectado);
+            if (estaConectado) {
                 sincronizarAgora().catch(() => {});
             }
         });
-        return cancelar;
+
+        // O NetInfo só avisa em mudança: abrir o app já sem rede ficaria com o
+        // `online: true` inicial (banner escondido) até a conexão mexer. A
+        // leitura de agora corrige isso, mas nunca sobrescreve um evento que
+        // tenha chegado antes dela.
+        estaOnline()
+            .then((inicial) => {
+                if (!ativo || jaTeveEvento) return;
+                setOnline(inicial);
+            })
+            .catch(() => {});
+
+        return () => {
+            ativo = false;
+            cancelar();
+        };
     }, [sincronizarAgora]);
 
     // Offline, o contador do banner precisa acompanhar as escritas que vão

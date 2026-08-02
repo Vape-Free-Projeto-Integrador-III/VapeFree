@@ -93,7 +93,7 @@ export default function LoginScreen({ navigation }) {
     const resolverEscolhaConvidadoRef = React.useRef(null);
     const escolhaConvidadoGooglePendenteRef = React.useRef('skip');
 
-    const { continuarSemConta } = usarAuth();
+    const { continuarSemConta, iniciarMigracao, concluirMigracao } = usarAuth();
 
     async function handleContinuarSemConta() {
         await continuarSemConta();
@@ -147,6 +147,19 @@ export default function LoginScreen({ navigation }) {
         }
     }
 
+    // Se a tela sair com o modal aberto, o await de
+    // perguntarSobreDadosDeConvidado ficaria órfão pra sempre. Resolve 'cancel',
+    // que é o que os dois chamadores já tratam como "não segue".
+    useEffect(() => {
+        return () => {
+            const resolver = resolverEscolhaConvidadoRef.current;
+            resolverEscolhaConvidadoRef.current = null;
+            if (resolver) {
+                resolver('cancel');
+            }
+        };
+    }, []);
+
     const [request, response, promptAsync] = Google.useAuthRequest({
         webClientId: CLIENT_ID_WEB,
         androidClientId: CLIENT_ID_ANDROID,
@@ -174,6 +187,10 @@ export default function LoginScreen({ navigation }) {
                 return;
             }
 
+            // Antes do signIn: é ele que dispara o onAuthStateChanged, e a
+            // MainStack não pode montar antes dos dados de convidado irem pro
+            // lugar certo.
+            iniciarMigracao();
             try {
                 const idToken = response.authentication?.idToken ?? response.params?.id_token;
                 const accessToken =
@@ -209,11 +226,13 @@ export default function LoginScreen({ navigation }) {
             } catch (erro) {
                 console.log('Erro no login com Google:', erro);
                 Alert.alert('Erro', 'Não deu pra entrar com o Google agora.');
+            } finally {
+                concluirMigracao();
             }
         }
 
         autenticarComGoogle();
-    }, [response]);
+    }, [response, iniciarMigracao, concluirMigracao]);
 
     async function fazerLogin() {
         const emailFormatado = email.trim();
@@ -235,6 +254,9 @@ export default function LoginScreen({ navigation }) {
         }
 
         setCarregando(true);
+        // Antes do signIn: é ele que dispara o onAuthStateChanged, e a MainStack
+        // não pode montar antes dos dados de convidado irem pro lugar certo.
+        iniciarMigracao();
         try {
             const credencialDoUsuario = await signInWithEmailAndPassword(
                 auth,
@@ -250,6 +272,7 @@ export default function LoginScreen({ navigation }) {
             }
         } finally {
             setCarregando(false);
+            concluirMigracao();
         }
     }
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
@@ -14,6 +14,7 @@ import {
     calcularEstadoDeStreak,
     dataDeHoje,
     registrarAberturaDoApp,
+    forcarLeituraRemota,
 } from '../utils/storage';
 import { somarPuxadas, excessoDoDia } from '../utils/records';
 import { serieDeEconomiaAcumulada, ganhoDaSerie, rotulosEspacados } from '../utils/economia';
@@ -30,6 +31,8 @@ import ScreenHeader from '../components/ScreenHeader';
 import MissionsCard from '../components/MissionsCard';
 import CalendarioMensal from '../components/CalendarioMensal';
 import GradeDeCards from '../components/GradeDeCards';
+
+const DIAS_DA_ECONOMIA = 30;
 
 export default function HomeScreen({ navigation }) {
     const { cores } = usarTema();
@@ -91,6 +94,9 @@ export default function HomeScreen({ navigation }) {
 
     const aoAtualizar = async () => {
         setAtualizando(true);
+        // O gesto é um pedido explícito de dado novo: ignora a validade do
+        // espelho e vai no servidor.
+        forcarLeituraRemota();
         await carregar();
         setAtualizando(false);
     };
@@ -100,19 +106,34 @@ export default function HomeScreen({ navigation }) {
     }
 
     const hoje = dataDeHoje();
-    const registrosDeHoje = registros.filter((r) => r.date === hoje);
-    const puxadasDeHoje = somarPuxadas(registrosDeHoje);
-    const { streak, escudos, progresso, ultimoDiaProtegido, gastouEscudoNoUltimoDia } =
-        calcularEstadoDeStreak(registros);
-    const ultimos7Dias = ultimosNDias(7);
-    const puxadasDaSemana = ultimos7Dias.reduce((soma, d) => {
-        return soma + somarPuxadas(registros.filter((r) => r.date === d));
-    }, 0);
+    const registrosDeHoje = useMemo(
+        () => registros.filter((r) => r.date === hoje),
+        [registros, hoje]
+    );
+    const puxadasDeHoje = useMemo(() => somarPuxadas(registrosDeHoje), [registrosDeHoje]);
+    const { streak, escudos, progresso, ultimoDiaProtegido, gastouEscudoNoUltimoDia } = useMemo(
+        () => calcularEstadoDeStreak(registros),
+        [registros]
+    );
+
+    // Semana: uma varredura só alimenta o total e as duas séries do gráfico.
+    const { puxadasDaSemana, rotulosDoGrafico, dadosDoGrafico } = useMemo(() => {
+        const dias = ultimosNDias(7);
+        const dados = dias.map((d) => somarPuxadas(registros.filter((r) => r.date === d)));
+        return {
+            puxadasDaSemana: dados.reduce((soma, v) => soma + v, 0),
+            rotulosDoGrafico: dias.map((d) => {
+                const [, mes, dia] = d.split('-');
+                return `${dia}/${mes}`;
+            }),
+            dadosDoGrafico: dados,
+        };
+    }, [registros]);
 
     // Comparativo semanal: média diária de puxadas dos últimos 7 dias contra os
     // 7 anteriores. Média ignora dia sem registro, por isso a tela também avisa
     // com quantos dias cada lado foi calculado.
-    const comparativo = comparativoSemanal(registros, hoje);
+    const comparativo = useMemo(() => comparativoSemanal(registros, hoje), [registros, hoje]);
     const corDaTendencia =
         comparativo.direcao === 'queda'
             ? cores.primary
@@ -136,25 +157,21 @@ export default function HomeScreen({ navigation }) {
         return `${variacao} puxadas por dia ${verbo}${percentual} que na semana passada`;
     })();
 
-    const rotulosDoGrafico = ultimos7Dias.map((d) => {
-        const [, mes, dia] = d.split('-');
-        return `${dia}/${mes}`;
-    });
-    const dadosDoGrafico = ultimos7Dias.map((d) =>
-        somarPuxadas(registros.filter((r) => r.date === d))
-    );
-
-    const economiaDeHoje = economia[hoje] || 0;
-    const economiaTotal = Object.values(economia).reduce((a, v) => a + v, 0);
-
     // Economia acumulada: linha sempre crescente do total no bolso nos últimos
     // 30 dias. Começa do que já havia antes da janela pro último ponto bater
     // com o "Total no bolso" logo acima.
-    const DIAS_DA_ECONOMIA = 30;
-    const ultimos30Dias = ultimosNDias(DIAS_DA_ECONOMIA);
-    const serieDeEconomia = serieDeEconomiaAcumulada(economia, ultimos30Dias);
-    const dadosDaEconomia = serieDeEconomia.map((ponto) => ponto.acumulado);
-    const ganhoDoPeriodo = ganhoDaSerie(serieDeEconomia);
+    const { economiaDeHoje, economiaTotal, ultimos30Dias, dadosDaEconomia, ganhoDoPeriodo } =
+        useMemo(() => {
+            const dias = ultimosNDias(DIAS_DA_ECONOMIA);
+            const serie = serieDeEconomiaAcumulada(economia, dias);
+            return {
+                economiaDeHoje: economia[hoje] || 0,
+                economiaTotal: Object.values(economia).reduce((a, v) => a + v, 0),
+                ultimos30Dias: dias,
+                dadosDaEconomia: serie.map((ponto) => ponto.acumulado),
+                ganhoDoPeriodo: ganhoDaSerie(serie),
+            };
+        }, [economia, hoje]);
     const mostrarGraficoDeEconomia = !!aparelho && economiaTotal > 0;
 
     // Escudo: derivado dos registros, protege um dia com uso registrado.
@@ -172,15 +189,21 @@ export default function HomeScreen({ navigation }) {
     })();
 
     // Meta do dia: a declarada pelo usuário ganha da derivada do aparelho.
-    const metaDeHoje = metaEfetiva(meta, aparelho, hoje);
-    const progressoDoObjetivo = progressoDaMeta(meta, registros, hoje);
+    const metaDeHoje = useMemo(() => metaEfetiva(meta, aparelho, hoje), [meta, aparelho, hoje]);
+    const progressoDoObjetivo = useMemo(
+        () => progressoDaMeta(meta, registros, hoje),
+        [meta, registros, hoje]
+    );
     const temMeta = metaValida(meta);
     const [anoFinal, mesFinal, diaFinal] = temMeta ? meta.endDate.split('-') : [];
 
     // Excesso: quanto o dia passou da meta, e o custo disso. A economia trunca
     // esse valor em zero, então o alerta é o único lugar que mostra o que foi
     // gasto a mais. Sem aparelho não dá pra precificar (custoAMais = null).
-    const excesso = excessoDoDia(registrosDeHoje, aparelho, metaDeHoje);
+    const excesso = useMemo(
+        () => excessoDoDia(registrosDeHoje, aparelho, metaDeHoje),
+        [registrosDeHoje, aparelho, metaDeHoje]
+    );
     const mostrarExcesso = !!excesso && excesso.puxadasAMais > 0;
     const mensagemDoExcesso = mostrarExcesso
         ? `${excesso.puxadasAMais} ${excesso.puxadasAMais === 1 ? 'puxada' : 'puxadas'} acima do seu limite de hoje${
@@ -190,33 +213,50 @@ export default function HomeScreen({ navigation }) {
 
     // Heatmap do mês: um dia é "limpo" quando tem registro e nenhum uso — a
     // mesma regra do streak (calcularEstadoDeStreak), só que visível dia a dia.
-    const registrosPorData = registros.reduce((mapa, registro) => {
-        (mapa[registro.date] = mapa[registro.date] || []).push(registro);
-        return mapa;
-    }, {});
+    const registrosPorData = useMemo(
+        () =>
+            registros.reduce((mapa, registro) => {
+                (mapa[registro.date] = mapa[registro.date] || []).push(registro);
+                return mapa;
+            }, {}),
+        [registros]
+    );
     const mesAtual = mesDeData(hoje);
     const estaNoMesAtual =
         mesDoCalendario.ano === mesAtual.ano && mesDoCalendario.mes === mesAtual.mes;
-    const resumoDoCalendario = resumoDoMes(registros, mesDoCalendario.ano, mesDoCalendario.mes);
+    const resumoDoCalendario = useMemo(
+        () => resumoDoMes(registros, mesDoCalendario.ano, mesDoCalendario.mes),
+        [registros, mesDoCalendario]
+    );
 
-    const estiloDoDiaNoCalendario = (dataStr) => {
-        const estado = estadoDoDia(
-            registrosPorData[dataStr] || [],
-            metaEfetiva(meta, aparelho, dataStr)
-        );
-        if (estado === 'limpo') return { fundo: cores.primary, corDoTexto: '#fff' };
-        if (estado === 'usou_dentro')
-            return { fundo: cores.primaryLight, corDoTexto: cores.primaryDark };
-        if (estado === 'usou_acima')
-            return { fundo: cores.danger + '33', corDoTexto: cores.danger, borda: cores.danger };
-        if (estado === 'usou') return { fundo: cores.warning + '33', corDoTexto: cores.text };
-        return { fundo: cores.borderLight, corDoTexto: cores.textMuted };
-    };
+    const estiloDoDiaNoCalendario = useCallback(
+        (dataStr) => {
+            const estado = estadoDoDia(
+                registrosPorData[dataStr] || [],
+                metaEfetiva(meta, aparelho, dataStr)
+            );
+            if (estado === 'limpo') return { fundo: cores.primary, corDoTexto: '#fff' };
+            if (estado === 'usou_dentro')
+                return { fundo: cores.primaryLight, corDoTexto: cores.primaryDark };
+            if (estado === 'usou_acima')
+                return {
+                    fundo: cores.danger + '33',
+                    corDoTexto: cores.danger,
+                    borda: cores.danger,
+                };
+            if (estado === 'usou') return { fundo: cores.warning + '33', corDoTexto: cores.text };
+            return { fundo: cores.borderLight, corDoTexto: cores.textMuted };
+        },
+        [registrosPorData, meta, aparelho, cores]
+    );
 
-    const tooltipDoDiaNoCalendario = (dataStr) => {
-        const puxadas = somarPuxadas(registrosPorData[dataStr] || []);
-        return `${puxadas} ${puxadas === 1 ? 'puxada' : 'puxadas'}`;
-    };
+    const tooltipDoDiaNoCalendario = useCallback(
+        (dataStr) => {
+            const puxadas = somarPuxadas(registrosPorData[dataStr] || []);
+            return `${puxadas} ${puxadas === 1 ? 'puxada' : 'puxadas'}`;
+        },
+        [registrosPorData]
+    );
 
     const nivel = obterNivel(xp);
     const dica = DICAS[new Date().getDate() % DICAS.length];

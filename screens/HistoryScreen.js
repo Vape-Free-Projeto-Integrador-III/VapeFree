@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -38,7 +38,7 @@ import {
     sincronizarGamificacao,
     dataDeHoje,
 } from '../utils/storage';
-import { puxadasDoRegistro } from '../utils/records';
+import { puxadasDoRegistro, MAX_PUXADAS_DIA, limitarPuxadas } from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS } from '../utils/theme';
 import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
@@ -141,21 +141,33 @@ export default function HistoryScreen({ navigation }) {
 
     // Gráfico e lista trabalham sempre em cima do recorte filtrado. O
     // InsightsCard não — ver comentário na renderização.
-    const periodoAtivo =
-        filtro === 'range' && periodo && periodo.inicio && periodo.fim ? periodo : null;
-    const registrosFiltrados = registros.filter((registro) => {
-        if (periodoAtivo && !estaNoIntervalo(registro.date, periodoAtivo.inicio, periodoAtivo.fim))
-            return false;
-        if (rotulosSelecionados.length > 0) {
-            const rotulosDoRegistro = [...(registro.triggers || []), ...(registro.helps || [])];
-            // Vários rótulos selecionados = OU: basta o registro bater com um.
-            if (!rotulosSelecionados.some((rotulo) => rotulosDoRegistro.includes(rotulo)))
-                return false;
-        }
-        return true;
-    });
+    const periodoAtivo = useMemo(
+        () => (filtro === 'range' && periodo && periodo.inicio && periodo.fim ? periodo : null),
+        [filtro, periodo]
+    );
+    const registrosFiltrados = useMemo(
+        () =>
+            registros.filter((registro) => {
+                if (
+                    periodoAtivo &&
+                    !estaNoIntervalo(registro.date, periodoAtivo.inicio, periodoAtivo.fim)
+                )
+                    return false;
+                if (rotulosSelecionados.length > 0) {
+                    const rotulosDoRegistro = [
+                        ...(registro.triggers || []),
+                        ...(registro.helps || []),
+                    ];
+                    // Vários rótulos selecionados = OU: basta o registro bater com um.
+                    if (!rotulosSelecionados.some((rotulo) => rotulosDoRegistro.includes(rotulo)))
+                        return false;
+                }
+                return true;
+            }),
+        [registros, periodoAtivo, rotulosSelecionados]
+    );
 
-    const obterDadosAgrupados = () => {
+    const { rotulos: rotulosDoGrafico, dados: dadosDoGrafico } = useMemo(() => {
         if (filtro === 'day') {
             const gruposPorDia = agruparRegistrosPor(
                 registrosFiltrados,
@@ -214,29 +226,34 @@ export default function HistoryScreen({ navigation }) {
             };
         }
         return { rotulos: [], dados: [] };
-    };
+    }, [filtro, metrica, registrosFiltrados, periodoAtivo]);
 
-    const { rotulos: rotulosDoGrafico, dados: dadosDoGrafico } = obterDadosAgrupados();
     // Menos de ~38px por barra o rótulo de data vira borrão sobreposto.
     const larguraDisponivel = Math.max(240, larguraDoCardDoGrafico - 32);
     const larguraDoGrafico = Math.max(larguraDisponivel, rotulosDoGrafico.length * 38);
-    const todosOsRegistros = [...registrosFiltrados].sort((a, b) => {
-        const porData = compararChavesDeData(b.date, a.date);
-        return porData !== 0 ? porData : b.id - a.id;
-    });
+    const todosOsRegistros = useMemo(
+        () =>
+            [...registrosFiltrados].sort((a, b) => {
+                const porData = compararChavesDeData(b.date, a.date);
+                return porData !== 0 ? porData : b.id - a.id;
+            }),
+        [registrosFiltrados]
+    );
 
     // Os chips vêm dos rótulos que o usuário realmente usou, não do array
     // GATILHOS — assim o texto livre de "Outro" (salvo como rótulo cru) também
     // vira filtro. Mais frequentes primeiro.
-    const contagemDeRotulos = registros.reduce((mapa, registro) => {
-        [...(registro.triggers || []), ...(registro.helps || [])].forEach((rotulo) => {
-            mapa[rotulo] = (mapa[rotulo] || 0) + 1;
-        });
-        return mapa;
-    }, {});
-    const rotulosDisponiveis = Object.entries(contagemDeRotulos)
-        .sort((a, b) => b[1] - a[1])
-        .map(([rotulo]) => rotulo);
+    const rotulosDisponiveis = useMemo(() => {
+        const contagemDeRotulos = registros.reduce((mapa, registro) => {
+            [...(registro.triggers || []), ...(registro.helps || [])].forEach((rotulo) => {
+                mapa[rotulo] = (mapa[rotulo] || 0) + 1;
+            });
+            return mapa;
+        }, {});
+        return Object.entries(contagemDeRotulos)
+            .sort((a, b) => b[1] - a[1])
+            .map(([rotulo]) => rotulo);
+    }, [registros]);
 
     const temFiltroAtivo = !!periodoAtivo || rotulosSelecionados.length > 0;
 
@@ -934,18 +951,14 @@ export default function HistoryScreen({ navigation }) {
                                                             ]}
                                                             keyboardType="number-pad"
                                                             value={String(registroEmEdicao.puffs)}
-                                                            onChangeText={(texto) => {
-                                                                const numero = parseInt(
-                                                                    texto.replace(/[^0-9]/g, ''),
-                                                                    10
-                                                                );
+                                                            onChangeText={(texto) =>
                                                                 setRegistroEmEdicao({
                                                                     ...registroEmEdicao,
-                                                                    puffs: Number.isNaN(numero)
-                                                                        ? 0
-                                                                        : numero,
-                                                                });
-                                                            }}
+                                                                    puffs: limitarPuxadas(
+                                                                        texto.replace(/[^0-9]/g, '')
+                                                                    ),
+                                                                })
+                                                            }
                                                             onBlur={() =>
                                                                 setRegistroEmEdicao((r) => ({
                                                                     ...r,
@@ -954,6 +967,17 @@ export default function HistoryScreen({ navigation }) {
                                                             }
                                                         />
                                                     </View>
+                                                    {registroEmEdicao.puffs >= MAX_PUXADAS_DIA && (
+                                                        <Text
+                                                            style={[
+                                                                styles.limitHint,
+                                                                { color: cores.warning },
+                                                            ]}
+                                                        >
+                                                            Máximo de {MAX_PUXADAS_DIA} puxadas por
+                                                            dia.
+                                                        </Text>
+                                                    )}
                                                 </>
                                             )}
 
@@ -1288,6 +1312,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 24,
         marginBottom: 18,
+    },
+    limitHint: {
+        fontSize: 12,
+        fontFamily: 'Poppins_500Medium',
+        textAlign: 'center',
+        marginTop: -10,
+        marginBottom: 14,
     },
     counterInput: {
         fontSize: 40,

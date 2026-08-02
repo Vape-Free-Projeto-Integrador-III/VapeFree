@@ -54,6 +54,12 @@ const semearFila = (mutacoes) => {
     mockArmazenamento[CHAVE_DA_FILA] = JSON.stringify(mutacoes);
 };
 
+// Deixa a drenagem avancar ate onde ela consegue sem timer: os mocks resolvem
+// na hora, entao esvaziar a fila de microtarefas basta.
+const passarMicrotarefas = async (voltas = 20) => {
+    for (let i = 0; i < voltas; i += 1) await Promise.resolve();
+};
+
 let offline;
 
 beforeEach(() => {
@@ -182,6 +188,23 @@ describe('sincronizar', () => {
         expect(filaSalva()).toEqual([]);
     });
 
+    it('merge_usuario sobe com mergeFields, nao com merge profundo', async () => {
+        await offline.enfileirar(UID, {
+            tipo: 'merge_usuario',
+            dados: { economy: { '2026-03-02': 8 } },
+        });
+
+        await offline.sincronizar(UID);
+
+        // merge:true faria merge profundo do map e deixaria os dias antigos no
+        // servidor; mergeFields substitui o campo inteiro.
+        expect(mockSetDoc).toHaveBeenCalledWith(
+            expect.anything(),
+            { economy: { '2026-03-02': 8 } },
+            { mergeFields: ['economy'] }
+        );
+    });
+
     it('offline: nao toca no firestore e mantem as pendencias', async () => {
         await offline.enfileirar(UID, { tipo: 'set', colecao: 'records', docId: '1', dados: {} });
         mockOnline = false;
@@ -247,13 +270,54 @@ describe('sincronizar', () => {
         silencio.mockRestore();
     });
 
-    it('duas chamadas concorrentes compartilham a mesma drenagem', async () => {
+    it('chamadas no mesmo tique compartilham a drenagem que ainda nao leu a fila', async () => {
         await offline.enfileirar(UID, { tipo: 'set', colecao: 'records', docId: '1', dados: {} });
 
         const [a, b] = await Promise.all([offline.sincronizar(UID), offline.sincronizar(UID)]);
 
         expect(a).toBe(b); // mesma promise, nao duas drenagens
         expect(mockSetDoc).toHaveBeenCalledTimes(1);
+    });
+
+    it('chamada no meio de uma drenagem ganha a propria, com pendencias atualizadas', async () => {
+        await offline.enfileirar(UID, { tipo: 'set', colecao: 'records', docId: '1', dados: {} });
+
+        let liberarPrimeiroEnvio;
+        mockSetDoc.mockImplementationOnce(
+            () =>
+                new Promise((resolver) => {
+                    liberarPrimeiroEnvio = resolver;
+                })
+        );
+
+        const primeira = offline.sincronizar(UID);
+        await passarMicrotarefas(); // a primeira drenagem ja leu a fila e travou no setDoc
+
+        // Mutacao que entrou DEPOIS dessa leitura: a primeira drenagem nao a
+        // enxerga. Reusar a promise dela devolveria pendentes: 0 e o banner
+        // sumiria sem essa mutacao ter subido.
+        await offline.enfileirar(UID, { tipo: 'set', colecao: 'records', docId: '2', dados: {} });
+        const segunda = offline.sincronizar(UID);
+        expect(segunda).not.toBe(primeira);
+
+        liberarPrimeiroEnvio();
+
+        expect(await primeira).toMatchObject({ enviadas: 1 });
+        expect(await segunda).toEqual({ enviadas: 1, pendentes: 0, falhas: 0 });
+        expect(mockSetDoc).toHaveBeenCalledTimes(2);
+        expect(filaSalva()).toEqual([]);
+    });
+
+    it('uid diferente nao recebe o resultado da drenagem de outro uid', async () => {
+        await offline.enfileirar(UID, { tipo: 'set', colecao: 'records', docId: '1', dados: {} });
+
+        const doUid1 = offline.sincronizar(UID);
+        const doUid2 = offline.sincronizar('uid2');
+
+        expect(doUid2).not.toBe(doUid1);
+        expect(await doUid1).toEqual({ enviadas: 1, pendentes: 0, falhas: 0 });
+        expect(await doUid2).toEqual({ enviadas: 0, pendentes: 0, falhas: 0 });
+        expect(mockSetDoc).toHaveBeenCalledTimes(1); // a fila do uid2 esta vazia
     });
 });
 

@@ -15,6 +15,7 @@ import {
     TouchableOpacity,
     Animated,
     Easing,
+    AppState,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { RAIO, SOMBRA } from '../utils/theme';
@@ -55,6 +56,9 @@ export default function BreathingScreen({ navigation, route }) {
     const escala = useRef(new Animated.Value(0.55)).current;
     const intervaloRef = useRef(null);
     const animacaoRef = useRef(null);
+    // Instante em que a sessão começou: o decorrido vem do relógio, não da
+    // contagem de ticks — o setInterval é congelado com o app em background.
+    const inicioRef = useRef(0);
 
     const indiceDaFase = Math.floor(decorrido / SEGUNDOS_DE_FASE) % FASES.length;
     const fase = FASES[indiceDaFase];
@@ -84,29 +88,40 @@ export default function BreathingScreen({ navigation, route }) {
 
     useEffect(() => pararTimers, [pararTimers]);
 
-    // Cronômetro único: conta segundos enquanto a sessão roda.
+    // Cronômetro único: o interval é só tick de render, o valor sai sempre do
+    // relógio. Voltar do background já mostra o tempo real, não o congelado.
     useEffect(() => {
         if (!rodando) return undefined;
 
-        intervaloRef.current = setInterval(() => {
-            setDecorrido((prev) => prev + 1);
-        }, 1000);
+        const tick = () => setDecorrido(Math.floor((Date.now() - inicioRef.current) / 1000));
+
+        tick();
+        intervaloRef.current = setInterval(tick, 1000);
+        const inscricao = AppState.addEventListener('change', (estado) => {
+            if (estado === 'active') tick();
+        });
 
         return () => {
             clearInterval(intervaloRef.current);
             intervaloRef.current = null;
+            inscricao.remove();
         };
     }, [rodando]);
 
-    // Animação do círculo: reage à troca de fase.
+    // Animação do círculo: reage à troca de fase. A duração é o que sobra da
+    // fase pelo relógio, não os 4s cheios — voltando do background no meio de
+    // uma fase, o círculo tem que terminar junto com ela, não 4s depois.
     useEffect(() => {
         if (!rodando) return;
 
         if (animacaoRef.current) animacaoRef.current.stop();
 
+        const decorridoReal = (Date.now() - inicioRef.current) / 1000;
+        const restanteDaFaseReal = SEGUNDOS_DE_FASE - (decorridoReal % SEGUNDOS_DE_FASE);
+
         animacaoRef.current = Animated.timing(escala, {
             toValue: fase.escala,
-            duration: SEGUNDOS_DE_FASE * 1000,
+            duration: Math.max(100, restanteDaFaseReal * 1000),
             easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
         });
@@ -131,6 +146,7 @@ export default function BreathingScreen({ navigation, route }) {
     }, [rodando, decorrido, duracao.segundos, veioDaCrise, navigation, pararTimers]);
 
     function iniciar() {
+        inicioRef.current = Date.now();
         setDecorrido(0);
         setFinalizado(false);
         escala.setValue(0.55);

@@ -8,7 +8,7 @@
 // no fim (passou/diminuiu/usei). Se pular o feedback, nada é registrado.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, AppState } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
@@ -82,6 +82,12 @@ export default function CrisisScreen({ navigation, route }) {
 
     const iniciadoEm = useRef(Date.now());
     const intervaloDeEspera = useRef(null);
+    // Espera dos 5 min: o tempo vem do relógio, não da contagem de ticks — o
+    // setInterval é congelado em background e voltava com o relógio parado.
+    // esperaAcumuladaRef = segundos já corridos antes da última pausa;
+    // esperaRetomadaEmRef = instante em que voltou a correr (null = pausado).
+    const esperaAcumuladaRef = useRef(0);
+    const esperaRetomadaEmRef = useRef(null);
     const salvandoRef = useRef(false);
     // Saída já decidida pelo usuário (pulou ou salvou o desfecho): o
     // beforeRemove deixa passar em vez de reabrir o modal.
@@ -129,23 +135,32 @@ export default function CrisisScreen({ navigation, route }) {
         });
     }, [route?.params, navigation]);
 
-    // Timer "aguente 5 minutos".
+    // Timer "aguente 5 minutos". O interval é só tick de render: o valor
+    // mostrado sai sempre de esperaDecorrida(), então voltar do background
+    // (onde o timer é estrangulado) já mostra o tempo real.
     useEffect(() => {
         if (!esperaRodando) return undefined;
 
-        intervaloDeEspera.current = setInterval(() => {
-            setTempoRestante((prev) => Math.max(0, prev - 1));
-        }, 1000);
+        const tick = () =>
+            setTempoRestante(Math.max(0, SEGUNDOS_DE_ESPERA - Math.floor(esperaDecorrida())));
+
+        tick();
+        intervaloDeEspera.current = setInterval(tick, 1000);
+        const inscricao = AppState.addEventListener('change', (estado) => {
+            if (estado === 'active') tick();
+        });
 
         return () => {
             clearInterval(intervaloDeEspera.current);
             intervaloDeEspera.current = null;
+            inscricao.remove();
         };
     }, [esperaRodando]);
 
     useEffect(() => {
         if (esperaRodando && tempoRestante === 0) {
             setEsperaRodando(false);
+            esperaRetomadaEmRef.current = null;
             encerrar('timer', SEGUNDOS_DE_ESPERA, true);
         }
     }, [esperaRodando, tempoRestante]);
@@ -172,6 +187,24 @@ export default function CrisisScreen({ navigation, route }) {
 
     function segundosDecorridos() {
         return Math.round((Date.now() - iniciadoEm.current) / 1000);
+    }
+
+    // Segundos de espera já corridos, contando o trecho em curso.
+    function esperaDecorrida() {
+        const emCurso = esperaRetomadaEmRef.current
+            ? (Date.now() - esperaRetomadaEmRef.current) / 1000
+            : 0;
+        return esperaAcumuladaRef.current + emCurso;
+    }
+
+    function alternarEspera() {
+        if (esperaRodando) {
+            esperaAcumuladaRef.current = esperaDecorrida();
+            esperaRetomadaEmRef.current = null;
+        } else {
+            esperaRetomadaEmRef.current = Date.now();
+        }
+        setEsperaRodando(!esperaRodando);
     }
 
     // Abre o modal de "como foi?" com o que já se sabe da sessão.
@@ -233,9 +266,12 @@ export default function CrisisScreen({ navigation, route }) {
         setMetodoAtivo((prev) => (prev === id ? null : id));
 
         if (id === 'timer') {
+            esperaAcumuladaRef.current = 0;
+            esperaRetomadaEmRef.current = Date.now();
             setTempoRestante(SEGUNDOS_DE_ESPERA);
             setEsperaRodando(true);
         } else {
+            esperaRetomadaEmRef.current = null;
             setEsperaRodando(false);
         }
     }
@@ -355,7 +391,7 @@ export default function CrisisScreen({ navigation, route }) {
                                     </Text>
                                     <TouchableOpacity
                                         style={[styles.panelBtn, { borderColor: cores.primary }]}
-                                        onPress={() => setEsperaRodando((prev) => !prev)}
+                                        onPress={alternarEspera}
                                     >
                                         <Text
                                             style={[

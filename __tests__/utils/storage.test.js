@@ -46,7 +46,22 @@ jest.mock('firebase/firestore', () => {
     const exigirRede = () => {
         if (!mockOnline) throw new Error('unavailable');
     };
+    // O merge do Firestore é PROFUNDO em map: escrever {} num map não apaga as
+    // chaves antigas, só deleteField() apaga. O mock precisa imitar isso, senão
+    // some a diferença entre limpar de verdade e não limpar nada.
+    const ehMapa = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+    const mesclar = (antigo, novo) => {
+        const saida = { ...antigo };
+        for (const [chave, valor] of Object.entries(novo)) {
+            if (valor && valor.__apagarCampo) delete saida[chave];
+            else if (ehMapa(valor) && ehMapa(saida[chave]))
+                saida[chave] = mesclar(saida[chave], valor);
+            else saida[chave] = valor;
+        }
+        return saida;
+    };
     return {
+        deleteField: () => ({ __apagarCampo: true }),
         doc: (db, ...partes) => ({ caminho: caminhoDe(db, ...partes) }),
         collection: (db, ...partes) => ({ caminho: caminhoDe(db, ...partes) }),
         getDoc: async (ref) => {
@@ -59,19 +74,44 @@ jest.mock('firebase/firestore', () => {
             const prefixo = `${ref.caminho}/`;
             const docs = Object.entries(mockRemoto)
                 .filter(([caminho]) => caminho.startsWith(prefixo))
-                .map(([caminho, dados]) => ({ data: () => dados, ref: { caminho } }));
+                .map(([caminho, dados]) => ({
+                    id: caminho.slice(prefixo.length),
+                    data: () => dados,
+                    ref: { caminho },
+                }));
             return { docs };
         },
         setDoc: async (ref, dados, opcoes) => {
             exigirRede();
-            mockRemoto[ref.caminho] =
-                opcoes?.merge && mockRemoto[ref.caminho]
-                    ? { ...mockRemoto[ref.caminho], ...dados }
-                    : dados;
+            const atual = mockRemoto[ref.caminho];
+            if (opcoes?.mergeFields) {
+                // mergeFields: cada campo listado é SUBSTITUÍDO inteiro, os
+                // demais campos do doc ficam como estavam.
+                const saida = { ...(atual || {}) };
+                for (const campo of opcoes.mergeFields) saida[campo] = dados[campo];
+                mockRemoto[ref.caminho] = saida;
+                return;
+            }
+            mockRemoto[ref.caminho] = opcoes?.merge && atual ? mesclar(atual, dados) : dados;
         },
         deleteDoc: async (ref) => {
             exigirRede();
             delete mockRemoto[ref.caminho];
+        },
+        // Lote real do Firestore: no máximo 500 operações e commit atômico —
+        // ou aplica tudo, ou nada. O mock imita os dois pra que estourar o
+        // limite quebre o teste em vez de passar batido.
+        writeBatch: () => {
+            const operacoes = [];
+            return {
+                set: (ref, dados) => operacoes.push(() => (mockRemoto[ref.caminho] = dados)),
+                delete: (ref) => operacoes.push(() => delete mockRemoto[ref.caminho]),
+                commit: async () => {
+                    if (operacoes.length > 500) throw new Error('batch acima de 500 operações');
+                    exigirRede();
+                    for (const aplicar of operacoes) aplicar();
+                },
+            };
         },
     };
 });
@@ -435,12 +475,102 @@ describe('modo conta — leitura', () => {
         expect(await storage.obterAparelho()).toEqual(APARELHO);
     });
 
+    it('reconcilia dois documentos do mesmo dia: fica o de id maior e o outro é apagado', async () => {
+        // Como a conta chega nesse estado: registro antigo do dia só no
+        // servidor + escrita offline com espelho frio (o delete do antigo não
+        // tinha como entrar na fila).
+        mockRemoto[`users/${UID}/records/100`] = {
+            id: 100,
+            date: '2026-03-01',
+            used: true,
+            puffs: 40,
+        };
+        mockRemoto[`users/${UID}/records/200`] = {
+            id: 200,
+            date: '2026-03-01',
+            used: true,
+            puffs: 10,
+        };
+
+        const registros = await storage.obterRegistros();
+
+        expect(registros).toEqual([{ id: 200, date: '2026-03-01', used: true, puffs: 10 }]);
+        expect(espelhoSalvo('records')).toEqual(registros);
+
+        await drenarTudo();
+        expect(registrosRemotos()).toEqual(registros);
+    });
+
+    it('escrita offline com espelho frio não deixa registro duplicado depois da volta da rede', async () => {
+        mockRemoto[`users/${UID}/records/100`] = { id: 100, date: hoje(), used: true, puffs: 40 };
+
+        mockOnline = false;
+        await storage.salvarRegistro(registroDeHoje({ id: 200, puffs: 10 }));
+
+        await religarRedeEDrenar();
+        const registros = await storage.obterRegistros();
+        await drenarTudo();
+
+        expect(registros).toHaveLength(1);
+        expect(registros[0].id).toBe(200);
+        expect(registrosRemotos()).toHaveLength(1);
+    });
+
     it('devolve o padrão quando não há espelho nem servidor', async () => {
         mockOnline = false;
 
         expect(await storage.obterRegistros()).toEqual([]);
         expect(await storage.obterAparelho()).toBeNull();
         expect(await storage.obterEconomia()).toEqual({});
+    });
+});
+
+describe('validade do espelho (TTL de leitura)', () => {
+    beforeEach(entrarNaConta);
+
+    // Escrever direto no remoto simula outro aparelho: se a leitura enxergar o
+    // dado novo, ela foi ao servidor; se não, foi servida pelo espelho.
+    const registroSoNoRemoto = (id, date) => {
+        mockRemoto[`users/${UID}/records/${id}`] = { id, date, used: false, puffs: 0 };
+    };
+
+    it('segunda leitura dentro da validade serve o espelho, sem ir no servidor', async () => {
+        registroSoNoRemoto(7, '2026-03-01');
+        expect(await storage.obterRegistros()).toHaveLength(1);
+
+        registroSoNoRemoto(8, '2026-03-02');
+
+        expect(await storage.obterRegistros()).toHaveLength(1);
+    });
+
+    it('vencida a validade, volta a ler do servidor', async () => {
+        registroSoNoRemoto(7, '2026-03-01');
+        await storage.obterRegistros();
+        registroSoNoRemoto(8, '2026-03-02');
+
+        avancarRelogio(31000);
+
+        expect(await storage.obterRegistros()).toHaveLength(2);
+    });
+
+    it('forcarLeituraRemota ignora a validade', async () => {
+        registroSoNoRemoto(7, '2026-03-01');
+        await storage.obterRegistros();
+        registroSoNoRemoto(8, '2026-03-02');
+
+        storage.forcarLeituraRemota();
+
+        expect(await storage.obterRegistros()).toHaveLength(2);
+    });
+
+    it('escrita local aparece na leitura seguinte mesmo dentro da validade', async () => {
+        registroSoNoRemoto(7, '2026-03-01');
+        await storage.obterRegistros();
+
+        await storage.salvarRegistro(registroDeHoje({ id: 9, puffs: 3 }));
+        const registros = await storage.obterRegistros();
+
+        expect(registros.map((r) => r.id).sort()).toEqual([7, 9]);
     });
 });
 
@@ -545,6 +675,75 @@ describe('migrarDadosDoConvidadoParaConta', () => {
         expect(await storage.obterRegistros()).toHaveLength(1);
         silencio.mockRestore();
     });
+
+    it('escreve o novo antes de apagar o velho: falhar na limpeza não perde dado', async () => {
+        const silencio = jest.spyOn(console, 'log').mockImplementation(() => {});
+        await storage.salvarRegistro(registroDeHoje());
+        entrarNaConta();
+        // Lixo de uma migração anterior: precisa sair, mas só DEPOIS do novo subir.
+        mockRemoto[`users/${UID}/records/999`] = { id: 999, date: '2026-01-01' };
+
+        const firestore = require('firebase/firestore');
+        const original = firestore.writeBatch;
+        let commits = 0;
+        jest.spyOn(firestore, 'writeBatch').mockImplementation((db) => {
+            const lote = original(db);
+            return {
+                ...lote,
+                commit: async () => {
+                    commits += 1;
+                    // 1º lote de 'records' escreve o novo, 2º apaga o velho.
+                    if (commits === 2) throw new Error('unavailable');
+                    return lote.commit();
+                },
+            };
+        });
+
+        expect(await storage.migrarDadosDoConvidadoParaConta()).toBe(false);
+
+        // O registro novo já está no servidor mesmo com a limpeza falhando.
+        expect(mockRemoto[`users/${UID}/records/1001`]).toMatchObject({ id: 1001 });
+        // E o local continua intacto pra tentar de novo.
+        mockAuth.currentUser = null;
+        expect(await storage.obterRegistros()).toHaveLength(1);
+        silencio.mockRestore();
+    });
+
+    it('quebra a subida em lotes de no máximo 500 operações', async () => {
+        const registros = Array.from({ length: 1200 }, (_, i) => ({
+            id: 2000 + i,
+            date: '2026-03-01',
+            used: true,
+            puffs: 10,
+            triggers: [],
+        }));
+        mockArmazenamento['@vapefree_records'] = JSON.stringify(registros);
+        entrarNaConta();
+
+        // O mock de writeBatch estoura se um commit passar de 500 operações.
+        expect(await storage.migrarDadosDoConvidadoParaConta()).toBe(true);
+        expect(registrosRemotos()).toHaveLength(1200);
+    });
+
+    it('rede que cai no meio (promise pendurada do SDK) falha por tempo limite', async () => {
+        const silencio = jest.spyOn(console, 'log').mockImplementation(() => {});
+        await storage.salvarRegistro(registroDeHoje());
+        entrarNaConta();
+
+        const firestore = require('firebase/firestore');
+        // Offline o SDK do Firestore não rejeita: a promise fica pendurada.
+        jest.spyOn(firestore, 'setDoc').mockReturnValueOnce(new Promise(() => {}));
+
+        jest.useFakeTimers();
+        const migracao = storage.migrarDadosDoConvidadoParaConta();
+        await jest.advanceTimersByTimeAsync(9000);
+        expect(await migracao).toBe(false);
+        jest.useRealTimers();
+
+        mockAuth.currentUser = null;
+        expect(await storage.obterRegistros()).toHaveLength(1);
+        silencio.mockRestore();
+    });
 });
 
 describe('apagarTodosOsDados', () => {
@@ -574,6 +773,215 @@ describe('apagarTodosOsDados', () => {
         expect(mockRemoto[`users/${UID}`]).toMatchObject({ device: null });
         expect(espelhoSalvo('records')).toEqual([]);
         expect(espelhoSalvo('device')).toBeNull();
+    });
+
+    it('conta online: apaga a economia no remoto, não só no espelho', async () => {
+        entrarNaConta();
+        await storage.salvarRegistro(registroDeHoje());
+        await storage.salvarAparelho(APARELHO);
+        await drenarTudo();
+        expect(await storage.definirEconomia({ '2026-03-01': 12.4 })).toEqual({ ok: true });
+        await drenarTudo();
+
+        expect(await storage.apagarTodosOsDados()).toEqual({ ok: true });
+
+        // Se o campo sobrevivesse no servidor, a economia inteira voltaria na
+        // próxima leitura online em outro aparelho.
+        expect(mockRemoto[`users/${UID}`].economy).toBeUndefined();
+        expect(espelhoSalvo('economy')).toEqual({});
+    });
+});
+
+describe('definirEconomia (conta)', () => {
+    it('mapa novo sem um dia apaga esse dia no remoto, não deixa o valor velho', async () => {
+        entrarNaConta();
+        await storage.salvarAparelho(APARELHO);
+        await storage.salvarRegistro(registroDeHoje());
+        await drenarTudo();
+
+        await storage.definirEconomia({ '2026-03-01': 12.4, '2026-03-02': 8 });
+        await drenarTudo();
+        // Recálculo depois de excluir o registro do dia 01: o mapa novo não tem
+        // mais essa chave. Com merge profundo ela sobreviveria com 12.4.
+        await storage.definirEconomia({ '2026-03-02': 8 });
+        await drenarTudo();
+
+        expect(mockRemoto[`users/${UID}`].economy).toEqual({ '2026-03-02': 8 });
+        // Os outros campos do doc do usuário continuam intactos.
+        expect(mockRemoto[`users/${UID}`].device).toEqual(APARELHO);
+    });
+});
+
+describe('sincronizarGamificacao (só recalcula quando precisa)', () => {
+    // require() na hora da chamada de propósito: o jest.resetModules() do
+    // beforeEach troca a instância do mock, e uma referência presa no topo do
+    // describe contaria as chamadas de outro módulo (sempre zero).
+    const escritasDeXp = () =>
+        require('@react-native-async-storage/async-storage').setItem.mock.calls.filter(
+            ([chave]) => chave === '@vapefree_xp'
+        ).length;
+
+    it('segunda chamada seguida não recalcula nem devolve recompensa de novo', async () => {
+        await storage.salvarRegistro(registroDeHoje({ used: false, puffs: 0 }));
+
+        const primeira = await storage.sincronizarGamificacao();
+        expect(primeira.recompensas.conquistas.length).toBeGreaterThan(0);
+        const xpDepoisDaPrimeira = escritasDeXp();
+
+        const segunda = await storage.sincronizarGamificacao();
+
+        expect(escritasDeXp()).toBe(xpDepoisDaPrimeira);
+        expect(segunda.recompensas).toEqual({ conquistas: [], missoes: [], ganho: 0 });
+        expect(segunda.resumo).toEqual(primeira.resumo);
+        expect(segunda.missoesConcluidas).toEqual(primeira.missoesConcluidas);
+    });
+
+    it('escrita entre as duas chamadas volta a sujar e recalcula', async () => {
+        await storage.salvarRegistro(registroDeHoje({ used: false, puffs: 0 }));
+        await storage.sincronizarGamificacao();
+        const xpAntes = escritasDeXp();
+
+        await storage.salvarSessaoDeCrise(SESSAO_DE_CRISE);
+        await storage.sincronizarGamificacao();
+
+        expect(escritasDeXp()).toBeGreaterThan(xpAntes);
+    });
+
+    it('virada do dia recalcula mesmo sem escrita', async () => {
+        await storage.salvarRegistro(registroDeHoje({ used: false, puffs: 0 }));
+        await storage.sincronizarGamificacao();
+        const xpAntes = escritasDeXp();
+
+        // O dia de calendário sai de `new Date()` (utils/datas.js), que o spy de
+        // Date.now não alcança — então quem vira o dia aqui é o próprio Date.
+        const dataReal = global.Date;
+        const umDia = 24 * 60 * 60 * 1000;
+        global.Date = class extends dataReal {
+            constructor(...args) {
+                super(...(args.length ? args : [relogioReal() + umDia]));
+            }
+        };
+        global.Date.now = dataReal.now;
+
+        try {
+            await storage.sincronizarGamificacao();
+        } finally {
+            global.Date = dataReal;
+        }
+
+        expect(escritasDeXp()).toBeGreaterThan(xpAntes);
+    });
+
+    it('login (troca de uid) recalcula mesmo sem escrita', async () => {
+        await storage.salvarRegistro(registroDeHoje({ used: false, puffs: 0 }));
+        await storage.sincronizarGamificacao();
+        const xpAntes = escritasDeXp();
+
+        entrarNaConta();
+        await storage.sincronizarGamificacao();
+        await drenarTudo();
+
+        // Na conta o XP vai pro espelho, não pra chave de convidado: o que prova
+        // o recálculo é o snapshot novo no espelho do uid.
+        expect(escritasDeXp()).toBe(xpAntes);
+        expect(espelhoSalvo('xp')).not.toBeNull();
+    });
+});
+
+describe('consolidação das missões de período fechado', () => {
+    const HOJE = '2026-03-10';
+    const missao = (id, periodKey, xp, period = 'daily') => ({
+        id: `${id}_${periodKey}`,
+        missionId: id,
+        period,
+        periodKey,
+        xp,
+        completedAt: `${periodKey}T10:00:00.000Z`,
+    });
+    const resumoDe = (lista) => lista.find((entrada) => entrada.id === '_resumo');
+    const semanaDeHoje = () => datas.inicioDaSemana(HOJE);
+
+    it('convidado: troca as fechadas por um resumo e mantém as do período atual', async () => {
+        await storage.salvarMissao(missao('daily_no_vape', '2026-03-01', 30));
+        await storage.salvarMissao(missao('weekly_streak_3', '2026-02-23', 40, 'weekly'));
+        await storage.salvarMissao(missao('daily_no_vape', HOJE, 30));
+        await storage.salvarMissao(missao('weekly_streak_3', semanaDeHoje(), 40, 'weekly'));
+
+        const consolidada = await storage.consolidarMissoesFechadas(HOJE);
+
+        expect(consolidada).toHaveLength(3);
+        expect(resumoDe(consolidada)).toMatchObject({
+            summary: true,
+            xp: 70,
+            count: 2,
+            until: '2026-03-01',
+        });
+        expect(
+            consolidada
+                .filter((e) => e.id !== '_resumo')
+                .map((e) => e.periodKey)
+                .sort()
+        ).toEqual([HOJE, semanaDeHoje()].sort());
+        // E ficou persistido: a próxima leitura já vê a lista curta.
+        expect(await storage.obterMissoes()).toEqual(consolidada);
+    });
+
+    it('o XP total não muda ao consolidar', async () => {
+        await storage.salvarMissao(missao('daily_no_vape', '2026-03-01', 30));
+        await storage.salvarMissao(missao('weekly_streak_3', '2026-02-23', 40, 'weekly'));
+        const { calcularXp } = require('../../utils/xp');
+        const antes = calcularXp([], [], await storage.obterMissoes());
+
+        await storage.consolidarMissoesFechadas(HOJE);
+
+        expect(calcularXp([], [], await storage.obterMissoes())).toBe(antes);
+    });
+
+    it('rodar de novo sem período novo fechado é no-op', async () => {
+        await storage.salvarMissao(missao('daily_no_vape', '2026-03-01', 30));
+        const primeira = await storage.consolidarMissoesFechadas(HOJE);
+
+        const segunda = await storage.consolidarMissoesFechadas(HOJE);
+
+        expect(segunda).toEqual(primeira);
+    });
+
+    it('conta: as fechadas somem do servidor e sobra o resumo', async () => {
+        entrarNaConta();
+        await storage.salvarMissao(missao('daily_no_vape', '2026-03-01', 30));
+        await storage.salvarMissao(missao('daily_no_vape', HOJE, 30));
+        await drenarTudo();
+
+        await storage.consolidarMissoesFechadas(HOJE);
+        await drenarTudo();
+
+        const docsRemotos = Object.entries(mockRemoto)
+            .filter(([caminho]) => caminho.startsWith(`users/${UID}/missions/`))
+            .map(([caminho]) => caminho.split('/').pop());
+        expect(docsRemotos.sort()).toEqual(['_resumo', `daily_no_vape_${HOJE}`]);
+        expect(mockRemoto[`users/${UID}/missions/_resumo`]).toMatchObject({ xp: 30, count: 1 });
+    });
+
+    it('entrada já contada que ressuscita no servidor é apagada de novo, sem somar XP duas vezes', async () => {
+        entrarNaConta();
+        await storage.salvarMissao(missao('daily_no_vape', '2026-03-01', 30));
+        await drenarTudo();
+        await storage.consolidarMissoesFechadas(HOJE);
+        await drenarTudo();
+
+        // Simula o delete que não pegou: o doc velho volta na leitura seguinte.
+        mockRemoto[`users/${UID}/missions/daily_no_vape_2026-03-01`] = missao(
+            'daily_no_vape',
+            '2026-03-01',
+            30
+        );
+        avancarRelogio(31000); // vence a validade do espelho
+
+        const consolidada = await storage.consolidarMissoesFechadas(HOJE);
+        await drenarTudo();
+
+        expect(resumoDe(consolidada)).toMatchObject({ xp: 30, count: 1 });
+        expect(mockRemoto[`users/${UID}/missions/daily_no_vape_2026-03-01`]).toBeUndefined();
     });
 });
 

@@ -29,7 +29,9 @@ Duas armadilhas desse arquivo, ambas com helper próprio no topo dele:
 
 - `escreverNaConta` dispara `sincronizar()` **sem await** de propósito. Isso deixa uma drenagem solta
   correndo junto com o teste — mexer em `mockOnline` no meio dela torna o resultado um sorteio.
-  Encerre a drenagem (`aguardarDrenagemSolta`) antes de religar a rede.
+  Encerre a drenagem (`aguardarDrenagemSolta`) antes de religar a rede. `sincronizar()` chamado no
+  meio de uma drenagem não devolve a promise dela: encadeia uma nova, então aguardá-lo garante que
+  nada ficou voando.
 - `estaOnline()` guarda a conexão em cache por 30s. Voltar a rede no meio do teste exige avançar o
   relógio além disso (`avancarRelogio(31000)`), senão o módulo continua achando que está offline.
 

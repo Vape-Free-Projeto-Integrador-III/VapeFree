@@ -58,6 +58,26 @@ Devolve `{ registros, economia, sessoesDeCrise, diasDeAbertura, meta, aparelho, 
 5. `mostrarRecompensas(recompensas)` (`context/ToastContext.js`) — `recompensas` já vem no shape `{ conquistas, missoes, ganho }`; quem quer customizar o toast espalha e sobrescreve (`{ ...recompensas, icone, titulo }`, como o `RegisterScreen`).
 6. Para exibir a lista, usa `verificarMissoes(ctx, missoesConcluidas)` — devolve o estado de todas as missões do período com `current`/`target`/`completed`.
 
+### Períodos fechados viram um resumo
+
+Passo 2.5 do bloco: `consolidarMissoesFechadas(hoje)` troca as entradas de período já fechado por uma única entrada `_resumo` (`{ summary: true, xp, count, until, updatedAt }`), mantendo detalhadas só as do dia e da semana corrente. Sem isso a subcoleção crescia ~1400 docs/ano e todos eram lidos toda vez, mesmo com só o `xp` importando depois que o período passa. Ela reaproveita a leitura que a sincronização já faz e devolve a lista consolidada — sem leitura extra.
+
+O resumo entra na lista de `obterMissoes()` como qualquer entrada: `calcularXp` soma o `xp` dele normalmente e `verificarMissoes` o ignora (`_resumo` não bate com nenhum `missionId_periodKey`). **`missoesConcluidas.length` não é o número de missões concluídas** — a conquista `first_mission` só pergunta `>= 1`, o que continua certo. Detalhe do shape e da trava `until` em [database.md](database.md).
+
+### Recálculo só quando muda (dirty flag)
+
+Os passos 2–4 são **derivados**: sem escrita no meio, dentro do mesmo dia e do mesmo uid, dão exatamente o mesmo resultado. Como toda tela chama `sincronizarGamificacao` no `useFocusEffect`, isso era uma leitura das missões + uma reescrita do snapshot de XP a cada troca de tela.
+
+Hoje o bloco 2–4 só roda quando:
+
+- alguma escrita marcou `marcarGamificacaoSuja()` (`utils/storage.js`) — toda escrita que entra no cálculo chama isso: registro (salvar/atualizar/excluir), aparelho, meta, economia, sessão de crise (salvar/atualizar/excluir), primeiro `registrarAberturaDoApp()` do dia, migração de convidado e apagamento de dados;
+- **o dia virou** (missão diária e streak dependem da data); ou
+- **o uid mudou** (login, logout, migração).
+
+Fora disso a função ainda devolve os dados carregados, mas serve `missoesConcluidas` e `resumo` da última execução e `recompensas` vazio (`{ conquistas: [], missoes: [], ganho: 0 }`) — nenhuma leitura de missões, nenhuma escrita de XP. A marcação é conservadora de propósito: a escrita suja antes de saber se deu certo, porque sujar à toa custa um recálculo, enquanto não sujar deixaria conquista/missão presa.
+
+Consequência para código novo: **escrita que influencia missão/conquista/XP e não passa por `utils/storage.js` precisa chamar `marcarGamificacaoSuja()`**, senão a recompensa só aparece na virada do dia. O único caso não coberto é dado que chega do servidor por outro aparelho — ele só entra no cálculo na próxima escrita local ou virada de dia.
+
 Chamam `sincronizarGamificacao`: `HomeScreen` (passando `diasDeAbertura` de `registrarAberturaDoApp`), `MissionsScreen`, `RegisterScreen` (após salvar), `CrisisScreen` (ao encerrar a sessão), `HistoryScreen` (após editar/excluir registro — muda puxadas e economia), `DeviceScreen` (após salvar aparelho — recalcula a economia inteira) e `AchievementsScreen` (ao focar — a lista exibida precisa do desbloqueio já persistido). **Não** reimplemente a sequência numa tela nova.
 
 ## UI

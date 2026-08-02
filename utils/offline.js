@@ -102,6 +102,48 @@ export async function temEspelho(uid, nome) {
     }
 }
 
+// ─── Validade do espelho (TTL de leitura) ────────────────────────────────────
+//
+// Toda tela recarrega os dados no useFocusEffect, e cada leitura da conta era
+// um getDocs da coleção inteira — trocar de aba três vezes lia o histórico
+// inteiro três vezes. O espelho já guarda a resposta; o que faltava era saber
+// se ela é recente.
+//
+// O registro de "lido do servidor em" é de MEMÓRIA de propósito: vale só
+// enquanto o app está aberto, então reabrir o app sempre busca do servidor.
+// Curto (30s, igual ao cache de conexão) porque a janela de erro é o tempo em
+// que uma escrita feita em OUTRO aparelho ainda não aparece aqui — escrita
+// local não passa por isso (atualiza o espelho na hora).
+const VALIDADE_DO_ESPELHO = 30000;
+
+const lidoDoServidorEm = new Map();
+
+function chaveDeValidade(uid, nome) {
+    return `${uid}_${nome}`;
+}
+
+export function marcarLeituraDoServidor(uid, nome) {
+    lidoDoServidorEm.set(chaveDeValidade(uid, nome), Date.now());
+}
+
+export function espelhoEstaFresco(uid, nome) {
+    const lidoEm = lidoDoServidorEm.get(chaveDeValidade(uid, nome));
+    return lidoEm !== undefined && Date.now() - lidoEm < VALIDADE_DO_ESPELHO;
+}
+
+// Descarta a validade e força a próxima leitura a ir no servidor. Sem `nome`,
+// vale pro uid inteiro (reconexão, "puxar pra atualizar", logout).
+export function invalidarEspelho(uid, nome) {
+    if (nome !== undefined) {
+        lidoDoServidorEm.delete(chaveDeValidade(uid, nome));
+        return;
+    }
+    const prefixo = `${uid}_`;
+    for (const chave of lidoDoServidorEm.keys()) {
+        if (chave.startsWith(prefixo)) lidoDoServidorEm.delete(chave);
+    }
+}
+
 export async function escreverCache(uid, nome, valor) {
     if (!uid) return false;
     try {
@@ -117,7 +159,15 @@ export async function escreverCache(uid, nome, valor) {
 // Mutação: { id, tipo, colecao, docId, dados, tentativas }
 //   tipo 'set'           -> setDoc(users/{uid}/{colecao}/{docId}, dados)
 //   tipo 'delete'        -> deleteDoc(users/{uid}/{colecao}/{docId})
-//   tipo 'merge_usuario' -> setDoc(users/{uid}, dados, { merge: true })
+//   tipo 'merge_usuario' -> setDoc(users/{uid}, dados, { mergeFields: [campos] })
+//
+// O 'merge_usuario' mexe só nos campos que vieram em `dados` — os outros campos
+// do doc do usuário ficam intactos. É `mergeFields` e NÃO `merge: true` porque
+// merge:true faz merge PROFUNDO de map: `economy`, `device`, `goal` e `profile`
+// são maps escritos sempre inteiros, e com merge profundo a chave que sumiu do
+// valor novo (dia excluído da economia, campo removido do aparelho) sobrevivia
+// no servidor com o valor velho. Com mergeFields cada campo listado é
+// substituído por completo.
 
 let contadorDeMutacoes = 0;
 
@@ -168,11 +218,34 @@ function compactar(fila, nova) {
     return fila.filter((m) => !(m.colecao === nova.colecao && m.docId === nova.docId));
 }
 
+// Toda alteração da fila é ler-modificar-escrever no AsyncStorage, e as duas
+// que existem (enfileirar e a reescrita final do drenar) rodam concorrentes na
+// prática: a escrita da tela enfileira enquanto uma drenagem solta está no ar.
+// Sem trava a mutação nova some — o drenar leu a fila antes dela entrar e grava
+// o resultado por cima. A trava é por uid porque a fila é por uid.
+const travasDeFila = new Map();
+
+function comTravaDeFila(uid, tarefa) {
+    const anterior = travasDeFila.get(uid) ?? Promise.resolve();
+    const minha = anterior.then(() => tarefa());
+    // A corrente não pode carregar rejeição, senão uma falha derruba a próxima.
+    travasDeFila.set(
+        uid,
+        minha.then(
+            () => undefined,
+            () => undefined
+        )
+    );
+    return minha;
+}
+
 export async function enfileirar(uid, mutacao) {
     if (!uid) return false;
     const nova = { ...mutacao, id: novoIdDeMutacao(), tentativas: 0 };
-    const fila = await lerFila(uid);
-    return escreverFila(uid, [...compactar(fila, nova), nova]);
+    return comTravaDeFila(uid, async () => {
+        const fila = await lerFila(uid);
+        return escreverFila(uid, [...compactar(fila, nova), nova]);
+    });
 }
 
 // ─── Falhas ──────────────────────────────────────────────────────────────────
@@ -328,7 +401,11 @@ export function comTempoLimite(promessa, ms = TEMPO_LIMITE_PADRAO) {
 
 function aplicarMutacao(uid, mutacao) {
     if (mutacao.tipo === 'merge_usuario') {
-        return setDoc(doc(db, 'users', uid), mutacao.dados, { merge: true });
+        const campos = Object.keys(mutacao.dados || {});
+        // mesclarFila já descarta merge_usuario que ficou sem campo; mergeFields
+        // vazio não teria o que escrever de qualquer jeito.
+        if (campos.length === 0) return Promise.resolve();
+        return setDoc(doc(db, 'users', uid), mutacao.dados, { mergeFields: campos });
     }
     const referencia = doc(db, 'users', uid, mutacao.colecao, String(mutacao.docId));
     if (mutacao.tipo === 'delete') {
@@ -337,9 +414,23 @@ function aplicarMutacao(uid, mutacao) {
     return setDoc(referencia, mutacao.dados);
 }
 
-// Só uma drenagem por vez. Quem chamar no meio de uma execução espera a mesma
-// promise em vez de mandar as mesmas mutações duas vezes.
+// Só uma drenagem por vez — mandar as mesmas mutações em paralelo duplicaria
+// escrita. Mas quem chega no meio de uma execução NÃO pode receber a promise
+// dela: essa execução já leu a fila antes da mutação nova entrar, então
+// devolveria `pendentes` desatualizado (normalmente 0) e o banner sumiria
+// achando que subiu tudo. Em vez de reusar, a chamada nova entra no fim da
+// corrente: espera a atual terminar e drena de novo, com o uid dela.
+//
+// Reusar é seguro num caso só: já existe uma drenagem ESPERANDO a atual (ainda
+// não leu a fila) para o MESMO uid — ela vai enxergar a mutação nova. É isso
+// que impede a corrente de crescer uma drenagem por chamada numa rajada.
 let execucaoEmAndamento = null;
+let execucaoEsperando = null;
+let uidEsperando = null;
+
+function resultadoVazio() {
+    return { enviadas: 0, pendentes: 0, falhas: 0 };
+}
 
 async function drenar(uid) {
     const fila = await lerFila(uid);
@@ -384,33 +475,50 @@ async function drenar(uid) {
     }
 
     // Relê a fila em vez de sobrescrever com o que foi lido no começo — pode ter
-    // entrado mutação nova enquanto isso.
-    const filaAtual = await lerFila(uid);
-    const restante = filaAtual
-        .filter((m) => !resolvidas.has(m.id))
-        .map((m) => (tentativasPorId[m.id] ? { ...m, tentativas: tentativasPorId[m.id] } : m));
-    await escreverFila(uid, restante);
+    // entrado mutação nova enquanto isso. Sob a trava, pra nenhum enfileirar
+    // cair entre esta leitura e a escrita.
+    const restante = await comTravaDeFila(uid, async () => {
+        const filaAtual = await lerFila(uid);
+        const atualizada = filaAtual
+            .filter((m) => !resolvidas.has(m.id))
+            .map((m) => (tentativasPorId[m.id] ? { ...m, tentativas: tentativasPorId[m.id] } : m));
+        await escreverFila(uid, atualizada);
+        return atualizada;
+    });
 
     return { enviadas, pendentes: restante.length, falhas: await contarFalhas(uid) };
 }
 
 export function sincronizar(uid) {
-    if (!uid) return Promise.resolve({ enviadas: 0, pendentes: 0, falhas: 0 });
-    if (execucaoEmAndamento) return execucaoEmAndamento;
+    if (!uid) return Promise.resolve(resultadoVazio());
+    if (execucaoEsperando && uidEsperando === uid) return execucaoEsperando;
 
-    execucaoEmAndamento = drenar(uid)
-        .catch(() => ({ enviadas: 0, pendentes: 0, falhas: 0 }))
-        .finally(() => {
-            execucaoEmAndamento = null;
-        });
+    const anterior = execucaoEmAndamento ?? Promise.resolve();
+    const minha = anterior.then(() => {
+        // Daqui pra frente esta drenagem já vai ler a fila: quem chamar agora
+        // precisa da própria.
+        if (execucaoEsperando === minha) {
+            execucaoEsperando = null;
+            uidEsperando = null;
+        }
+        return drenar(uid).catch(() => resultadoVazio());
+    });
 
-    return execucaoEmAndamento;
+    execucaoEsperando = minha;
+    uidEsperando = uid;
+    execucaoEmAndamento = minha;
+    minha.then(() => {
+        if (execucaoEmAndamento === minha) execucaoEmAndamento = null;
+    });
+
+    return minha;
 }
 
 // ─── Limpeza ─────────────────────────────────────────────────────────────────
 
 export async function limparCacheEFila(uid) {
     if (!uid) return;
+    invalidarEspelho(uid);
     const chaves = [
         ...Object.values(ESPELHOS).map((nome) => chaveDeCache(uid, nome)),
         chaveDeFila(uid),

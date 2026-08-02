@@ -13,7 +13,7 @@
 // Firebase (ver services/firebase.js). O AsyncStorage usado aqui guarda
 // apenas a preferência "está em modo convidado?" (true/false).
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
@@ -33,6 +33,9 @@ const AuthContext = createContext({
     ehConvidado: false,
     telaDeAuth: 'Login',
     inicializando: true,
+    migrando: false,
+    iniciarMigracao: () => {},
+    concluirMigracao: () => {},
     continuarSemConta: async () => {},
     sair: async () => {},
 });
@@ -45,6 +48,13 @@ export function AuthProvider({ children }) {
     // Enquanto o Firebase não responder se existe (ou não) um usuário
     // autenticado, não decidimos a tela inicial (Main ou Login).
     const [inicializando, setInicializando] = useState(true);
+    // "migrando" cobre a janela entre o signIn e o fim do tratamento dos dados
+    // de convidado (importar/descartar). O onAuthStateChanged dispara no meio
+    // dessa janela, então sem essa trava a MainStack montaria e a HomeScreen
+    // rodaria carregar() em paralelo com a migração — gravando XP/economia/
+    // aberturas derivados de um histórico ainda vazio por cima do que a
+    // migração acabou de subir (ou vice-versa). Ver docs/auth.md.
+    const [migrando, setMigrando] = useState(false);
 
     useEffect(() => {
         let montado = true;
@@ -77,6 +87,10 @@ export function AuthProvider({ children }) {
                     setEhConvidado(false);
                     setTelaDeAuth('Login');
                     AsyncStorage.removeItem(CHAVE_MODO_CONVIDADO).catch(() => {});
+                } else {
+                    // Rede de segurança: sem usuário não há migração possível,
+                    // então nunca deixamos a trava presa (ex.: logout no meio).
+                    setMigrando(false);
                 }
             },
             (erro) => {
@@ -122,6 +136,13 @@ export function AuthProvider({ children }) {
         }
     }, [usuario, ehConvidado, inicializando]);
 
+    // Chamadas pelas telas de auth em volta do par signIn + tratamento dos
+    // dados de convidado. Precisam vir ANTES do signIn: é ele quem dispara o
+    // onAuthStateChanged. Sempre em try/finally, senão o app fica preso no
+    // loading.
+    const iniciarMigracao = useCallback(() => setMigrando(true), []);
+    const concluirMigracao = useCallback(() => setMigrando(false), []);
+
     // Chamado pelo botão "Continuar sem conta" na tela de Login.
     async function continuarSemConta() {
         await AsyncStorage.setItem(CHAVE_MODO_CONVIDADO, 'true');
@@ -155,7 +176,17 @@ export function AuthProvider({ children }) {
 
     return (
         <AuthContext.Provider
-            value={{ usuario, ehConvidado, telaDeAuth, inicializando, continuarSemConta, sair }}
+            value={{
+                usuario,
+                ehConvidado,
+                telaDeAuth,
+                inicializando,
+                migrando,
+                iniciarMigracao,
+                concluirMigracao,
+                continuarSemConta,
+                sair,
+            }}
         >
             {children}
         </AuthContext.Provider>

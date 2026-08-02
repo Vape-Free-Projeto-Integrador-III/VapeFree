@@ -149,7 +149,9 @@ export default function AppNavigator() {
     // "usuario" reflete o estado atual do Firebase Authentication.
     // "ehConvidado" reflete a escolha de "continuar sem conta".
     // "inicializando" é true só durante a checagem inicial (abertura do app).
-    const { usuario, ehConvidado, telaDeAuth, inicializando } = usarAuth();
+    // "migrando" é true entre o signIn e o fim da importação/descarte dos dados
+    // de convidado.
+    const { usuario, ehConvidado, telaDeAuth, inicializando, migrando } = usarAuth();
 
     // "mostrarOnboarding" é null até a flag ser lida do AsyncStorage — assim o
     // tutorial não pisca na tela de quem já passou por ele.
@@ -177,6 +179,14 @@ export default function AppNavigator() {
     }
 
     const estaDentro = usuario || ehConvidado;
+
+    // O Firebase já confirmou o login, mas os dados de convidado ainda estão
+    // sendo importados/descartados. Montar a MainStack agora faria a HomeScreen
+    // carregar (e gravar gamificação derivada) em cima de um histórico que a
+    // migração ainda está subindo. Segura tudo num loading até terminar.
+    if (estaDentro && migrando) {
+        return <LoadingScreen />;
+    }
 
     // O tutorial vem DEPOIS da decisão de login: só aparece pra quem já entrou
     // (conta ou convidado). É o que permite ele terminar pedindo o aparelho —

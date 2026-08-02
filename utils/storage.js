@@ -25,16 +25,28 @@
 // em inglês de propósito — já existe dado salvo com eles.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import {
+    doc,
+    getDoc,
+    setDoc,
+    collection,
+    getDocs,
+    deleteDoc,
+    deleteField,
+    writeBatch,
+} from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import {
     ESPELHOS,
     comTempoLimite,
     enfileirar,
     escreverCache,
+    espelhoEstaFresco,
     estaOnline,
+    invalidarEspelho,
     lerCache,
     limparCacheEFila,
+    marcarLeituraDoServidor,
     sincronizar,
     temEspelho,
 } from './offline';
@@ -83,6 +95,22 @@ const LIMITE_DE_ABERTURAS = 60;
 const OK = { ok: true };
 const falha = (motivo) => ({ ok: false, motivo });
 
+// ─── Invalidação da gamificação ─────────────────────────────────────────────
+// Conquistas, missões e XP são derivados dos dados salvos: sem escrita no meio
+// (e dentro do mesmo dia e do mesmo uid) recalcular dá exatamente o mesmo
+// resultado. Toda escrita que entra nesse cálculo suja a flag; quem consome é
+// sincronizarGamificacao(), lá no fim do arquivo.
+//
+// Marcado de forma conservadora: as escritas sujam antes de saber se deram
+// certo, porque sujar à toa só custa um recálculo, enquanto não sujar deixa
+// conquista/missão sem desbloquear até a próxima escrita.
+let gamificacaoSuja = true;
+let ultimaSincronizacao = null;
+
+export function marcarGamificacaoSuja() {
+    gamificacaoSuja = true;
+}
+
 async function lerJson(chave, padrao) {
     try {
         const bruto = await AsyncStorage.getItem(chave);
@@ -103,14 +131,23 @@ function obterUid() {
 // senão um dado remoto antigo sobrescreveria o que o usuário acabou de
 // escrever offline. Com fila pendente, ou com o servidor fora do ar, serve o
 // espelho local.
+//
+// Espelho lido do servidor há menos de VALIDADE_DO_ESPELHO também é servido
+// direto (ver offline.js): toda tela recarrega no useFocusEffect, e sem isso
+// trocar de aba relia a coleção inteira toda vez. Escrita local não é afetada
+// — ela atualiza o espelho na hora.
 async function lerDaConta(uid, nome, buscarNoServidor, padrao) {
     const { pendentes } = await sincronizar(uid);
     if (pendentes > 0) {
         return lerCache(uid, nome, padrao);
     }
+    if (espelhoEstaFresco(uid, nome)) {
+        return lerCache(uid, nome, padrao);
+    }
     try {
         const remoto = await comTempoLimite(buscarNoServidor());
         await escreverCache(uid, nome, remoto);
+        marcarLeituraDoServidor(uid, nome);
         return remoto;
     } catch {
         return lerCache(uid, nome, padrao);
@@ -140,6 +177,9 @@ async function podeEscreverDerivado(uid, nomeDeOrigem) {
 export async function precarregarEspelho() {
     const uid = obterUid();
     if (!uid || !(await estaOnline())) return false;
+    // Roda no login e na volta da conexão: é justamente quando o espelho pode
+    // estar atrás do servidor, então a validade não vale mais.
+    invalidarEspelho(uid);
     await Promise.all([
         obterRegistros(),
         obterConquistas(),
@@ -152,6 +192,14 @@ export async function precarregarEspelho() {
         obterDiasDeAbertura(),
     ]);
     return true;
+}
+
+// "Puxar pra atualizar": o usuário está pedindo dado novo explicitamente, então
+// a próxima leitura tem que ir no servidor mesmo dentro da validade do espelho.
+// No modo convidado é no-op (não existe leitura remota).
+export function forcarLeituraRemota() {
+    const uid = obterUid();
+    if (uid) invalidarEspelho(uid);
 }
 
 // Chamada no logout: só descarta o espelho se não sobrou nada pra subir.
@@ -209,6 +257,7 @@ export async function temDadosLocaisDoConvidado() {
 }
 
 export async function limparDadosLocaisDoConvidado() {
+    marcarGamificacaoSuja();
     await Promise.all(Object.values(CHAVES).map((chave) => AsyncStorage.removeItem(chave)));
 }
 
@@ -287,26 +336,52 @@ export async function salvarPreferenciasDeNotificacao(preferencias) {
     }
 }
 
-async function substituirDocsDaColecao(uid, subcolecao, entradas) {
-    const snap = await getDocs(collection(db, 'users', uid, subcolecao));
+// Limite duro do Firestore: um writeBatch aceita no máximo 500 operações.
+const OPERACOES_POR_LOTE = 500;
 
-    await Promise.all(snap.docs.map((item) => deleteDoc(item.ref)));
-
-    if (!Array.isArray(entradas) || entradas.length === 0) {
-        return;
+// Executa `operacoes` (cada uma recebe o lote e agenda um set/delete nele) em
+// batches de 500, commitando um por vez. Cada commit é atômico: se falhar no
+// meio, o lote inteiro não vale — sobra dado consistente, não meio documento.
+async function executarEmLotes(operacoes) {
+    for (let i = 0; i < operacoes.length; i += OPERACOES_POR_LOTE) {
+        const lote = writeBatch(db);
+        for (const agendar of operacoes.slice(i, i + OPERACOES_POR_LOTE)) {
+            agendar(lote);
+        }
+        await comTempoLimite(lote.commit());
     }
-
-    await Promise.all(
-        entradas.map((entrada) =>
-            setDoc(doc(db, 'users', uid, subcolecao, String(entrada.id)), entrada)
-        )
-    );
 }
 
-// Migração é a única operação que NÃO funciona offline: ela apaga os
-// documentos remotos antes de escrever os novos (substituirDocsDaColecao), e
-// parar no meio disso deixaria a conta pela metade. Por isso exige rede e só
-// limpa os dados locais depois que tudo subiu.
+// Deixa a subcoleção com exatamente `entradas`. A ORDEM importa: escreve o novo
+// ANTES de apagar o velho. Falhar no meio deixa dado a mais (o velho que ainda
+// não saiu), nunca dado a menos — e o usuário pode tentar de novo. O contrário
+// (apagar primeiro) perde tudo se a rede cair entre as duas fases.
+async function substituirDocsDaColecao(uid, subcolecao, entradas) {
+    const snap = await comTempoLimite(getDocs(collection(db, 'users', uid, subcolecao)));
+
+    const novas = Array.isArray(entradas) ? entradas : [];
+    const idsNovos = new Set(novas.map((entrada) => String(entrada.id)));
+
+    await executarEmLotes(
+        novas.map(
+            (entrada) => (lote) =>
+                lote.set(doc(db, 'users', uid, subcolecao, String(entrada.id)), entrada)
+        )
+    );
+
+    // Só o que não foi reescrito acima: apagar um id que acabou de subir
+    // desfaria a escrita.
+    const obsoletos = snap.docs.filter((item) => !idsNovos.has(item.id));
+    await executarEmLotes(obsoletos.map((item) => (lote) => lote.delete(item.ref)));
+}
+
+// Migração é a única operação que NÃO funciona offline: precisa listar o que
+// já existe no servidor pra sobrepor as subcoleções (substituirDocsDaColecao).
+// Por isso exige rede e só limpa os dados locais depois que tudo subiu. Falha
+// no meio deixa dado a mais no servidor, nunca a menos — a próxima tentativa
+// reescreve e limpa o resto. Toda operação passa por
+// comTempoLimite: se a rede cair depois do estaOnline(), o SDK não rejeita e a
+// tela de login ficaria presa pra sempre — o timeout vira falha de migração.
 export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
     if (!uid || !(await estaOnline())) {
         return false;
@@ -315,16 +390,19 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
     const dados = await obterDadosLocaisDoConvidado();
 
     try {
-        await setDoc(
-            doc(db, 'users', uid),
-            {
-                device: dados.aparelho ?? null,
-                goal: dados.meta ?? null,
-                economy: dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
-                xp: dados.xp ?? null,
-                appOpenDays: dados.diasDeAbertura,
-            },
-            { merge: true }
+        await comTempoLimite(
+            setDoc(
+                doc(db, 'users', uid),
+                {
+                    device: dados.aparelho ?? null,
+                    goal: dados.meta ?? null,
+                    economy:
+                        dados.economia && typeof dados.economia === 'object' ? dados.economia : {},
+                    xp: dados.xp ?? null,
+                    appOpenDays: dados.diasDeAbertura,
+                },
+                { merge: true }
+            )
         );
 
         await substituirDocsDaColecao(uid, 'records', dados.registros);
@@ -368,23 +446,29 @@ const SUBCOLECOES = ['records', 'achievements', 'crisisSessions', 'missions'];
 
 async function apagarDocsDaColecao(uid, subcolecao) {
     const snap = await comTempoLimite(getDocs(collection(db, 'users', uid, subcolecao)));
-    await Promise.all(snap.docs.map((item) => comTempoLimite(deleteDoc(item.ref))));
+    await executarEmLotes(snap.docs.map((item) => (lote) => lote.delete(item.ref)));
 }
 
 // Apaga só os DADOS da conta (registros, conquistas, crises, missões e os
 // campos derivados do doc do usuário). O documento users/{uid} continua
 // existindo — quem apaga ele é apagarContaNoBanco, na exclusão de conta.
 async function apagarDadosDaConta(uid) {
+    marcarGamificacaoSuja();
     await limparCacheEFila(uid);
 
     for (const subcolecao of SUBCOLECOES) {
         await apagarDocsDaColecao(uid, subcolecao);
     }
 
+    // `economy` é um MAP e o merge do Firestore é profundo: escrever `{}` nele
+    // seria no-op e as chaves de data antigas sobreviveriam no servidor —
+    // voltariam inteiras na próxima leitura online em outro aparelho. Só
+    // deleteField() apaga o campo de verdade. Os outros são escalar/array, que
+    // o merge substitui normalmente.
     await comTempoLimite(
         setDoc(
             doc(db, 'users', uid),
-            { device: null, goal: null, economy: {}, xp: null, appOpenDays: [] },
+            { device: null, goal: null, economy: deleteField(), xp: null, appOpenDays: [] },
             { merge: true }
         )
     );
@@ -451,6 +535,27 @@ export async function apagarContaNoBanco(uid = obterUid()) {
 // (id do documento = id do registro). Modo convidado: array no AsyncStorage,
 // como já era antes.
 
+// Um registro por dia é regra do app, mas a conta pode acabar com DOIS
+// documentos da mesma `date`: escrita offline com espelho frio (login novo,
+// cache limpo) não enxerga o registro daquele dia que só existe no servidor,
+// então não tem como enfileirar o delete dele — e os dois sobem. Somados na
+// Home isso vira puxada dobrada, economia errada e XP inflado.
+//
+// Por isso a leitura online reconcilia: por dia fica o de `id` maior (o id vem
+// de Date.now() na criação, então o maior é o mais recente — a intenção mais
+// nova do usuário) e os perdedores viram delete na fila.
+function reconciliarRegistrosDoDia(registros) {
+    const vencedorPorDia = new Map();
+    for (const registro of registros) {
+        const atual = vencedorPorDia.get(registro.date);
+        if (!atual || Number(registro.id ?? 0) > Number(atual.id ?? 0)) {
+            vencedorPorDia.set(registro.date, registro);
+        }
+    }
+    const vencedores = [...vencedorPorDia.values()];
+    return { registros: vencedores, duplicados: registros.filter((r) => !vencedores.includes(r)) };
+}
+
 export async function obterRegistros() {
     const uid = obterUid();
     if (uid) {
@@ -459,7 +564,21 @@ export async function obterRegistros() {
             ESPELHOS.REGISTROS,
             async () => {
                 const snap = await getDocs(collection(db, 'users', uid, 'records'));
-                return snap.docs.map((d) => d.data());
+                const { registros, duplicados } = reconciliarRegistrosDoDia(
+                    snap.docs.map((d) => d.data())
+                );
+                // Só chega aqui com a fila vazia (lerDaConta serve o espelho
+                // quando tem pendência), então o delete não atropela escrita
+                // do usuário esperando pra subir.
+                for (const duplicado of duplicados) {
+                    await enfileirar(uid, {
+                        tipo: 'delete',
+                        colecao: 'records',
+                        docId: String(duplicado.id),
+                    });
+                }
+                if (duplicados.length > 0) sincronizar(uid);
+                return registros;
             },
             []
         );
@@ -488,6 +607,7 @@ export async function salvarRegistro(novoRegistro) {
     if (!dataEhRegistravel(registro.date)) {
         return falha('data_invalida');
     }
+    marcarGamificacaoSuja();
     try {
         if (uid) {
             const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
@@ -527,6 +647,7 @@ export async function salvarRegistro(novoRegistro) {
 
 export async function excluirRegistro(id) {
     const uid = obterUid();
+    marcarGamificacaoSuja();
     try {
         if (uid) {
             const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
@@ -550,6 +671,7 @@ export async function excluirRegistro(id) {
 export async function atualizarRegistro(registro) {
     const uid = obterUid();
     const registroAtualizado = normalizarRegistro(registro);
+    marcarGamificacaoSuja();
     try {
         if (uid) {
             const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
@@ -621,6 +743,7 @@ export async function obterAparelho() {
 
 export async function salvarAparelho(aparelho) {
     const uid = obterUid();
+    marcarGamificacaoSuja();
     try {
         if (uid) {
             await escreverNaConta(uid, ESPELHOS.APARELHO, aparelho, {
@@ -663,6 +786,7 @@ export async function obterMeta() {
 export async function salvarMeta(meta) {
     const uid = obterUid();
     const valor = meta ?? null;
+    marcarGamificacaoSuja();
     try {
         if (uid) {
             await escreverNaConta(uid, ESPELHOS.META, valor, {
@@ -724,6 +848,7 @@ export async function obterEconomia() {
 
 export async function definirEconomia(mapaDeEconomia) {
     const uid = obterUid();
+    marcarGamificacaoSuja();
     try {
         if (uid) {
             if (!(await podeEscreverDerivado(uid, ESPELHOS.REGISTROS))) {
@@ -845,6 +970,7 @@ export async function registrarAberturaDoApp() {
             return dias;
         }
         const atualizados = [...dias, hoje].sort().slice(-LIMITE_DE_ABERTURAS);
+        marcarGamificacaoSuja();
 
         if (uid) {
             if (!(await podeEscreverDerivado(uid, ESPELHOS.ABERTURAS))) {
@@ -1009,6 +1135,7 @@ export async function obterSessoesDeCrise() {
 
 export async function salvarSessaoDeCrise(sessao) {
     const uid = obterUid();
+    marcarGamificacaoSuja();
     try {
         if (uid) {
             const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
@@ -1033,6 +1160,7 @@ export async function salvarSessaoDeCrise(sessao) {
 // (o resto — data, método, duração — é medido pelo app, não digitado).
 export async function atualizarSessaoDeCrise(sessao) {
     const uid = obterUid();
+    marcarGamificacaoSuja();
     try {
         if (uid) {
             const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
@@ -1058,6 +1186,7 @@ export async function atualizarSessaoDeCrise(sessao) {
 
 export async function excluirSessaoDeCrise(id) {
     const uid = obterUid();
+    marcarGamificacaoSuja();
     try {
         if (uid) {
             const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
@@ -1087,6 +1216,39 @@ export async function excluirSessaoDeCrise(id) {
 // subcoleção users/{uid}/missions. Convidado: array em @vapefree_missions.
 //
 // Shape: { id, missionId, period, periodKey, xp, completedAt }
+//
+// ─── Resumo dos períodos fechados ───────────────────────────────────────────
+// Guardar uma entrada por missão por período cresce sem teto (~3 diárias x 365
+// + ~6 semanais x 52 ≈ 1400 documentos/ano), e TODAS eram lidas em toda
+// sincronização. Só que de período fechado ninguém usa mais nada além do `xp`:
+// `verificarMissoes` só olha as chaves do período atual.
+//
+// Então, quando o período vira, as entradas fechadas são trocadas por UMA
+// entrada de resumo, com id fixo `_resumo`:
+//
+//   { id: '_resumo', summary: true, xp, count, until, updatedAt }
+//     xp    -> soma do xp de todas as missões já consolidadas
+//     count -> quantas foram
+//     until -> maior periodKey já contado (trava contra contar duas vezes)
+//
+// Ela viaja junto com as outras na lista de obterMissoes() de propósito: como
+// tem `xp`, `calcularXp` (utils/xp.js) soma sem saber que é resumo; como nenhum
+// `missionId_periodKey` colide com `_resumo`, `verificarMissoes` a ignora.
+// Cuidado: por isso `missoesConcluidas.length` NÃO é o número de missões
+// concluídas (a conquista `first_mission` só pergunta se é >= 1, o que continua
+// certo — o resumo só existe se houve pelo menos uma).
+const ID_DO_RESUMO_DE_MISSOES = '_resumo';
+
+function ehResumoDeMissoes(entrada) {
+    return entrada?.id === ID_DO_RESUMO_DE_MISSOES;
+}
+
+// Aberto = pertence ao dia de hoje ou à semana corrente. Comparar a periodKey
+// direto (em vez de olhar `period`) mantém isto funcionando pra entrada antiga
+// que porventura não tenha o campo.
+function periodoEstaAberto(entrada, hoje) {
+    return entrada.periodKey === hoje || entrada.periodKey === inicioDaSemana(hoje);
+}
 
 export async function obterMissoes() {
     const uid = obterUid();
@@ -1125,6 +1287,65 @@ export async function salvarMissao(entrada) {
         return true;
     } catch {
         return false;
+    }
+}
+
+// Troca as entradas de período fechado pela entrada de resumo (ver o bloco
+// acima) e devolve a lista já consolidada — quem chama aproveita o retorno em
+// vez de reler. Roda dentro de sincronizarGamificacao, então na prática
+// acontece no máximo uma vez por dia; quem já está consolidado não paga nada.
+// Nunca lança: na dúvida devolve a lista como veio e tenta de novo depois.
+export async function consolidarMissoesFechadas(hoje = dataDeHoje(), entradas) {
+    const uid = obterUid();
+    const lista = entradas ?? (await obterMissoes());
+    try {
+        const fechadas = lista.filter(
+            (entrada) => !ehResumoDeMissoes(entrada) && !periodoEstaAberto(entrada, hoje)
+        );
+        if (fechadas.length === 0) return lista;
+
+        const resumoAtual = lista.find(ehResumoDeMissoes) ?? null;
+        const contadoAte = resumoAtual?.until ?? '';
+        // `until` é o que impede contar duas vezes: um delete que falhou e voltou
+        // do servidor na leitura seguinte é apagado de novo, mas não soma XP.
+        const naoContadas = fechadas.filter((entrada) => String(entrada.periodKey) > contadoAte);
+        const resumo = {
+            id: ID_DO_RESUMO_DE_MISSOES,
+            summary: true,
+            xp: (resumoAtual?.xp ?? 0) + naoContadas.reduce((soma, e) => soma + (e.xp || 0), 0),
+            count: (resumoAtual?.count ?? 0) + naoContadas.length,
+            until: fechadas.reduce(
+                (maior, e) => (String(e.periodKey) > maior ? String(e.periodKey) : maior),
+                contadoAte
+            ),
+            updatedAt: new Date().toISOString(),
+        };
+        const abertas = lista.filter(
+            (entrada) => !ehResumoDeMissoes(entrada) && periodoEstaAberto(entrada, hoje)
+        );
+        const consolidada = [resumo, ...abertas];
+
+        if (uid) {
+            for (const fechada of fechadas) {
+                await enfileirar(uid, {
+                    tipo: 'delete',
+                    colecao: 'missions',
+                    docId: String(fechada.id),
+                });
+            }
+            await escreverNaConta(uid, ESPELHOS.MISSOES, consolidada, {
+                tipo: 'set',
+                colecao: 'missions',
+                docId: ID_DO_RESUMO_DE_MISSOES,
+                dados: resumo,
+            });
+        } else {
+            await AsyncStorage.setItem(CHAVES.MISSOES, JSON.stringify(consolidada));
+        }
+        return consolidada;
+    } catch (e) {
+        console.log('Erro ao consolidar as missões:', e);
+        return lista;
     }
 }
 
@@ -1226,13 +1447,47 @@ export async function verificarEDesbloquearConquistas(
 // Aceita dados já carregados pela tela (evita reler) e devolve tudo o que as
 // telas usam, incluindo `recompensas` pronto pro mostrarRecompensas() do
 // usarToast(). Nunca lança — cada etapa já engole o próprio erro.
+//
+// Recalcular isso a cada foco de tela era desperdício: sem escrita no meio, o
+// resultado é sempre o mesmo (nenhuma missão nova, nenhuma conquista nova,
+// ganho 0), mas custava a leitura das missões e a reescrita do snapshot de XP.
+// Agora só roda de verdade quando `marcarGamificacaoSuja()` foi chamado (toda
+// escrita passa por lá), quando o dia virou (missão diária/streak dependem da
+// data) ou quando o uid mudou (login/logout/migração). Fora disso devolve o
+// resultado guardado da última execução, com recompensas vazias.
 export async function sincronizarGamificacao(entrada = {}) {
+    const uid = obterUid();
+    const hoje = dataDeHoje();
+    const podeReusar =
+        !gamificacaoSuja &&
+        ultimaSincronizacao !== null &&
+        ultimaSincronizacao.uid === uid &&
+        ultimaSincronizacao.dia === hoje;
+
     const registros = entrada.registros ?? (await obterRegistros());
     const economia = entrada.economia ?? (await obterEconomia());
     const sessoesDeCrise = entrada.sessoesDeCrise ?? (await obterSessoesDeCrise());
     const diasDeAbertura = entrada.diasDeAbertura ?? (await obterDiasDeAbertura());
     const meta = entrada.meta !== undefined ? entrada.meta : await obterMeta();
     const aparelho = entrada.aparelho !== undefined ? entrada.aparelho : await obterAparelho();
+
+    if (podeReusar) {
+        return {
+            registros,
+            economia,
+            sessoesDeCrise,
+            diasDeAbertura,
+            meta,
+            aparelho,
+            missoesConcluidas: ultimaSincronizacao.missoesConcluidas,
+            resumo: ultimaSincronizacao.resumo,
+            recompensas: { conquistas: [], missoes: [], ganho: 0 },
+        };
+    }
+
+    // Zerado ANTES do trabalho: escrita que aconteça durante esta execução
+    // (ou logo depois dela) tem que deixar a próxima suja de novo.
+    gamificacaoSuja = false;
 
     const novasMissoes = await verificarEConcluirMissoes(
         registros,
@@ -1241,7 +1496,9 @@ export async function sincronizarGamificacao(entrada = {}) {
         meta,
         aparelho
     );
-    const missoesConcluidas = await obterMissoes();
+    // Aproveita a leitura da lista pra fechar os períodos que já passaram: a
+    // lista volta com o resumo no lugar das entradas antigas.
+    const missoesConcluidas = await consolidarMissoesFechadas(hoje);
     const novasConquistas = await verificarEDesbloquearConquistas(
         registros,
         economia,
@@ -1249,6 +1506,8 @@ export async function sincronizarGamificacao(entrada = {}) {
         { sessoesDeCrise, diasDeAbertura, meta, aparelho, hoje: dataDeHoje() }
     );
     const resumo = await atualizarXp(registros, null, missoesConcluidas);
+
+    ultimaSincronizacao = { uid, dia: hoje, missoesConcluidas, resumo };
 
     return {
         registros,

@@ -93,6 +93,11 @@ export default function AccountScreen({ navigation }) {
 
     const [nome, setNome] = useState(usuario?.displayName ?? '');
     const [email, setEmail] = useState(usuario?.email ?? '');
+    // E-mail que já teve o link de confirmação enviado mas ainda não virou o
+    // e-mail da conta. Fica aqui só pra tela poder avisar que a troca está
+    // pendente — o campo em si volta pro e-mail atual, senão a tela mostra um
+    // e-mail que a conta não tem.
+    const [emailPendente, setEmailPendente] = useState(null);
     const [senhaAtual, setSenhaAtual] = useState('');
     const [novaSenha, setNovaSenha] = useState('');
     const [confirmacaoDaSenha, setConfirmacaoDaSenha] = useState('');
@@ -104,6 +109,10 @@ export default function AccountScreen({ navigation }) {
     // chamada reautenticava com a senha antiga, que acabara de ser trocada
     // pela primeira. O ref fecha essa janela (mesmo padrão do OnboardingScreen).
     const emAndamentoRef = React.useRef(false);
+
+    // Quando o usuário clica no link, o Firebase troca o e-mail da conta e o
+    // `usuario` chega atualizado — aí não há mais nada pendente.
+    const trocaDeEmailPendente = !!emailPendente && emailPendente !== usuario?.email;
 
     function limparSenhas() {
         setSenhaAtual('');
@@ -200,6 +209,10 @@ export default function AccountScreen({ navigation }) {
             // novo. É o caminho que o Firebase mantém com a proteção contra
             // enumeração de e-mail ligada.
             await verifyBeforeUpdateEmail(auth.currentUser, emailFormatado);
+            // O campo volta pro e-mail atual: a conta ainda é a antiga até o
+            // link ser clicado, e deixar o novo ali fazia a tela mentir.
+            setEmail(auth.currentUser.email ?? '');
+            setEmailPendente(emailFormatado);
             limparSenhas();
             Alert.alert(
                 'Confirma no seu e-mail',
@@ -393,6 +406,29 @@ export default function AccountScreen({ navigation }) {
                             style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}
                         >
                             <Text style={[styles.cardTitulo, { color: cores.text }]}>E-mail</Text>
+                            {trocaDeEmailPendente ? (
+                                <View
+                                    style={[
+                                        styles.aviso,
+                                        {
+                                            backgroundColor: cores.inputBg,
+                                            borderLeftColor: cores.warning,
+                                        },
+                                    ]}
+                                >
+                                    <Ionicons
+                                        name="time-outline"
+                                        size={16}
+                                        color={cores.warning}
+                                        style={styles.avisoIcone}
+                                    />
+                                    <Text style={[styles.avisoTexto, { color: cores.text }]}>
+                                        Troca pendente: confirma o link que mandamos pra{' '}
+                                        {emailPendente}. Até lá a conta continua com{' '}
+                                        {usuario?.email}.
+                                    </Text>
+                                </View>
+                            ) : null}
                             {renderizarCampo({
                                 rotulo: 'E-mail da conta',
                                 icone: 'mail-outline',
@@ -470,6 +506,22 @@ const styles = StyleSheet.create({
     cardTitulo: { fontSize: 16, fontFamily: 'Poppins_700Bold' },
     cardTexto: { fontSize: 13, fontFamily: 'Poppins_400Regular', lineHeight: 19, marginTop: 6 },
     campo: { marginTop: 12 },
+    aviso: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+        marginTop: 10,
+        padding: 10,
+        borderRadius: RAIO.md,
+        borderLeftWidth: 3,
+    },
+    avisoIcone: { marginTop: 1 },
+    avisoTexto: {
+        flex: 1,
+        fontSize: 12,
+        fontFamily: 'Poppins_400Regular',
+        lineHeight: 18,
+    },
     label: {
         fontSize: 11,
         fontFamily: 'Poppins_700Bold',

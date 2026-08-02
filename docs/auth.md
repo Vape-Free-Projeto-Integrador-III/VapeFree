@@ -4,11 +4,12 @@ Firebase Authentication. Três formas de entrar: e-mail/senha, Google, ou "modo 
 
 ## AuthContext (`context/AuthContext.js`)
 
-Expõe `{ user, ehConvidado, telaDeAuth, inicializando, continuarSemConta, logout }`.
+Expõe `{ usuario, ehConvidado, telaDeAuth, inicializando, migrando, iniciarMigracao, concluirMigracao, continuarSemConta, sair }`.
 
 - `usuario`: objeto do Firebase (`onAuthStateChanged`) ou `null`.
 - `ehConvidado`: flag lida/gravada em `AsyncStorage` (`@vapefree_guest_mode`), independente do Firebase.
 - `inicializando`: `true` só durante a checagem inicial do Firebase ao abrir o app — usado por `AppNavigator` para mostrar loading em vez de decidir Login vs Main prematuramente.
+- `migrando` / `iniciarMigracao()` / `concluirMigracao()`: trava que segura a MainStack durante a migração de dados de convidado — ver a seção abaixo.
 - Login real sempre zera `ehConvidado` (não faz sentido estar logado E convidado).
 - `sair(proximaTelaDeAuth)` serve tanto para sair de conta real quanto para sair do modo convidado; `proximaTelaDeAuth` decide se o usuário cai em `Login` ou `SignUp` ao voltar pra AuthStack (usado pelo botão "Cadastrar" na tela de Perfil em modo convidado).
 
@@ -57,12 +58,24 @@ Ao fazer login/cadastro (e-mail ou Google), se existirem dados locais de convida
 
 A pergunta acontece **antes** de `signInWithEmailAndPassword`/`promptAsync`, resolvida via `Promise` armazenada em `useRef` (`guestChoiceResolverRef`) — só depois de resolvida o login prossegue. Mesmo padrão duplicado em `LoginScreen.js` e `SignUpScreen.js` (não está extraído em hook compartilhado).
 
+### A trava `migrando`
+
+O `onAuthStateChanged` dispara **no meio** do fluxo: o signIn resolve, o `AuthContext` já publica `usuario`, e a `MainStack` montaria enquanto `migrarDadosDoConvidadoParaConta` ainda está subindo o histórico. A `HomeScreen` rodaria `carregar()` em paralelo — `registrarAberturaDoApp` + `sincronizarGamificacao` gravariam XP/economia/aberturas derivados de um histórico ainda vazio, sobrescrevendo o que a migração acabou de subir (ou vice-versa).
+
+Por isso as três telas de auth chamam `iniciarMigracao()` **antes** do signIn/createUser e `concluirMigracao()` no `finally`. Enquanto `migrando` é `true` e já existe usuário, o `AppNavigator` mostra `LoadingScreen` em vez de montar a `MainStack`.
+
+Regras ao mexer nisso:
+
+- `iniciarMigracao()` vem antes da chamada de auth, nunca depois — é ela que dispara o listener.
+- `concluirMigracao()` sempre em `finally`; esquecer trava o app no loading para sempre.
+- Rede de segurança: o `onAuthStateChanged` zera `migrando` quando o usuário vira `null`.
+
 ## Gerenciar a conta (`screens/AccountScreen.js`)
 
 Aberta pelas Configurações, só pra usuário logado (convidado não vê o atalho). Como as telas de auth, fala com `firebase/auth` direto — nome/e-mail/senha são estado do Auth, não dado de domínio.
 
 - **Nome**: `updateProfile(displayName)` + `salvarPerfilDaConta(uid, { nome, email })`. Não exige senha.
-- **E-mail**: `verifyBeforeUpdateEmail`, não `updateEmail` — com a proteção contra enumeração de e-mail ligada no projeto, `updateEmail` é rejeitado. O e-mail só troca depois que o usuário clica no link enviado pro endereço novo, então o doc `users/{uid}` **não** é atualizado nesse momento.
+- **E-mail**: `verifyBeforeUpdateEmail`, não `updateEmail` — com a proteção contra enumeração de e-mail ligada no projeto, `updateEmail` é rejeitado. O e-mail só troca depois que o usuário clica no link enviado pro endereço novo, então o doc `users/{uid}` **não** é atualizado nesse momento. Depois de enviar o link, a tela devolve o campo pro e-mail atual e guarda o novo em `emailPendente`, que vira um aviso persistente de "troca pendente" no card — sem isso o campo mostrava um e-mail que a conta ainda não tem. O aviso some sozinho quando `usuario.email` passa a ser o pendente (o usuário clicou no link).
 - **Senha**: `updatePassword`, com a mesma `validarSenhaForte` do cadastro (8+ caracteres, letra e número).
 - **Excluir conta**: `apagarContaNoBanco(uid)` **antes** de `deleteUser`. A ordem importa: depois do `deleteUser` ninguém mais tem permissão de escrever em `users/{uid}`, e os dados ficariam órfãos. Se a limpeza falhar (sem rede), a conta não é excluída e a tela avisa.
 

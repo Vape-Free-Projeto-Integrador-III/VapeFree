@@ -21,6 +21,7 @@ import {
     salvarPerfilDaConta,
 } from '../utils/storage';
 import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
+import { usarAuth } from '../context/AuthContext';
 
 const CORES = {
     background: '#FFFFFF',
@@ -59,6 +60,8 @@ export default function SignUpScreen({ navigation }) {
     const [escolhaConvidadoVisivel, setEscolhaConvidadoVisivel] = useState(false);
     const [configEscolhaConvidado, setConfigEscolhaConvidado] = useState(null);
     const resolverEscolhaConvidadoRef = React.useRef(null);
+
+    const { iniciarMigracao, concluirMigracao } = usarAuth();
 
     async function perguntarSobreDadosDeConvidado({
         titulo,
@@ -108,6 +111,19 @@ export default function SignUpScreen({ navigation }) {
         }
     }
 
+    // Se a tela sair com o modal aberto, o await de
+    // perguntarSobreDadosDeConvidado ficaria órfão pra sempre. Resolve 'cancel',
+    // que é o que o chamador já trata como "não segue".
+    React.useEffect(() => {
+        return () => {
+            const resolver = resolverEscolhaConvidadoRef.current;
+            resolverEscolhaConvidadoRef.current = null;
+            if (resolver) {
+                resolver('cancel');
+            }
+        };
+    }, []);
+
     async function cadastrar() {
         const nomeFormatado = nome.trim();
         const emailFormatado = email.trim();
@@ -147,6 +163,10 @@ export default function SignUpScreen({ navigation }) {
         }
 
         setCarregando(true);
+        // Antes do createUser: é ele que dispara o onAuthStateChanged, e a
+        // MainStack não pode montar antes dos dados de convidado irem pro lugar
+        // certo.
+        iniciarMigracao();
 
         try {
             const credencialDoUsuario = await createUserWithEmailAndPassword(
@@ -172,8 +192,9 @@ export default function SignUpScreen({ navigation }) {
 
             await finalizarDadosDeConvidado(credencialDoUsuario.user.uid, acao);
 
+            // Sem goBack aqui: o onAuthStateChanged já trocou a árvore de
+            // navegação e desmontou a stack de auth.
             Alert.alert('Prontinho', 'Sua conta foi criada!');
-            navigation.goBack();
         } catch (erro) {
             if (erro?.code === 'auth/email-already-in-use') {
                 Alert.alert('Erro', 'Esse e-mail já tem conta. Tenta outro ou faz login.');
@@ -193,6 +214,7 @@ export default function SignUpScreen({ navigation }) {
             Alert.alert('Erro', 'Não deu pra criar sua conta. Tenta de novo.');
         } finally {
             setCarregando(false);
+            concluirMigracao();
         }
     }
 

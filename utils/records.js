@@ -8,6 +8,20 @@
 // salvos antes da normalização), gráfico e totais mostrariam 3 puxadas num
 // dia sem uso.
 
+// Teto de puxadas de um dia. Sem ele, um dedo escorregado no teclado (999999)
+// estoura a escala do gráfico do histórico e infla a economia calculada, que é
+// puxadas × custoPorPuxada. 2000 já é muito acima de qualquer uso real de um
+// dia — vaper pesado fica na casa das centenas.
+export const MAX_PUXADAS_DIA = 2000;
+
+// Prende um valor de puxadas na faixa [0, MAX_PUXADAS_DIA]. Aceita string do
+// TextInput; devolve 0 pro que não é número.
+export function limitarPuxadas(valor) {
+    const n = Math.floor(Number(valor));
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return Math.min(n, MAX_PUXADAS_DIA);
+}
+
 // Puxadas efetivas do registro — 0 quando não houve uso.
 export function puxadasDoRegistro(registro) {
     return registro?.used ? registro.puffs || 0 : 0;
@@ -18,9 +32,10 @@ export function somarPuxadas(registros) {
     return registros.reduce((total, registro) => total + puxadasDoRegistro(registro), 0);
 }
 
-// Normaliza antes de persistir: sem uso = sem puxadas e sem gatilhos.
+// Normaliza antes de persistir: sem uso = sem puxadas e sem gatilhos; com uso,
+// puxadas presas no teto (última linha de defesa — a tela já limita o input).
 export function normalizarRegistro(registro) {
-    if (registro.used) return registro;
+    if (registro.used) return { ...registro, puffs: limitarPuxadas(registro.puffs) };
     return { ...registro, puffs: 0, triggers: [] };
 }
 
