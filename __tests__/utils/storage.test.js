@@ -1267,7 +1267,9 @@ describe('consolidação das missões de período fechado', () => {
             summary: true,
             xp: 70,
             count: 2,
-            until: '2026-03-01',
+            // Uma marca por tipo de período: a da diária não pode andar por
+            // cima da semanal (era o que comia o xp das semanais).
+            until: { daily: '2026-03-01', weekly: '2026-02-23' },
         });
         expect(
             consolidada
@@ -1288,6 +1290,55 @@ describe('consolidação das missões de período fechado', () => {
         await storage.consolidarMissoesFechadas(HOJE);
 
         expect(calcularXp([], [], await storage.obterMissoes())).toBe(antes);
+    });
+
+    // O bug: `until` era uma string só, e as diárias (que fecham todo dia)
+    // empurravam a marca por cima da segunda-feira da semana corrente. Quando a
+    // semanal enfim fechava, ela caía em "já contada" e era APAGADA sem o xp
+    // dela nunca entrar no resumo — perda definitiva.
+    it('a semanal que fecha entra no resumo mesmo com as diárias já consolidadas', async () => {
+        const SEGUNDA = '2026-08-10';
+        await storage.salvarMissao(missao('weekly_clean_5', '2026-08-03', 80, 'weekly'));
+        await storage.salvarMissao(missao('daily_record', '2026-08-09', 15));
+        // Domingo: fecha só a diária de sábado, a semanal ainda está aberta.
+        await storage.consolidarMissoesFechadas('2026-08-09');
+
+        // Segunda seguinte: a semanal fechou agora e o xp dela tem que entrar.
+        const consolidada = await storage.consolidarMissoesFechadas(SEGUNDA);
+
+        expect(resumoDe(consolidada)).toMatchObject({
+            xp: 95,
+            until: { daily: '2026-08-09', weekly: '2026-08-03' },
+        });
+    });
+
+    it('diária de segunda-feira fecha na terça, não só na semana seguinte', async () => {
+        // A periodKey dela é igual à da semana, então o critério antigo (bater
+        // com o dia OU com a semana) a mantinha aberta a semana inteira.
+        await storage.salvarMissao(missao('daily_record', '2026-08-03', 15));
+
+        const consolidada = await storage.consolidarMissoesFechadas('2026-08-04');
+
+        expect(consolidada.filter((e) => e.id !== '_resumo')).toEqual([]);
+        expect(resumoDe(consolidada)).toMatchObject({
+            xp: 15,
+            count: 1,
+            until: { daily: '2026-08-03', weekly: '' },
+        });
+    });
+
+    it('semanal da semana corrente não é consolidada no meio da semana', async () => {
+        await storage.salvarMissao(missao('weekly_clean_5', '2026-08-03', 80, 'weekly'));
+        await storage.salvarMissao(missao('daily_record', '2026-08-04', 15));
+
+        const consolidada = await storage.consolidarMissoesFechadas('2026-08-05');
+
+        expect(consolidada.filter((e) => e.id !== '_resumo').map((e) => e.periodKey)).toEqual([
+            '2026-08-03',
+        ]);
+        // E o xp dela continua na soma, que era o sintoma na Home.
+        const { calcularXp } = require('../../utils/xp');
+        expect(calcularXp([], [], consolidada)).toBe(95);
     });
 
     it('rodar de novo sem período novo fechado é no-op', async () => {

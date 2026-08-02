@@ -57,7 +57,14 @@ import { montarContextoDeMissoes, verificarMissoes } from './missions';
 import { normalizarRegistro, somarPuxadas, custoPorPuxada } from './records';
 import { aparelhoEm, historicoComNovoAparelho, normalizarHistorico } from './aparelhos';
 import { limiteDoDia } from './meta';
-import { resumoDeXp, ID_DO_RESUMO_DE_MISSOES } from './xp';
+import {
+    resumoDeXp,
+    ID_DO_RESUMO_DE_MISSOES,
+    avancarLimite,
+    jaEstaNoResumo,
+    limiteDoResumo,
+    periodoDaEntrada,
+} from './xp';
 import { dataDeHoje, ultimosNDias, converterDataLocal, inicioDaSemana } from './datas';
 
 export { calcularStreak, calcularEstadoDeStreak };
@@ -1559,7 +1566,13 @@ export async function excluirSessaoDeCrise(id) {
 //   { id: '_resumo', summary: true, xp, count, until, updatedAt }
 //     xp    -> soma do xp de todas as missões já consolidadas
 //     count -> quantas foram
-//     until -> maior periodKey já contado (trava contra contar duas vezes)
+//     until -> { daily, weekly }: maior periodKey já contado DE CADA TIPO
+//              (trava contra contar duas vezes). São dois valores porque a
+//              periodKey da diária é um dia qualquer e a da semanal é a
+//              segunda-feira da semana: com uma marca só, as diárias fechando
+//              todo dia passavam por cima da semanal ainda aberta e comiam o
+//              xp dela. Resumo antigo com `until` string é convertido na
+//              leitura por limiteDoResumo (utils/xp.js).
 //
 // Ela viaja junto com as outras na lista de obterMissoes() de propósito: como
 // tem `xp`, `calcularXp` (utils/xp.js) soma o resumo e ignora a entrada crua
@@ -1574,10 +1587,18 @@ function ehResumoDeMissoes(entrada) {
     return entrada?.id === ID_DO_RESUMO_DE_MISSOES;
 }
 
-// Aberto = pertence ao dia de hoje ou à semana corrente. Comparar a periodKey
-// direto (em vez de olhar `period`) mantém isto funcionando pra entrada antiga
-// que porventura não tenha o campo.
+// Aberto = o período da entrada ainda é o corrente. Cada tipo tem o seu: a
+// diária fecha na virada do dia, a semanal na virada da semana.
+//
+// Comparar a periodKey contra as duas pontas de uma vez (o que era feito aqui
+// antes) deixava a DIÁRIA de segunda-feira "aberta" a semana inteira, porque a
+// periodKey dela é igual à da semana. Só a entrada antiga que não tem `period`
+// continua nesse critério frouxo: sem saber o tipo, é o que evita fechá-la
+// cedo demais.
 function periodoEstaAberto(entrada, hoje) {
+    const periodo = periodoDaEntrada(entrada);
+    if (periodo === 'weekly') return entrada.periodKey === inicioDaSemana(hoje);
+    if (periodo === 'daily') return entrada.periodKey === hoje;
     return entrada.periodKey === hoje || entrada.periodKey === inicioDaSemana(hoje);
 }
 
@@ -1636,19 +1657,19 @@ export async function consolidarMissoesFechadas(hoje = dataDeHoje(), entradas) {
         if (fechadas.length === 0) return lista;
 
         const resumoAtual = lista.find(ehResumoDeMissoes) ?? null;
-        const contadoAte = resumoAtual?.until ?? '';
+        const limite = limiteDoResumo(resumoAtual);
         // `until` é o que impede contar duas vezes: um delete que falhou e voltou
-        // do servidor na leitura seguinte é apagado de novo, mas não soma XP.
-        const naoContadas = fechadas.filter((entrada) => String(entrada.periodKey) > contadoAte);
+        // do servidor na leitura seguinte é apagado de novo, mas não soma XP. Ele
+        // é uma marca POR TIPO DE PERÍODO — com uma marca só, as diárias (que
+        // fecham todo dia) empurravam a marca por cima da semanal e o xp dela era
+        // descartado aqui sem nunca entrar no resumo. Ver utils/xp.js.
+        const naoContadas = fechadas.filter((entrada) => !jaEstaNoResumo(entrada, limite));
         const resumo = {
             id: ID_DO_RESUMO_DE_MISSOES,
             summary: true,
             xp: (resumoAtual?.xp ?? 0) + naoContadas.reduce((soma, e) => soma + (e.xp || 0), 0),
             count: (resumoAtual?.count ?? 0) + naoContadas.length,
-            until: fechadas.reduce(
-                (maior, e) => (String(e.periodKey) > maior ? String(e.periodKey) : maior),
-                contadoAte
-            ),
+            until: avancarLimite(limite, fechadas),
             updatedAt: new Date().toISOString(),
         };
         const abertas = lista.filter(

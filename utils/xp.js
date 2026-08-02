@@ -8,7 +8,7 @@
 // do último valor calculado, pra quem precisar do XP sem recalcular tudo.
 
 import { CONQUISTAS } from './achievements';
-import { deslocarData } from './datas';
+import { deslocarData, inicioDaSemana } from './datas';
 
 export const REGRAS_DE_XP = {
     REGISTRO: 10, // por registro feito
@@ -79,25 +79,91 @@ export function contarDiasLimpos(registros) {
 // lista das missões cruas e tem `xp` próprio — a soma abaixo depende disso.
 export const ID_DO_RESUMO_DE_MISSOES = '_resumo';
 
-// O resumo carrega o xp de TODO período fechado até `until`. A entrada crua
-// desses períodos deveria ter sido apagada na consolidação, mas um delete que
-// falhou volta do servidor na leitura seguinte — somar as duas infla o XP.
-// Por isso a entrada com `periodKey <= until` é descartada aqui, sem depender
-// de a consolidação ter rodado antes (o que era só uma garantia de ordem).
-// Entrada sem `periodKey` (formato antigo) continua somando: não dá pra saber
-// se o resumo já a cobre, e perder XP é pior que o risco de contar duas vezes.
+// ─── Marca d'água do resumo de missões ──────────────────────────────────────
+//
+// O resumo (`_resumo`, ver o bloco de missões em utils/storage.js) carrega o xp
+// de todo período já fechado, e `until` é o maior `periodKey` que ele conta —
+// é o que impede uma entrada crua que ressuscite no servidor (delete que não
+// pegou) de somar XP duas vezes.
+//
+// `until` é UM VALOR POR TIPO DE PERÍODO, e não uma string só. Tem que ser:
+// `periodKey` de missão diária é qualquer dia, e o de semanal é a segunda-feira
+// daquela semana. Com uma marca única, as diárias — que fecham todos os dias —
+// empurravam `until` pra frente e em dois dias ele já passava da segunda-feira
+// da semana CORRENTE. A semanal daquela semana, ainda aberta, passava a ser
+// lida como "já contada": o xp dela sumia da soma no meio da semana (o total na
+// Home caía sozinho, o nível podia até regredir) e na consolidação seguinte a
+// entrada era apagada sem nunca entrar no resumo. Separado por período, uma
+// nunca mais mexe na marca da outra.
+const PERIODOS = ['daily', 'weekly'];
+const FORMATO_DE_DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+export const LIMITE_VAZIO = { daily: '', weekly: '' };
+
+// O `period` da entrada, ou null quando ela não tem o campo (formato antigo).
+// null não é "diária": sem saber o tipo não dá pra dizer qual marca a cobre,
+// então quem chama trata esse caso como "nunca contada" — perder XP é pior que
+// o risco de contar duas vezes, mesma escolha do resto deste arquivo.
+export function periodoDaEntrada(entrada) {
+    return PERIODOS.includes(entrada?.period) ? entrada.period : null;
+}
+
+// Lê o `until` do resumo já normalizado em { daily, weekly }.
+export function limiteDoResumo(resumo) {
+    const until = resumo?.until;
+
+    if (until && typeof until === 'object') {
+        return {
+            daily: typeof until.daily === 'string' ? until.daily : '',
+            weekly: typeof until.weekly === 'string' ? until.weekly : '',
+        };
+    }
+
+    if (typeof until !== 'string' || !FORMATO_DE_DATA.test(until)) {
+        return { ...LIMITE_VAZIO };
+    }
+
+    // Resumo no formato antigo (string única). Como as diárias fechavam todo
+    // dia, na prática essa string É a marca das diárias — pra elas ela vale
+    // como está. Pra semanal ela está adiantada (era exatamente o bug), então
+    // volta uma semana: a semanal engolida por ele volta a poder ser contada.
+    // O risco de contar duas vezes aqui exige que o delete dela também tenha
+    // falhado — raro, e menos grave que continuar comendo o XP de todo mundo.
+    return { daily: until, weekly: deslocarData(inicioDaSemana(until), -7) };
+}
+
+// A entrada crua já está embutida no xp do resumo?
+export function jaEstaNoResumo(entrada, limite) {
+    const periodo = periodoDaEntrada(entrada);
+    if (periodo === null || entrada?.periodKey == null) return false;
+    const contadoAte = limite?.[periodo];
+    return !!contadoAte && String(entrada.periodKey) <= contadoAte;
+}
+
+// Marca nova depois de consolidar `fechadas`: cada período avança só pela maior
+// `periodKey` do PRÓPRIO tipo.
+export function avancarLimite(limite, fechadas) {
+    const novo = { ...LIMITE_VAZIO, ...limite };
+    for (const entrada of fechadas || []) {
+        const periodo = periodoDaEntrada(entrada);
+        if (periodo === null || entrada?.periodKey == null) continue;
+        const chave = String(entrada.periodKey);
+        if (chave > novo[periodo]) novo[periodo] = chave;
+    }
+    return novo;
+}
+
+// A entrada de resumo soma o próprio xp; as cruas somam só se ainda não
+// estiverem embutidas nele. Entrada sem `periodKey` ou sem `period` (formato
+// antigo) continua somando — ver periodoDaEntrada.
 function somarXpDeMissoes(missoesConcluidas) {
     const lista = missoesConcluidas || [];
     const resumo = lista.find((missao) => missao?.id === ID_DO_RESUMO_DE_MISSOES);
-    const contadoAte = resumo?.until ?? '';
+    const limite = limiteDoResumo(resumo);
 
     return lista.reduce((soma, missao) => {
-        const jaEstaNoResumo =
-            contadoAte &&
-            missao !== resumo &&
-            missao?.periodKey != null &&
-            String(missao.periodKey) <= contadoAte;
-        return jaEstaNoResumo ? soma : soma + (missao?.xp || 0);
+        if (missao !== resumo && jaEstaNoResumo(missao, limite)) return soma;
+        return soma + (missao?.xp || 0);
     }, 0);
 }
 
