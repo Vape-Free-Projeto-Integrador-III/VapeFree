@@ -8,6 +8,7 @@ import { usarAuth } from '../context/AuthContext';
 import { usarTema } from '../context/ThemeContext';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { obterRegistros, obterEconomia, calcularStreak } from '../utils/storage';
+import { totalEconomizado } from '../utils/economia';
 import ScreenHeader from '../components/ScreenHeader';
 
 function obterIniciais(nome, email) {
@@ -46,7 +47,7 @@ export default function Profile({ navigation }) {
     );
 
     const streak = calcularStreak(registros);
-    const totalEconomizado = Object.values(economia).reduce((a, v) => a + v, 0);
+    const totalNoBolso = totalEconomizado(economia);
     const dataDeInicio = registros.length ? [...registros].map((r) => r.date).sort()[0] : null;
     const rotuloDataDeInicio = dataDeInicio
         ? (() => {
@@ -264,7 +265,7 @@ export default function Profile({ navigation }) {
                                         Total economizado
                                     </Text>
                                     <Text style={[styles.infoValue, { color: cores.text }]}>
-                                        R$ {totalEconomizado.toFixed(2)}
+                                        R$ {totalNoBolso.toFixed(2)}
                                     </Text>
                                 </View>
                             </View>
@@ -420,7 +421,7 @@ export default function Profile({ navigation }) {
                                         Total economizado
                                     </Text>
                                     <Text style={[styles.infoValue, { color: cores.text }]}>
-                                        R$ {totalEconomizado.toFixed(2)}
+                                        R$ {totalNoBolso.toFixed(2)}
                                     </Text>
                                 </View>
                             </View>

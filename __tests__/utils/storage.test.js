@@ -13,6 +13,10 @@
 let mockArmazenamento = {};
 let mockRemoto = {};
 let mockOnline = true;
+// Leitura que falha COM o aparelho online (timeout do comTempoLimite, servidor
+// fora do ar, regra de segurança). É um estado diferente de offline e é o que
+// gerava o bug de "conta vazia" no login — ver o describe do contaTemDados.
+let mockFalhaDeLeitura = false;
 let mockDeslocamentoDoRelogio = 0;
 
 const mockAuth = { currentUser: null };
@@ -46,6 +50,9 @@ jest.mock('firebase/firestore', () => {
     const exigirRede = () => {
         if (!mockOnline) throw new Error('unavailable');
     };
+    const exigirLeitura = () => {
+        if (mockFalhaDeLeitura) throw new Error('deadline-exceeded');
+    };
     // O merge do Firestore é PROFUNDO em map: escrever {} num map não apaga as
     // chaves antigas, só deleteField() apaga. O mock precisa imitar isso, senão
     // some a diferença entre limpar de verdade e não limpar nada.
@@ -66,11 +73,13 @@ jest.mock('firebase/firestore', () => {
         collection: (db, ...partes) => ({ caminho: caminhoDe(db, ...partes) }),
         getDoc: async (ref) => {
             exigirRede();
+            exigirLeitura();
             const dados = mockRemoto[ref.caminho];
             return { exists: () => dados !== undefined, data: () => dados };
         },
         getDocs: async (ref) => {
             exigirRede();
+            exigirLeitura();
             const prefixo = `${ref.caminho}/`;
             const docs = Object.entries(mockRemoto)
                 .filter(([caminho]) => caminho.startsWith(prefixo))
@@ -183,6 +192,7 @@ beforeEach(() => {
     mockArmazenamento = {};
     mockRemoto = {};
     mockOnline = true;
+    mockFalhaDeLeitura = false;
     mockDeslocamentoDoRelogio = 0;
     mockAuth.currentUser = null;
     jest.clearAllMocks();
@@ -299,6 +309,7 @@ describe('modo convidado (sem uid)', () => {
     it('aparelho e meta vão pro AsyncStorage; salvarMeta(null) remove', async () => {
         expect(await storage.salvarAparelho(APARELHO)).toEqual({ ok: true });
         expect(await storage.obterAparelho()).toEqual(APARELHO);
+        expect(await storage.obterHistoricoDeAparelhos()).toEqual([{ ...APARELHO, desde: hoje() }]);
 
         await storage.salvarMeta({ baseline: 100, target: 10 });
         expect(await storage.obterMeta()).toEqual({ baseline: 100, target: 10 });
@@ -439,11 +450,14 @@ describe('modo conta — escrita', () => {
         expect(mockRemoto[`users/${UID}/crisisSessions/1`]).toMatchObject({ outcome: 'usei' });
     });
 
-    it('aparelho vai como merge no doc do usuário', async () => {
+    it('aparelho vai como merge no doc do usuário, com a vigência no histórico', async () => {
         expect(await storage.salvarAparelho(APARELHO)).toEqual({ ok: true });
         await drenarTudo();
 
-        expect(mockRemoto[`users/${UID}`]).toEqual({ device: APARELHO });
+        expect(mockRemoto[`users/${UID}`]).toEqual({
+            device: APARELHO,
+            deviceHistory: [{ ...APARELHO, desde: hoje() }],
+        });
     });
 
     it('a data de registro inválida é recusada antes de tocar no espelho', async () => {
@@ -623,8 +637,95 @@ describe('valores derivados (podeEscreverDerivado)', () => {
         expect(espelhoSalvo('economy')).toEqual({ '2026-03-01': 10 });
     });
 
-    it('grava economia online mesmo com espelho frio', async () => {
+    it('grava economia online depois que a leitura do servidor aqueceu o espelho', async () => {
+        await storage.obterRegistros();
+
         expect(await storage.definirEconomia({ '2026-03-01': 10 })).toEqual({ ok: true });
+    });
+
+    // O bug: estar ONLINE liberava a escrita derivada. Com o espelho frio e o
+    // getDocs estourando o comTempoLimite, obterRegistros devolve [] mesmo
+    // online, a economia é recalculada em cima disso e o mergeFields substitui
+    // o mapa inteiro da conta por um dia só.
+    it('leitura que falha ONLINE com espelho frio não deixa a economia subir por cima da conta', async () => {
+        mockRemoto[`users/${UID}`] = { economy: { '2026-03-01': 12, '2026-03-02': 8 } };
+        mockFalhaDeLeitura = true;
+
+        expect(await storage.obterRegistros()).toEqual([]);
+        const resultado = await storage.definirEconomia({ '2026-03-10': 1 });
+        await drenarTudo();
+
+        expect(resultado).toEqual({ ok: false, motivo: 'rede' });
+        expect(mockRemoto[`users/${UID}`].economy).toEqual({ '2026-03-01': 12, '2026-03-02': 8 });
+    });
+
+    it('o mesmo vale pro snapshot de XP', async () => {
+        mockRemoto[`users/${UID}`] = { xp: { xp: 900, level: 5 } };
+        mockFalhaDeLeitura = true;
+
+        expect(await storage.salvarEstadoDeXp({ xp: 0, level: 1 })).toBe(false);
+        await drenarTudo();
+
+        expect(mockRemoto[`users/${UID}`].xp).toEqual({ xp: 900, level: 5 });
+    });
+
+    it('espelho montado por escrita em cima de espelho frio não vale como origem', async () => {
+        mockFalhaDeLeitura = true;
+
+        await storage.salvarRegistro(registroDeHoje());
+        // A tela continua enxergando o que o usuário acabou de salvar...
+        expect(espelhoSalvo('records')).toHaveLength(1);
+        // ...mas esse espelho é só o que foi escrito DEPOIS da falha, não o
+        // histórico da conta: nada derivado pode sair dele.
+        expect(await storage.definirEconomia({ [hoje()]: 5 })).toEqual({
+            ok: false,
+            motivo: 'rede',
+        });
+
+        mockFalhaDeLeitura = false;
+        await drenarTudo();
+        await storage.obterRegistros();
+
+        expect(await storage.definirEconomia({ [hoje()]: 5 })).toEqual({ ok: true });
+    });
+
+    it('salvar aparelho com leitura falha não apaga a vigência dos aparelhos antigos', async () => {
+        const antigo = { price: 40, totalPuffs: 4000, days: 10, desde: '2026-01-01' };
+        mockRemoto[`users/${UID}`] = { device: antigo, deviceHistory: [antigo] };
+        mockFalhaDeLeitura = true;
+
+        expect(await storage.salvarAparelho(APARELHO)).toEqual({ ok: true });
+        await drenarTudo();
+
+        // O aparelho novo sobe (é o que o usuário digitou, vale por si), mas o
+        // histórico — derivado da leitura que falhou — fica pra próxima.
+        expect(mockRemoto[`users/${UID}`].device).toEqual(APARELHO);
+        expect(mockRemoto[`users/${UID}`].deviceHistory).toEqual([antigo]);
+    });
+});
+
+describe('leitura fria (aviso de dados incompletos)', () => {
+    beforeEach(entrarNaConta);
+
+    it('leitura que falha sem espelho marca dados incompletos; a que dá certo limpa', async () => {
+        mockFalhaDeLeitura = true;
+        await storage.obterRegistros();
+
+        expect(offline.temDadosIncompletos()).toBe(true);
+
+        mockFalhaDeLeitura = false;
+        await storage.obterRegistros();
+
+        expect(offline.temDadosIncompletos()).toBe(false);
+    });
+
+    it('com espelho completo pra servir de reserva, não é dado incompleto', async () => {
+        await storage.obterRegistros(); // aquece o espelho
+        mockFalhaDeLeitura = true;
+        storage.forcarLeituraRemota();
+        await storage.obterRegistros();
+
+        expect(offline.temDadosIncompletos()).toBe(false);
     });
 });
 
@@ -647,6 +748,40 @@ describe('recalcularEconomia', () => {
         ).toEqual({});
     });
 
+    it('cada dia é precificado pelo aparelho que valia nele', async () => {
+        // Vape barato até 09/03 (custo R$ 0,01, meta 500/dia) e caro a partir
+        // de 10/03 (custo R$ 0,10, meta 100/dia). Sem o histórico, o dia 01
+        // seria reprecificado pelo caro e a economia do passado inflaria.
+        const historico = [
+            { ...APARELHO, desde: '2026-03-01' },
+            { price: 500, totalPuffs: 5000, days: 50, desde: '2026-03-10' },
+        ];
+        const registros = [
+            { date: '2026-03-01', used: true, puffs: 100 }, // poupou 400 × 0,01
+            { date: '2026-03-10', used: true, puffs: 50 }, // poupou 50 × 0,10
+        ];
+
+        const mapa = await storage.recalcularEconomia(registros, APARELHO, null, historico);
+
+        expect(mapa).toEqual({ '2026-03-01': 4, '2026-03-10': 5 });
+    });
+
+    it('dia anterior à primeira vigência usa o aparelho mais antigo do histórico', async () => {
+        const historico = [
+            { ...APARELHO, desde: '2026-03-05' },
+            { price: 500, totalPuffs: 5000, days: 50, desde: '2026-03-10' },
+        ];
+
+        const mapa = await storage.recalcularEconomia(
+            [{ date: '2026-03-01', used: true, puffs: 100 }],
+            APARELHO,
+            null,
+            historico
+        );
+
+        expect(mapa).toEqual({ '2026-03-01': 4 });
+    });
+
     it('não gera economia negativa em dia que passou do limite', async () => {
         const mapa = await storage.recalcularEconomia(
             [{ date: '2026-03-01', used: true, puffs: 900 }],
@@ -655,6 +790,42 @@ describe('recalcularEconomia', () => {
         );
 
         expect(mapa['2026-03-01']).toBe(0);
+    });
+});
+
+describe('histórico de aparelhos', () => {
+    it('aparelho salvo antes do histórico existir vale desde sempre', async () => {
+        // Estado de quem já usava o app: só a chave do aparelho, sem histórico.
+        mockArmazenamento['@vapefree_device'] = JSON.stringify(APARELHO);
+
+        const historico = await storage.obterHistoricoDeAparelhos();
+
+        expect(historico).toEqual([APARELHO]);
+        expect(historico[0].desde).toBeUndefined();
+    });
+
+    it('salvar duas vezes no mesmo dia não cria duas vigências', async () => {
+        await storage.salvarAparelho(APARELHO);
+        await storage.salvarAparelho({ ...APARELHO, price: 80 });
+
+        expect(await storage.obterHistoricoDeAparelhos()).toEqual([
+            { ...APARELHO, price: 80, desde: hoje() },
+        ]);
+    });
+
+    it('trocar de aparelho preserva a vigência anterior', async () => {
+        // Aparelho antigo já cadastrado com vigência de um dia que não é hoje.
+        mockArmazenamento['@vapefree_device_history'] = JSON.stringify([
+            { ...APARELHO, desde: '2026-03-01' },
+        ]);
+        mockArmazenamento['@vapefree_device'] = JSON.stringify(APARELHO);
+
+        await storage.salvarAparelho({ price: 500, totalPuffs: 5000, days: 50 });
+
+        expect(await storage.obterHistoricoDeAparelhos()).toEqual([
+            { ...APARELHO, desde: '2026-03-01' },
+            { price: 500, totalPuffs: 5000, days: 50, desde: hoje() },
+        ]);
     });
 });
 
@@ -772,6 +943,139 @@ describe('migrarDadosDoConvidadoParaConta', () => {
     });
 });
 
+describe('substituirTodosOsDados (importação de backup)', () => {
+    const BACKUP = {
+        registros: [
+            { id: 1001, date: '2026-03-01', used: true, puffs: 100, triggers: [], note: null },
+        ],
+        aparelho: APARELHO,
+        historicoDeAparelhos: [],
+        meta: { target: 20 },
+        metaDeDinheiro: null,
+        economia: { '2026-03-01': 4.5 },
+        conquistas: [],
+        sessoesDeCrise: [],
+        missoes: [],
+        xp: null,
+        diasDeAbertura: ['2026-03-01'],
+    };
+
+    it('convidado: sobrepõe o que estava salvo no aparelho', async () => {
+        await storage.salvarRegistro(registroDeHoje({ id: 7, puffs: 5 }));
+
+        expect(await storage.substituirTodosOsDados(BACKUP)).toEqual({ ok: true });
+
+        const registros = await storage.obterRegistros();
+        expect(registros.map((registro) => registro.id)).toEqual([1001]);
+        expect(await storage.obterAparelho()).toEqual(APARELHO);
+        expect(await storage.obterMeta()).toEqual({ target: 20 });
+        expect(await storage.obterEconomia()).toEqual({ '2026-03-01': 4.5 });
+        expect(mockRemoto).toEqual({});
+    });
+
+    it('conta: sobe pro servidor, aquece o espelho e apaga o que não veio no backup', async () => {
+        entrarNaConta();
+        mockRemoto[`users/${UID}/records/999`] = { id: 999, date: '2026-01-01' };
+
+        expect(await storage.substituirTodosOsDados(BACKUP)).toEqual({ ok: true });
+
+        expect(registrosRemotos().map((registro) => registro.id)).toEqual([1001]);
+        expect(mockRemoto[`users/${UID}`]).toMatchObject({
+            device: APARELHO,
+            goal: { target: 20 },
+        });
+        expect(espelhoSalvo('records')).toHaveLength(1);
+        expect(espelhoSalvo('device')).toEqual(APARELHO);
+    });
+
+    it('conta offline: recusa em vez de gravar pela metade', async () => {
+        entrarNaConta();
+        await aguardarDrenagemSolta();
+        mockOnline = false;
+
+        expect(await storage.substituirTodosOsDados(BACKUP)).toEqual({
+            ok: false,
+            motivo: 'rede',
+        });
+        expect(mockRemoto).toEqual({});
+    });
+
+    it('conta: descarta a fila pendente, que é do estado antigo', async () => {
+        entrarNaConta();
+        await aguardarDrenagemSolta();
+        mockOnline = false;
+        avancarRelogio(31000);
+        // Escrita feita offline: fica na fila esperando rede.
+        await storage.salvarRegistro(registroDeHoje({ id: 55 }));
+        expect(filaSalva().length).toBeGreaterThan(0);
+
+        mockOnline = true;
+        avancarRelogio(31000);
+        expect(await storage.substituirTodosOsDados(BACKUP)).toEqual({ ok: true });
+
+        expect(filaSalva()).toEqual([]);
+        // O registro que estava na fila não pode ressuscitar depois do backup.
+        await drenarTudo();
+        expect(registrosRemotos().map((registro) => registro.id)).toEqual([1001]);
+    });
+});
+
+// A pergunta do login ("essa conta já tem progresso?") decide um texto que leva
+// a uma SOBREPOSIÇÃO (migrarDadosDoConvidadoParaConta apaga o que não veio do
+// convidado). Por isso "não deu pra conferir" tem que ser distinguível de
+// "conta vazia" — responder vazia por engano custa o histórico da nuvem.
+describe('contaTemDados', () => {
+    it('convidado (sem uid) nunca tem dados de conta', async () => {
+        await storage.salvarRegistro(registroDeHoje());
+
+        expect(await storage.contaTemDados()).toEqual({ ok: true, temDados: false });
+    });
+
+    it('conta vazia responde ok; qualquer dado vira temDados', async () => {
+        entrarNaConta();
+
+        expect(await storage.contaTemDados()).toEqual({ ok: true, temDados: false });
+
+        await storage.salvarAparelho(APARELHO);
+        await drenarTudo();
+        expect(await storage.contaTemDados()).toEqual({ ok: true, temDados: true });
+    });
+
+    it('vê o dado que só existe no servidor, sem depender do espelho', async () => {
+        entrarNaConta();
+        // Espelho frio (aparelho novo) e histórico só na nuvem.
+        mockRemoto[`users/${UID}/records/1001`] = registroDeHoje();
+
+        expect(await storage.contaTemDados()).toEqual({ ok: true, temDados: true });
+    });
+
+    it('leitura que falha online NÃO pode responder conta vazia', async () => {
+        entrarNaConta();
+        mockRemoto[`users/${UID}/records/1001`] = registroDeHoje();
+        // Timeout/erro do Firestore com o aparelho ONLINE: era aqui que a
+        // leitura caía no espelho vazio e a conta cheia virava "vazia".
+        mockFalhaDeLeitura = true;
+
+        expect(await storage.contaTemDados()).toEqual({ ok: false, temDados: false });
+    });
+
+    it('offline não confere nada', async () => {
+        entrarNaConta();
+        mockRemoto[`users/${UID}/records/1001`] = registroDeHoje();
+        mockOnline = false;
+        avancarRelogio(31000);
+
+        expect(await storage.contaTemDados()).toEqual({ ok: false, temDados: false });
+    });
+
+    it('com fila pendente o servidor não é a conta inteira', async () => {
+        entrarNaConta();
+        jest.spyOn(offline, 'sincronizar').mockResolvedValue({ pendentes: 1 });
+
+        expect(await storage.contaTemDados()).toEqual({ ok: false, temDados: false });
+    });
+});
+
 describe('apagarTodosOsDados', () => {
     it('convidado: limpa o local', async () => {
         await storage.salvarRegistro(registroDeHoje());
@@ -806,6 +1110,9 @@ describe('apagarTodosOsDados', () => {
         await storage.salvarRegistro(registroDeHoje());
         await storage.salvarAparelho(APARELHO);
         await drenarTudo();
+        // Como a tela faz: só depois de carregar os registros é que a economia
+        // pode ser recalculada e gravada (ver podeEscreverDerivado).
+        await storage.obterRegistros();
         expect(await storage.definirEconomia({ '2026-03-01': 12.4 })).toEqual({ ok: true });
         await drenarTudo();
 
@@ -824,6 +1131,7 @@ describe('definirEconomia (conta)', () => {
         await storage.salvarAparelho(APARELHO);
         await storage.salvarRegistro(registroDeHoje());
         await drenarTudo();
+        await storage.obterRegistros(); // espelho de origem carregado do servidor
 
         await storage.definirEconomia({ '2026-03-01': 12.4, '2026-03-02': 8 });
         await drenarTudo();
@@ -860,6 +1168,25 @@ describe('sincronizarGamificacao (só recalcula quando precisa)', () => {
         expect(segunda.recompensas).toEqual({ conquistas: [], missoes: [], ganho: 0 });
         expect(segunda.resumo).toEqual(primeira.resumo);
         expect(segunda.missoesConcluidas).toEqual(primeira.missoesConcluidas);
+    });
+
+    it('duas chamadas em paralelo não celebram a mesma conquista duas vezes', async () => {
+        await storage.salvarRegistro(registroDeHoje({ used: false, puffs: 0 }));
+
+        // Sem await no meio: é o caso de trocar de aba rápido, com duas telas
+        // chamando no foco antes de a primeira terminar.
+        const [primeira, segunda] = await Promise.all([
+            storage.sincronizarGamificacao(),
+            storage.sincronizarGamificacao(),
+        ]);
+
+        const idsRepetidos = primeira.recompensas.conquistas
+            .map((c) => c.id)
+            .filter((id) => segunda.recompensas.conquistas.some((c) => c.id === id));
+
+        expect(primeira.recompensas.conquistas.length).toBeGreaterThan(0);
+        expect(idsRepetidos).toEqual([]);
+        expect(segunda.recompensas).toEqual({ conquistas: [], missoes: [], ganho: 0 });
     });
 
     it('escrita entre as duas chamadas volta a sujar e recalcula', async () => {

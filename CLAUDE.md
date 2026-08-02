@@ -15,6 +15,7 @@ Detalhes por assunto ficam em `docs/`. Este arquivo só traz regras permanentes 
 - **StyleSheet.create** do React Native para estilos — sem NativeWind/Tailwind, sem styled-components.
 - `react-native-chart-kit` (gráficos), `@miblanchard/react-native-slider` (sliders), `@expo/vector-icons` (ícones Ionicons).
 - `react-native-view-shot` + `expo-sharing` — só no compartilhamento de conquista (`components/AchievementCelebration.js`).
+- `expo-file-system` + `expo-sharing` (exportar) e `expo-document-picker` (importar) — só no backup CSV/JSON (`utils/exportacao.js`, `utils/importacao.js`).
 - **Jest** (`jest-expo`) para os utils puros + `utils/offline.js` e `utils/storage.js` em `__tests__/utils/`, mais **`@testing-library/react-native`** em `__tests__/screens/` (só a regra do `{ ok }` nas telas de escrita — não se testa aparência). **ESLint 9** flat config (`eslint-config-expo` + `eslint-config-prettier`) e **Prettier**. `babel.config.js` existe só pra declarar `babel-preset-expo` ao `babel-jest`.
 - Sem `metro.config.js`, `eas.json` ou CI no repo — build/deploy segue manual.
 
@@ -30,7 +31,7 @@ screens/             # uma tela por arquivo, PascalCase
 components/          # componentes reutilizáveis entre telas
 context/             # AuthContext, ThemeContext, ConnectionContext (React Context API)
 services/            # firebase.native.js / firebase.web.js
-utils/               # storage.js (dados), offline.js (espelho+fila), datas.js (data local, módulo folha), achievements.js, missions.js, records.js, economia.js (série acumulada p/ gráfico), meta.js (meta de redução), metaDeDinheiro.js (meta de dinheiro, sem prazo), saude.js (marcos de saúde por tempo sem usar), notifications.js, theme.js, responsivo.js (breakpoints/largura)
+utils/               # storage.js (dados), offline.js (espelho+fila), datas.js (data local, módulo folha), achievements.js, missions.js, records.js, aparelhos.js (histórico de aparelhos com vigência, módulo folha), economia.js (série acumulada p/ gráfico), meta.js (meta de redução), metaDeDinheiro.js (meta de dinheiro, sem prazo), saude.js (marcos de saúde por tempo sem usar), exportacao.js (backup CSV/JSON), importacao.js (lê o backup JSON de volta), notifications.js, theme.js, responsivo.js (breakpoints/largura)
 assets/              # ícones/splash do app.json
 docs/                # documentação detalhada por assunto (este índice)
 coisasParaFazer.txt  # backlog/roadmap do projeto — ver antes de propor features novas

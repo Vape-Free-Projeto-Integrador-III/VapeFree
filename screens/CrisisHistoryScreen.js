@@ -4,7 +4,7 @@
 // (ou querer completar a nota depois) é comum. Data, método e duração não são
 // editáveis — são medidos pelo app, não digitados.
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -13,6 +13,7 @@ import {
     TouchableOpacity,
     Modal,
     TouchableWithoutFeedback,
+    TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +27,7 @@ import {
     sincronizarGamificacao,
 } from '../utils/storage';
 import { METODOS_DE_CRISE, desfechoDeCrise, resumoDeCrises } from '../utils/insights';
+import { notaCasaComBusca } from '../utils/records';
 import { formatarDiaMes } from '../utils/calendario';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
@@ -49,15 +51,20 @@ export default function CrisisHistoryScreen({ navigation }) {
     const [sessoes, setSessoes] = useState([]);
     const [sessaoEmEdicao, setSessaoEmEdicao] = useState(null);
     const [idParaExcluirConfirmacao, setIdParaExcluirConfirmacao] = useState(null);
+    const [busca, setBusca] = useState('');
 
-    const carregar = async () => {
-        setSessoes(await obterSessoesDeCrise());
-    };
+    const carregar = useCallback(async () => {
+        try {
+            setSessoes(await obterSessoesDeCrise());
+        } catch {
+            // Silencioso: leitura de tela, mantém o que já está renderizado.
+        }
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
             carregar();
-        }, [])
+        }, [carregar])
     );
 
     // Mudar/apagar desfecho mexe em missão e conquista de crise (superar a
@@ -97,11 +104,22 @@ export default function CrisisHistoryScreen({ navigation }) {
         await recarregarEConceder();
     };
 
+    // Resumo sempre sobre a base inteira: taxa de sucesso calculada em cima do
+    // que uma busca por texto devolveu não significaria nada. A busca só
+    // recorta a lista — mesma divisão do InsightsCard no Histórico.
     const resumo = resumoDeCrises(sessoes);
-    const emOrdem = [...sessoes].sort((a, b) => {
-        const porData = String(b.date).localeCompare(String(a.date));
-        return porData !== 0 ? porData : b.id - a.id;
-    });
+    const buscaAtiva = busca.trim() !== '';
+    const temAlgumaNota = useMemo(() => sessoes.some((sessao) => !!sessao.note), [sessoes]);
+    const emOrdem = useMemo(
+        () =>
+            sessoes
+                .filter((sessao) => notaCasaComBusca(sessao.note, busca))
+                .sort((a, b) => {
+                    const porData = String(b.date).localeCompare(String(a.date));
+                    return porData !== 0 ? porData : b.id - a.id;
+                }),
+        [sessoes, busca]
+    );
 
     // Cor do desfecho: verde pra vitória, amarelo pra vitória parcial,
     // vermelho pro uso — e cinza quando a pessoa saiu sem responder.
@@ -175,6 +193,59 @@ export default function CrisisHistoryScreen({ navigation }) {
                                     </Text>
                                 </View>
                             </View>
+                        </View>
+                    ) : null}
+
+                    {/* Busca só pra quem tem nota — sem nota nenhuma o campo só
+                    saberia esvaziar a lista. */}
+                    {temAlgumaNota ? (
+                        <View
+                            style={[
+                                styles.searchRow,
+                                { borderColor: cores.border, backgroundColor: cores.inputBg },
+                            ]}
+                        >
+                            <Ionicons name="search" size={16} color={cores.textMuted} />
+                            <TextInput
+                                style={[styles.searchInput, { color: cores.text }]}
+                                placeholder="Buscar nas anotações"
+                                placeholderTextColor={cores.textMuted}
+                                value={busca}
+                                onChangeText={setBusca}
+                                autoCorrect={false}
+                                returnKeyType="search"
+                            />
+                            {busca !== '' ? (
+                                <TouchableOpacity onPress={() => setBusca('')}>
+                                    <Ionicons
+                                        name="close-circle"
+                                        size={18}
+                                        color={cores.textMuted}
+                                    />
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+                    ) : null}
+
+                    {buscaAtiva ? (
+                        <View
+                            style={[
+                                styles.activeFilterRow,
+                                { backgroundColor: cores.primaryLight },
+                            ]}
+                        >
+                            <Ionicons name="funnel-outline" size={16} color={cores.primaryDark} />
+                            <Text style={[styles.activeFilterText, { color: cores.primaryDark }]}>
+                                {emOrdem.length} {emOrdem.length === 1 ? 'crise' : 'crises'} · “
+                                {busca.trim()}”
+                            </Text>
+                            <TouchableOpacity onPress={() => setBusca('')}>
+                                <Text
+                                    style={[styles.clearFilterText, { color: cores.primaryDark }]}
+                                >
+                                    Limpar
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     ) : null}
 
@@ -254,6 +325,16 @@ export default function CrisisHistoryScreen({ navigation }) {
                             );
                         })}
                     </GradeDeCards>
+
+                    {sessoes.length > 0 && emOrdem.length === 0 ? (
+                        <View
+                            style={[styles.card, { backgroundColor: cores.card }, SOMBRA.pequena]}
+                        >
+                            <Text style={[styles.emptyText, { color: cores.textMuted }]}>
+                                Nenhuma crise com esse texto na anotação.
+                            </Text>
+                        </View>
+                    ) : null}
 
                     {sessoes.length === 0 ? (
                         <View
@@ -359,6 +440,38 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 2,
         lineHeight: 14,
+    },
+    searchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginHorizontal: 16,
+        marginTop: 14,
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+    },
+    searchInput: {
+        flex: 1,
+        paddingVertical: 8,
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
+    },
+    activeFilterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginHorizontal: 16,
+        marginTop: 12,
+        padding: 10,
+        borderRadius: RAIO.md,
+    },
+    activeFilterText: { flex: 1, fontSize: 12, fontFamily: 'Poppins_500Medium' },
+    clearFilterText: {
+        fontSize: 12,
+        fontFamily: 'Poppins_700Bold',
+        textDecorationLine: 'underline',
     },
     item: { borderRadius: RAIO.md, padding: 14, marginHorizontal: 16, marginTop: 10 },
     itemTop: {

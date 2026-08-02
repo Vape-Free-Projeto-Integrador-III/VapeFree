@@ -139,6 +139,12 @@ export function comparativoSemanal(registros, hoje) {
 }
 
 // Tudo o que o card da Home precisa numa chamada só.
+//
+// `concluida` é a rampa que já passou do endDate — o dia do endDate ainda
+// conta como rampa (é o último dia válido, com diasRestantes 0). `alcancada`
+// olha a média dos 7 dias que terminam no ENDDATE, não em hoje: quem abre o
+// app três meses depois não pode ser julgado por dias fora do prazo da meta.
+// Concluir não muda limite nenhum — metaEfetiva segue devolvendo o target.
 export function progressoDaMeta(meta, registros, hoje) {
     if (!metaValida(meta)) return null;
     const metaDeHoje = metaDoDia(meta, hoje);
@@ -147,11 +153,17 @@ export function progressoDaMeta(meta, registros, hoje) {
     );
     const totalDeDias = diferencaEmDias(meta.startDate, meta.endDate);
     const passados = Math.min(Math.max(diferencaEmDias(meta.startDate, hoje), 0), totalDeDias);
+    const concluida = diferencaEmDias(hoje, meta.endDate) < 0;
+    const mediaNoFim = concluida
+        ? mediaDiariaNasDatas(registros, janelaDeDias(meta.endDate, 7))
+        : null;
     return {
         metaDeHoje,
         usadasHoje,
         dentroDaMeta: usadasHoje <= metaDeHoje,
         diasRestantes: Math.max(0, diferencaEmDias(hoje, meta.endDate)),
         percentualDoTempo: Math.round((passados / totalDeDias) * 100),
+        concluida,
+        alcancada: mediaNoFim !== null && mediaNoFim <= meta.target,
     };
 }

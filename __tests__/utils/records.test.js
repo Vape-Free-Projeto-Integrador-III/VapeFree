@@ -7,8 +7,11 @@ import {
     excessoDoDia,
     limitarPuxadas,
     normalizarNota,
+    normalizarBusca,
+    notaCasaComBusca,
     MAX_PUXADAS_DIA,
     MAX_NOTA,
+    resumoDeAparelhos,
 } from '../../utils/records';
 
 const APARELHO = { price: 50, totalPuffs: 5000, days: 10 };
@@ -88,6 +91,47 @@ describe('normalizarNota', () => {
     });
 });
 
+describe('notaCasaComBusca', () => {
+    it('casa com tudo quando o termo esta vazio ou so tem espaco', () => {
+        expect(notaCasaComBusca('hoje foi dificil', '')).toBe(true);
+        expect(notaCasaComBusca(null, '   ')).toBe(true);
+    });
+
+    it('ignora caixa e acento dos dois lados', () => {
+        expect(notaCasaComBusca('Tomei um Café e deu vontade', 'cafe')).toBe(true);
+        expect(notaCasaComBusca('foi so ansiedade', 'ANSIEDADE')).toBe(true);
+        expect(notaCasaComBusca('dia dificil', 'difícil')).toBe(true);
+    });
+
+    it('casa com pedaco no meio da nota', () => {
+        expect(notaCasaComBusca('briga no trabalho', 'trabalh')).toBe(true);
+    });
+
+    it('nao casa quando o termo nao esta na nota', () => {
+        expect(notaCasaComBusca('dia tranquilo', 'estresse')).toBe(false);
+    });
+
+    it('nao casa registro sem nota quando ha termo', () => {
+        expect(notaCasaComBusca(null, 'cafe')).toBe(false);
+        expect(notaCasaComBusca(undefined, 'cafe')).toBe(false);
+    });
+});
+
+describe('normalizarBusca', () => {
+    it('tira acento, caixa e bordas', () => {
+        expect(normalizarBusca('  Ansiedade à Noite  ')).toBe('ansiedade a noite');
+    });
+
+    it('devolve string vazia pro que nao e string', () => {
+        expect(normalizarBusca(null)).toBe('');
+        expect(normalizarBusca(42)).toBe('');
+    });
+
+    it('preserva caractere nao-ascii que nao e acento conhecido', () => {
+        expect(normalizarBusca('deu vontade 😤')).toBe('deu vontade 😤');
+    });
+});
+
 describe('limitarPuxadas', () => {
     it('prende no teto', () => {
         expect(limitarPuxadas(999999)).toBe(MAX_PUXADAS_DIA);
@@ -157,5 +201,50 @@ describe('excessoDoDia', () => {
 
     it('devolve null sem meta nenhuma', () => {
         expect(excessoDoDia([{ used: true, puffs: 300 }], null)).toBeNull();
+    });
+});
+
+describe('resumoDeAparelhos', () => {
+    const BARATO = { name: 'Ignite', price: 50, totalPuffs: 5000, days: 10, desde: '2024-03-01' };
+    const CARO = { name: 'Elfbar', price: 500, totalPuffs: 5000, days: 50, desde: '2024-03-10' };
+    const REGISTROS = [
+        { date: '2024-03-05', used: true, puffs: 100 },
+        { date: '2024-03-05', used: true, puffs: 50 },
+        { date: '2024-03-09', used: false, puffs: 30 },
+        { date: '2024-03-10', used: true, puffs: 200 },
+        { date: '2024-03-12', used: true, puffs: 100 },
+    ];
+    const ECONOMIA = { '2024-03-05': 1.5, '2024-03-09': 2, '2024-03-12': 10 };
+
+    it('cobra cada período pelo custo por puxada do aparelho da época', () => {
+        const resumo = resumoDeAparelhos([BARATO, CARO], REGISTROS, ECONOMIA);
+
+        // 150 puxadas × R$ 0,01 no primeiro; 300 × R$ 0,10 no segundo.
+        expect(resumo.map((r) => r.gasto)).toEqual([1.5, 30]);
+        expect(resumo.map((r) => r.puxadas)).toEqual([150, 300]);
+    });
+
+    it('conta dias com registro e não puxadas de dia sem uso', () => {
+        const resumo = resumoDeAparelhos([BARATO, CARO], REGISTROS, ECONOMIA);
+
+        expect(resumo[0]).toMatchObject({ dias: 2, puxadas: 150 });
+        expect(resumo[1]).toMatchObject({ dias: 2, puxadas: 300 });
+    });
+
+    it('divide a economia pelo período de vigência', () => {
+        const resumo = resumoDeAparelhos([BARATO, CARO], REGISTROS, ECONOMIA);
+
+        expect(resumo.map((r) => r.economizado)).toEqual([3.5, 10]);
+    });
+
+    it('aparelho sem histórico não gera resumo', () => {
+        expect(resumoDeAparelhos([], REGISTROS, ECONOMIA)).toEqual([]);
+    });
+
+    it('legado sem `desde` leva tudo o que veio antes dele', () => {
+        const legado = { name: 'Antigo', price: 50, totalPuffs: 5000, days: 10 };
+        const resumo = resumoDeAparelhos([legado, CARO], REGISTROS, ECONOMIA);
+
+        expect(resumo[0]).toMatchObject({ de: null, ate: '2024-03-10', puxadas: 150 });
     });
 });

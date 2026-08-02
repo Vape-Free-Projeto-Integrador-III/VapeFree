@@ -1,3 +1,6 @@
+import { periodosDeAparelho } from './aparelhos';
+import { economiaNoIntervalo } from './economia';
+
 //
 // Helpers puros de leitura de um registro (Record). Existem pra garantir que
 // todo lugar que soma puxadas trate um registro com `used: false` do mesmo
@@ -35,6 +38,34 @@ export function normalizarNota(valor) {
     if (typeof valor !== 'string') return null;
     const limpa = valor.trim().slice(0, MAX_NOTA);
     return limpa === '' ? null : limpa;
+}
+
+// Busca na anotação livre. Comparação sem acento e sem caixa pra "cafe" achar
+// "Café" e "ANSIEDADE" achar "ansiedade" — quem escreveu a nota no celular
+// raramente repete a acentuação na hora de procurar.
+//
+// Sem `String.prototype.normalize('NFD')`: o suporte a ele no Hermes não é
+// garantido em toda versão, e o alfabeto que interessa aqui é o do português.
+const COM_ACENTO = 'áàâãäéèêëíìîïóòôõöúùûüçñ';
+const SEM_ACENTO = 'aaaaaeeeeiiiiooooouuuucn';
+
+export function normalizarBusca(texto) {
+    if (typeof texto !== 'string') return '';
+    return texto
+        .trim()
+        .toLowerCase()
+        .replace(/[^\x00-\x7F]/g, (caractere) => {
+            const i = COM_ACENTO.indexOf(caractere);
+            return i === -1 ? caractere : SEM_ACENTO[i];
+        });
+}
+
+// A nota casa com o termo buscado? Termo vazio casa com tudo — é o estado
+// normal do campo de busca, que não deve esconder registro nenhum.
+export function notaCasaComBusca(nota, termo) {
+    const busca = normalizarBusca(termo);
+    if (busca === '') return true;
+    return normalizarBusca(nota).includes(busca);
 }
 
 // Puxadas efetivas do registro — 0 quando não houve uso.
@@ -80,6 +111,38 @@ export function custoPorPuxada(aparelho) {
     const total = numeroPositivo(aparelho?.totalPuffs);
     if (preco === null || total === null) return null;
     return preco / total;
+}
+
+// Quanto cada aparelho do histórico custou de verdade: as puxadas dadas
+// enquanto ele valia × o custo da puxada DELE. É a leitura que só faz sentido
+// depois que a economia virou retroativa por vigência (utils/aparelhos.js) —
+// antes disso todo dia era precificado pelo aparelho atual.
+//
+// Devolve uma lista na mesma ordem cronológica do histórico:
+//   { aparelho, de, ate, puxadas, dias, gasto, economizado }
+// `de`/`ate` são o período de vigência (`ate` exclusivo, null no atual);
+// `dias` é quantos dias distintos têm registro dentro dele.
+export function resumoDeAparelhos(historico, registros, economia) {
+    const lista = Array.isArray(registros) ? registros : [];
+    return periodosDeAparelho(historico).map(({ aparelho, de, ate }) => {
+        const doPeriodo = lista.filter(
+            (registro) =>
+                typeof registro?.date === 'string' &&
+                (de === null || registro.date >= de) &&
+                (ate === null || registro.date < ate)
+        );
+        const puxadas = somarPuxadas(doPeriodo);
+        const custo = custoPorPuxada(aparelho);
+        return {
+            aparelho,
+            de,
+            ate,
+            puxadas,
+            dias: new Set(doPeriodo.map((registro) => registro.date)).size,
+            gasto: custo === null ? 0 : parseFloat((puxadas * custo).toFixed(2)),
+            economizado: economiaNoIntervalo(economia, de, ate),
+        };
+    });
 }
 
 // Excesso de um dia: quanto passou da meta e quanto isso custou a mais.

@@ -62,7 +62,7 @@ Devolve `{ registros, economia, sessoesDeCrise, diasDeAbertura, meta, aparelho, 
 
 Passo 2.5 do bloco: `consolidarMissoesFechadas(hoje)` troca as entradas de período já fechado por uma única entrada `_resumo` (`{ summary: true, xp, count, until, updatedAt }`), mantendo detalhadas só as do dia e da semana corrente. Sem isso a subcoleção crescia ~1400 docs/ano e todos eram lidos toda vez, mesmo com só o `xp` importando depois que o período passa. Ela reaproveita a leitura que a sincronização já faz e devolve a lista consolidada — sem leitura extra.
 
-O resumo entra na lista de `obterMissoes()` como qualquer entrada: `calcularXp` soma o `xp` dele normalmente e `verificarMissoes` o ignora (`_resumo` não bate com nenhum `missionId_periodKey`). **`missoesConcluidas.length` não é o número de missões concluídas** — a conquista `first_mission` só pergunta `>= 1`, o que continua certo. Detalhe do shape e da trava `until` em [database.md](database.md).
+O resumo entra na lista de `obterMissoes()` como qualquer entrada: `calcularXp` soma o `xp` dele e descarta a entrada crua já coberta pelo `until`, e `verificarMissoes` o ignora (`_resumo` não bate com nenhum `missionId_periodKey`). **`missoesConcluidas.length` não é o número de missões concluídas** — a conquista `first_mission` só pergunta `>= 1`, o que continua certo. Detalhe do shape e da trava `until` em [database.md](database.md).
 
 ### Recálculo só quando muda (dirty flag)
 
@@ -77,6 +77,8 @@ Hoje o bloco 2–4 só roda quando:
 Fora disso a função ainda devolve os dados carregados, mas serve `missoesConcluidas` e `resumo` da última execução e `recompensas` vazio (`{ conquistas: [], missoes: [], ganho: 0 }`) — nenhuma leitura de missões, nenhuma escrita de XP. A marcação é conservadora de propósito: a escrita suja antes de saber se deu certo, porque sujar à toa custa um recálculo, enquanto não sujar deixaria conquista/missão presa.
 
 Consequência para código novo: **escrita que influencia missão/conquista/XP e não passa por `utils/storage.js` precisa chamar `marcarGamificacaoSuja()`**, senão a recompensa só aparece na virada do dia. O único caso não coberto é dado que chega do servidor por outro aparelho — ele só entra no cálculo na próxima escrita local ou virada de dia.
+
+**Execução serializada.** Cada chamada espera a anterior terminar (uma promise em andamento em `utils/storage.js`, mesma ideia do `sincronizar` de `utils/offline.js`). Sem isso, duas telas focando quase juntas (trocar de aba rápido) liam `gamificacaoSuja === true` antes do reset, rodavam `verificarEDesbloquearConquistas` sobre a mesma lista sem a conquista nova e devolviam a **mesma** conquista em `recompensas` — o `AchievementCelebration` abria o troféu duas vezes. Serializada, a segunda chamada já encontra a flag limpa e cai no reuso com recompensas vazias.
 
 Chamam `sincronizarGamificacao`: `HomeScreen` (passando `diasDeAbertura` de `registrarAberturaDoApp`), `MissionsScreen`, `RegisterScreen` (após salvar), `CrisisScreen` (ao encerrar a sessão), `HistoryScreen` (após editar/excluir registro — muda puxadas e economia), `DeviceScreen` (após salvar aparelho — recalcula a economia inteira) e `AchievementsScreen` (ao focar — a lista exibida precisa do desbloqueio já persistido). **Não** reimplemente a sequência numa tela nova.
 

@@ -31,7 +31,7 @@ import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 // Nomes de espelho válidos. Os quatro primeiros são subcoleções de
-// users/{uid}; os sete últimos são campos do documento users/{uid} (PERFIL
+// users/{uid}; os oito últimos são campos do documento users/{uid} (PERFIL
 // espelha os campos nome/displayName/email de uma vez só).
 export const ESPELHOS = {
     REGISTROS: 'records',
@@ -39,6 +39,7 @@ export const ESPELHOS = {
     SESSOES_DE_CRISE: 'crisisSessions',
     MISSOES: 'missions',
     APARELHO: 'device',
+    HISTORICO_DE_APARELHOS: 'deviceHistory',
     META: 'goal',
     META_DE_DINHEIRO: 'moneyGoal',
     ECONOMIA: 'economy',
@@ -50,6 +51,7 @@ export const ESPELHOS = {
 const PREFIXO_DE_CACHE = '@vapefree_cache_';
 const PREFIXO_DE_FILA = '@vapefree_queue_';
 const PREFIXO_DE_FALHAS = '@vapefree_failed_';
+const PREFIXO_DE_PARCIAL = '@vapefree_partial_';
 
 // Quanto tempo esperar uma escrita/leitura do Firestore antes de considerar
 // que não tem rede.
@@ -57,8 +59,42 @@ const TEMPO_LIMITE_PADRAO = 8000;
 
 // Quantas vezes tentar a mesma mutação antes de descartá-la. Serve pra erro
 // permanente (regra de segurança, documento inválido): sem isso uma mutação
-// impossível prenderia a fila inteira pra sempre.
+// impossível prenderia a fila inteira pra sempre. Só conta tentativa pra erro
+// permanente — ver erroEhDeRede.
 const LIMITE_DE_TENTATIVAS = 5;
+
+// Falha de rede não diz NADA sobre a mutação ser válida, então não pode contar
+// tentativa: a drenagem acontece muito (toda leitura chama sincronizar, ou
+// seja, cada foco de tela, cada escrita, cada volta do AppState, cada
+// reconexão), e com sinal ruim cinco delas descartariam pra sempre o registro
+// que o usuário acabou de salvar. Erro de rede deixa a mutação na fila
+// intacta; ela sobe quando a conexão voltar.
+//
+// Códigos do Firestore que são transitórios (o SDK modular manda o code sem
+// prefixo, mas alguns ambientes prefixam com 'firestore/'). 'unauthenticated'
+// entra na lista porque offline o refresh do token falha — não é a mutação que
+// está errada.
+const ERROS_TRANSITORIOS = new Set([
+    'unavailable',
+    'deadline-exceeded',
+    'cancelled',
+    'resource-exhausted',
+    'internal',
+    'unknown',
+    'unauthenticated',
+    'aborted',
+]);
+
+export function erroEhDeRede(erro) {
+    if (!erro) return false;
+    const mensagem = String(erro.message ?? '');
+    // 'tempo_limite' é o erro do nosso comTempoLimite — o caso mais comum de
+    // conexão ruim, já que offline o setDoc nem rejeita.
+    if (mensagem === 'tempo_limite') return true;
+    const codigo = String(erro.code ?? '').replace(/^firestore\//, '');
+    if (ERROS_TRANSITORIOS.has(codigo)) return true;
+    return /offline|network|timeout|timed out/i.test(mensagem);
+}
 
 // Quantas falhas guardar pro aviso da UI. É só pra o usuário saber que algo
 // não subiu — não precisa virar histórico infinito.
@@ -74,6 +110,10 @@ function chaveDeFila(uid) {
 
 function chaveDeFalhas(uid) {
     return `${PREFIXO_DE_FALHAS}${uid}`;
+}
+
+function chaveDeParcial(uid, nome) {
+    return `${PREFIXO_DE_PARCIAL}${uid}_${nome}`;
 }
 
 // ─── Espelho ─────────────────────────────────────────────────────────────────
@@ -98,6 +138,29 @@ export async function temEspelho(uid, nome) {
     if (!uid) return false;
     try {
         return (await AsyncStorage.getItem(chaveDeCache(uid, nome))) !== null;
+    } catch {
+        return false;
+    }
+}
+
+// ─── Espelho parcial ─────────────────────────────────────────────────────────
+//
+// Existir não basta: importa de ONDE o espelho veio.
+//
+//   COMPLETO -> foi preenchido por uma leitura do servidor (ou por uma escrita
+//               em massa que subiu inteira). É o estado da conta.
+//   PARCIAL  -> foi montado por escrita local em cima de um espelho FRIO
+//               (`[...cache, registro]` com o cache ainda vazio). Tem só o que
+//               o usuário escreveu DEPOIS da falha de leitura, não o histórico.
+//
+// A distinção existe porque um espelho parcial não pode virar fonte de escrita
+// derivada (economia, XP, aberturas sobem inteiros e apagariam o resto) — ver
+// podeEscreverDerivado em utils/storage.js. A marca é apagada sozinha na
+// primeira escreverCache() normal, que é o que a leitura do servidor faz.
+export async function espelhoEstaCompleto(uid, nome) {
+    if (!(await temEspelho(uid, nome))) return false;
+    try {
+        return (await AsyncStorage.getItem(chaveDeParcial(uid, nome))) === null;
     } catch {
         return false;
     }
@@ -145,14 +208,65 @@ export function invalidarEspelho(uid, nome) {
     }
 }
 
-export async function escreverCache(uid, nome, valor) {
+// `parcial` marca que este valor foi montado em cima de um espelho que não era
+// o estado da conta (ver espelhoEstaCompleto). O padrão é `false` de propósito:
+// leitura do servidor e escrita em massa gravam espelho completo, e passar por
+// aqui é justamente o que LIMPA a marca de um espelho que estava truncado.
+export async function escreverCache(uid, nome, valor, parcial = false) {
     if (!uid) return false;
     try {
         await AsyncStorage.setItem(chaveDeCache(uid, nome), JSON.stringify(valor ?? null));
+        if (parcial) {
+            await AsyncStorage.setItem(chaveDeParcial(uid, nome), '1');
+        } else {
+            await AsyncStorage.removeItem(chaveDeParcial(uid, nome));
+        }
         return true;
     } catch {
         return false;
     }
+}
+
+// ─── Leitura que falhou com o espelho frio ───────────────────────────────────
+//
+// Sem espelho e sem servidor, a leitura devolve o padrão vazio pras telas —
+// não existe nada melhor pra devolver, e a tela precisa renderizar. Só que
+// esse vazio NÃO é a conta: o app aparece zerado (sem histórico, streak 0,
+// R$ 0) mesmo com meses de dado salvos, e o usuário fica sem saber se perdeu
+// tudo. O dado em si está protegido (escrita derivada em cima disso é barrada
+// em utils/storage.js); o que falta é avisar.
+//
+// É estado de MEMÓRIA, como a validade do espelho: vale pra sessão do app, e a
+// primeira leitura que der certo apaga a marca daquele espelho.
+const espelhosSemLeitura = new Set();
+let ouvintesDeDadosIncompletos = [];
+
+function avisarDadosIncompletos() {
+    const incompletos = espelhosSemLeitura.size > 0;
+    ouvintesDeDadosIncompletos.forEach((aoMudar) => aoMudar(incompletos));
+}
+
+export function registrarLeituraFria(uid, nome) {
+    const chave = chaveDeValidade(uid, nome);
+    if (espelhosSemLeitura.has(chave)) return;
+    espelhosSemLeitura.add(chave);
+    avisarDadosIncompletos();
+}
+
+export function esquecerLeituraFria(uid, nome) {
+    if (!espelhosSemLeitura.delete(chaveDeValidade(uid, nome))) return;
+    avisarDadosIncompletos();
+}
+
+export function temDadosIncompletos() {
+    return espelhosSemLeitura.size > 0;
+}
+
+export function assinarDadosIncompletos(aoMudar) {
+    ouvintesDeDadosIncompletos.push(aoMudar);
+    return () => {
+        ouvintesDeDadosIncompletos = ouvintesDeDadosIncompletos.filter((o) => o !== aoMudar);
+    };
 }
 
 // ─── Fila ────────────────────────────────────────────────────────────────────
@@ -453,21 +567,25 @@ async function drenar(uid) {
             resolvidas.add(mutacao.id);
             enviadas += 1;
         } catch (e) {
-            const tentativas = (mutacao.tentativas ?? 0) + 1;
-            if (tentativas >= LIMITE_DE_TENTATIVAS) {
-                // Erro que não é de rede (regra de segurança, dado inválido): sai da
-                // fila pra não prender o resto pra sempre, mas vai pra lista de falhas
-                // — o usuário precisa saber que essa alteração não subiu.
-                console.log(
-                    'Mutação descartada após tentativas demais:',
-                    mutacao.tipo,
-                    mutacao.colecao,
-                    e
-                );
-                await registrarFalha(uid, mutacao, e);
-                resolvidas.add(mutacao.id);
-            } else {
-                tentativasPorId[mutacao.id] = tentativas;
+            // Erro de rede/timeout não conta tentativa: a mutação fica na fila
+            // como estava e tenta de novo na próxima drenagem.
+            if (!erroEhDeRede(e)) {
+                const tentativas = (mutacao.tentativas ?? 0) + 1;
+                if (tentativas >= LIMITE_DE_TENTATIVAS) {
+                    // Erro permanente (regra de segurança, dado inválido): sai da
+                    // fila pra não prender o resto pra sempre, mas vai pra lista de
+                    // falhas — o usuário precisa saber que essa alteração não subiu.
+                    console.log(
+                        'Mutação descartada após tentativas demais:',
+                        mutacao.tipo,
+                        mutacao.colecao,
+                        e
+                    );
+                    await registrarFalha(uid, mutacao, e);
+                    resolvidas.add(mutacao.id);
+                } else {
+                    tentativasPorId[mutacao.id] = tentativas;
+                }
             }
             // Para na primeira falha: a ordem da fila importa (salvar seguido de
             // excluir o mesmo id não pode chegar trocado).
@@ -520,8 +638,10 @@ export function sincronizar(uid) {
 export async function limparCacheEFila(uid) {
     if (!uid) return;
     invalidarEspelho(uid);
+    Object.values(ESPELHOS).forEach((nome) => esquecerLeituraFria(uid, nome));
     const chaves = [
         ...Object.values(ESPELHOS).map((nome) => chaveDeCache(uid, nome)),
+        ...Object.values(ESPELHOS).map((nome) => chaveDeParcial(uid, nome)),
         chaveDeFila(uid),
         chaveDeFalhas(uid),
     ];

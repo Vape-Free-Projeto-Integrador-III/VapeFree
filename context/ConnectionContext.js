@@ -12,12 +12,14 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { AppState } from 'react-native';
 import {
     assinarConexao,
+    assinarDadosIncompletos,
     assinarFalhas,
     contarFalhas,
     contarPendencias,
     estaOnline,
     limparFalhas,
     sincronizar,
+    temDadosIncompletos,
 } from '../utils/offline';
 import { precarregarEspelho } from '../utils/storage';
 import { usarAuth } from './AuthContext';
@@ -26,7 +28,9 @@ const ConnectionContext = createContext({
     online: true,
     pendentes: 0,
     falhas: 0,
+    dadosIncompletos: false,
     sincronizarAgora: async () => {},
+    recarregarDados: async () => {},
     descartarFalhas: async () => {},
 });
 
@@ -39,6 +43,10 @@ export function ConnectionProvider({ children }) {
     // Mutações que a fila desistiu de enviar. Ficam visíveis no banner até o
     // usuário dar ciência — dado perdido em silêncio é pior que erro na tela.
     const [falhas, setFalhas] = useState(0);
+    // Alguma leitura remota falhou sem espelho pra servir de reserva: as telas
+    // estão mostrando o padrão vazio, não a conta. Some sozinho quando uma
+    // leitura do servidor dá certo (utils/offline.js).
+    const [dadosIncompletos, setDadosIncompletos] = useState(false);
 
     const sincronizarAgora = useCallback(async () => {
         if (!uid) {
@@ -50,6 +58,13 @@ export function ConnectionProvider({ children }) {
         setPendentes(restantes);
         setFalhas(quantasFalhas ?? 0);
     }, [uid]);
+
+    // Tentar de novo a leitura que não deu certo. precarregarEspelho já invalida
+    // a validade do espelho e relê tudo do servidor; cada leitura que passa
+    // limpa a marca de dados incompletos sozinha.
+    const recarregarDados = useCallback(async () => {
+        await precarregarEspelho().catch(() => false);
+    }, []);
 
     const descartarFalhas = useCallback(async () => {
         setFalhas(0);
@@ -78,6 +93,17 @@ export function ConnectionProvider({ children }) {
     useEffect(() => {
         if (!uid) return undefined;
         return assinarFalhas(setFalhas);
+    }, [uid]);
+
+    // Mesma ideia pras leituras: quem descobre que não deu pra carregar é a
+    // tela que leu, em qualquer ponto do app.
+    useEffect(() => {
+        if (!uid) {
+            setDadosIncompletos(false);
+            return undefined;
+        }
+        setDadosIncompletos(temDadosIncompletos());
+        return assinarDadosIncompletos(setDadosIncompletos);
     }, [uid]);
 
     useEffect(() => {
@@ -137,10 +163,21 @@ export function ConnectionProvider({ children }) {
             online,
             pendentes: uid ? pendentes : 0,
             falhas: uid ? falhas : 0,
+            dadosIncompletos: uid ? dadosIncompletos : false,
             sincronizarAgora,
+            recarregarDados,
             descartarFalhas,
         }),
-        [online, pendentes, falhas, uid, sincronizarAgora, descartarFalhas]
+        [
+            online,
+            pendentes,
+            falhas,
+            dadosIncompletos,
+            uid,
+            sincronizarAgora,
+            recarregarDados,
+            descartarFalhas,
+        ]
     );
 
     return <ConnectionContext.Provider value={valor}>{children}</ConnectionContext.Provider>;

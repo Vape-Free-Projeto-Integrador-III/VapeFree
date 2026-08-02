@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -38,7 +38,13 @@ import {
     sincronizarGamificacao,
     dataDeHoje,
 } from '../utils/storage';
-import { puxadasDoRegistro, MAX_PUXADAS_DIA, MAX_NOTA, limitarPuxadas } from '../utils/records';
+import {
+    puxadasDoRegistro,
+    notaCasaComBusca,
+    MAX_PUXADAS_DIA,
+    MAX_NOTA,
+    limitarPuxadas,
+} from '../utils/records';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS } from '../utils/theme';
 import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
@@ -60,6 +66,13 @@ const METRICAS = [
 // escolhido passa a ser agrupado por semana e depois por mês.
 const DIAS_ATE_AGRUPAR_POR_SEMANA = 31;
 const DIAS_ATE_AGRUPAR_POR_MES = 180;
+
+// A lista mora dentro do ScrollView da tela (junto do gráfico e do
+// InsightsCard) e a grade masonry precisa medir cada card, então não dá pra
+// trocar por FlatList sem virtualização aninhada. Com ~1 ano de uso seriam
+// ~365 cards montados de uma vez; renderiza-se de PAGINA_DO_HISTORICO em
+// PAGINA_DO_HISTORICO, com botão de carregar mais.
+const PAGINA_DO_HISTORICO = 30;
 
 // Agrupamento por semana usa a mesma segunda-feira das missões semanais.
 const chaveDoInicioDaSemana = inicioDaSemana;
@@ -126,17 +139,25 @@ export default function HistoryScreen({ navigation }) {
     const [modalDePeriodoAberto, setModalDePeriodoAberto] = useState(false);
     const [mesDoSeletor, setMesDoSeletor] = useState(() => mesDeData(dataDeHoje()));
     const [rotulosSelecionados, setRotulosSelecionados] = useState([]);
+    const [busca, setBusca] = useState('');
+    const [limiteDoHistorico, setLimiteDoHistorico] = useState(PAGINA_DO_HISTORICO);
 
-    const carregar = async () => {
-        const [r, sessoes] = await Promise.all([obterRegistros(), obterSessoesDeCrise()]);
-        setRegistros(r);
-        setSessoesDeCrise(sessoes);
-    };
+    const carregar = useCallback(async () => {
+        // As leituras já engolem erro e devolvem valor neutro; o try aqui é a
+        // rede de segurança pra qualquer falha inesperada não derrubar a tela.
+        try {
+            const [r, sessoes] = await Promise.all([obterRegistros(), obterSessoesDeCrise()]);
+            setRegistros(r);
+            setSessoesDeCrise(sessoes);
+        } catch {
+            // Silencioso: leitura de tela, mantém o que já está renderizado.
+        }
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
             carregar();
-        }, [])
+        }, [carregar])
     );
 
     // Gráfico e lista trabalham sempre em cima do recorte filtrado. O
@@ -162,9 +183,12 @@ export default function HistoryScreen({ navigation }) {
                     if (!rotulosSelecionados.some((rotulo) => rotulosDoRegistro.includes(rotulo)))
                         return false;
                 }
+                // Busca entra junto dos outros filtros (e não só na lista) pra
+                // gráfico, contador e lista falarem sempre do mesmo recorte.
+                if (!notaCasaComBusca(registro.note, busca)) return false;
                 return true;
             }),
-        [registros, periodoAtivo, rotulosSelecionados]
+        [registros, periodoAtivo, rotulosSelecionados, busca]
     );
 
     const { rotulos: rotulosDoGrafico, dados: dadosDoGrafico } = useMemo(() => {
@@ -240,6 +264,17 @@ export default function HistoryScreen({ navigation }) {
         [registrosFiltrados]
     );
 
+    // Trocar filtro/rótulo/período começa a lista de novo do topo.
+    useEffect(() => {
+        setLimiteDoHistorico(PAGINA_DO_HISTORICO);
+    }, [periodoAtivo, rotulosSelecionados, busca]);
+
+    const registrosVisiveis = useMemo(
+        () => todosOsRegistros.slice(0, limiteDoHistorico),
+        [todosOsRegistros, limiteDoHistorico]
+    );
+    const registrosRestantes = todosOsRegistros.length - registrosVisiveis.length;
+
     // Os chips vêm dos rótulos que o usuário realmente usou, não do array
     // GATILHOS — assim o texto livre de "Outro" (salvo como rótulo cru) também
     // vira filtro. Mais frequentes primeiro.
@@ -255,7 +290,10 @@ export default function HistoryScreen({ navigation }) {
             .map(([rotulo]) => rotulo);
     }, [registros]);
 
-    const temFiltroAtivo = !!periodoAtivo || rotulosSelecionados.length > 0;
+    const temAlgumaNota = useMemo(() => registros.some((registro) => !!registro.note), [registros]);
+
+    const buscaAtiva = busca.trim() !== '';
+    const temFiltroAtivo = !!periodoAtivo || rotulosSelecionados.length > 0 || buscaAtiva;
 
     const descricaoDoRecorte = (() => {
         const prefixo = metrica === 'puffs' ? 'Total de puxadas' : 'Vontade média';
@@ -293,6 +331,7 @@ export default function HistoryScreen({ navigation }) {
     const limparFiltros = () => {
         setPeriodo(null);
         setRotulosSelecionados([]);
+        setBusca('');
         setFiltro('day');
     };
 
@@ -431,6 +470,37 @@ export default function HistoryScreen({ navigation }) {
                         ))}
                     </View>
 
+                    {/* Campo de busca só aparece pra quem tem anotação — sem nota
+                    nenhuma ele seria um filtro que só sabe esvaziar a tela. */}
+                    {temAlgumaNota ? (
+                        <View
+                            style={[
+                                styles.searchRow,
+                                { borderColor: cores.border, backgroundColor: cores.inputBg },
+                            ]}
+                        >
+                            <Ionicons name="search" size={16} color={cores.textMuted} />
+                            <TextInput
+                                style={[styles.searchInput, { color: cores.text }]}
+                                placeholder="Buscar nas anotações"
+                                placeholderTextColor={cores.textMuted}
+                                value={busca}
+                                onChangeText={setBusca}
+                                autoCorrect={false}
+                                returnKeyType="search"
+                            />
+                            {busca !== '' ? (
+                                <TouchableOpacity onPress={() => setBusca('')}>
+                                    <Ionicons
+                                        name="close-circle"
+                                        size={18}
+                                        color={cores.textMuted}
+                                    />
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+                    ) : null}
+
                     {rotulosDisponiveis.length > 0 ? (
                         <ScrollView
                             horizontal
@@ -488,6 +558,7 @@ export default function HistoryScreen({ navigation }) {
                                 {rotulosSelecionados.length > 0
                                     ? ` · ${rotulosSelecionados.join(', ')}`
                                     : ''}
+                                {buscaAtiva ? ` · “${busca.trim()}”` : ''}
                             </Text>
                             <TouchableOpacity onPress={limparFiltros}>
                                 <Text
@@ -607,8 +678,8 @@ export default function HistoryScreen({ navigation }) {
                             </View>
                         ) : null}
 
-                        {todosOsRegistros.length > 0
-                            ? todosOsRegistros.map((reg) => (
+                        {registrosVisiveis.length > 0
+                            ? registrosVisiveis.map((reg) => (
                                   <View
                                       key={reg.id}
                                       style={[
@@ -651,8 +722,11 @@ export default function HistoryScreen({ navigation }) {
                                                       { color: cores.textMuted },
                                                   ]}
                                               >
-                                                  {iconeDaIntensidade(reg.intensity)} Vontade:{' '}
-                                                  {reg.intensity}/10
+                                                  {iconeDaIntensidade(
+                                                      normalizarIntensidade(reg.intensity)
+                                                  )}{' '}
+                                                  Vontade: {normalizarIntensidade(reg.intensity)}
+                                                  /10
                                               </Text>
                                           </View>
                                           <View style={styles.actionButtons}>
@@ -721,6 +795,23 @@ export default function HistoryScreen({ navigation }) {
                               ))
                             : null}
                     </GradeDeCards>
+
+                    {registrosRestantes > 0 ? (
+                        <TouchableOpacity
+                            style={[
+                                styles.carregarMaisBtn,
+                                { backgroundColor: cores.card, borderColor: cores.border },
+                            ]}
+                            onPress={() =>
+                                setLimiteDoHistorico((atual) => atual + PAGINA_DO_HISTORICO)
+                            }
+                        >
+                            <Text style={[styles.carregarMaisTexto, { color: cores.primary }]}>
+                                Carregar mais ({Math.min(registrosRestantes, PAGINA_DO_HISTORICO)}{' '}
+                                de {registrosRestantes})
+                            </Text>
+                        </TouchableOpacity>
+                    ) : null}
 
                     <View style={{ height: 24 }} />
                 </View>
@@ -1266,6 +1357,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     filterBtnText: { fontSize: 12, fontFamily: 'Poppins_600SemiBold' },
+    searchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginHorizontal: 16,
+        marginTop: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+    },
+    searchInput: {
+        flex: 1,
+        paddingVertical: 8,
+        fontSize: 14,
+        fontFamily: 'Poppins_400Regular',
+    },
     tagFilterScroll: { marginTop: 12 },
     tagFilterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
     activeFilterRow: {
@@ -1319,6 +1427,15 @@ const styles = StyleSheet.create({
     },
     emptySubtitle: { fontSize: 13, fontFamily: 'Poppins_400Regular', marginTop: 4 },
     histItem: { borderRadius: RAIO.md, padding: 14, marginHorizontal: 16, marginTop: 10 },
+    carregarMaisBtn: {
+        borderRadius: RAIO.md,
+        borderWidth: 1,
+        paddingVertical: 12,
+        marginHorizontal: 16,
+        marginTop: 12,
+        alignItems: 'center',
+    },
+    carregarMaisTexto: { fontSize: 13, fontFamily: 'Poppins_600SemiBold' },
     histTop: { flexDirection: 'row', alignItems: 'flex-start' },
     histDate: { fontSize: 13, fontFamily: 'Poppins_700Bold' },
     histPuffs: { fontSize: 14, fontFamily: 'Poppins_800ExtraBold' },

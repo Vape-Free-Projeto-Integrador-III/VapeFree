@@ -20,8 +20,8 @@ import {
     obterSessoesDeCrise,
     salvarSessaoDeCrise,
     sincronizarGamificacao,
-    dataDeHoje,
 } from '../utils/storage';
+import { chaveDeDataLocal } from '../utils/datas';
 import { usarToast } from '../context/ToastContext';
 import {
     metodoDeCriseRecomendado,
@@ -64,8 +64,10 @@ function formatarRelogio(totalSegundos) {
     return `${minutos}:${String(segundos).padStart(2, '0')}`;
 }
 
-function horaAtualString() {
-    const d = new Date();
+// 'HH:MM' local de um instante. A sessão de crise usa a hora em que a vontade
+// bateu (abertura da tela), não a hora em que o usuário respondeu o modal —
+// é essa hora que alimenta o horário de risco e o lembrete agendado.
+function horaDaData(d) {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
@@ -107,6 +109,24 @@ export default function CrisisScreen({ navigation, route }) {
         );
         setRecomendado(metodoDeCriseRecomendado(sessoes));
     }, []);
+
+    const segundosDecorridos = useCallback(
+        () => Math.round((Date.now() - iniciadoEm.current) / 1000),
+        []
+    );
+
+    // Abre o modal de "como foi?" com o que já se sabe da sessão. Precisa vir
+    // antes dos efeitos que o listam nas deps (const, não é hoisted).
+    const encerrar = useCallback(
+        (metodo, durationSec, completed) => {
+            setPendente({
+                method: metodo ?? metodoAtivo,
+                durationSec: durationSec ?? segundosDecorridos(),
+                completed: completed === true,
+            });
+        },
+        [metodoAtivo, segundosDecorridos]
+    );
 
     useFocusEffect(
         useCallback(() => {
@@ -163,7 +183,7 @@ export default function CrisisScreen({ navigation, route }) {
             esperaRetomadaEmRef.current = null;
             encerrar('timer', SEGUNDOS_DE_ESPERA, true);
         }
-    }, [esperaRodando, tempoRestante]);
+    }, [esperaRodando, tempoRestante, encerrar]);
 
     useEffect(() => {
         return () => {
@@ -183,11 +203,7 @@ export default function CrisisScreen({ navigation, route }) {
             e.preventDefault();
             encerrar(metodoAtivo, segundosDecorridos(), false);
         });
-    }, [navigation, metodoAtivo, pendente]);
-
-    function segundosDecorridos() {
-        return Math.round((Date.now() - iniciadoEm.current) / 1000);
-    }
+    }, [navigation, metodoAtivo, pendente, encerrar, segundosDecorridos]);
 
     // Segundos de espera já corridos, contando o trecho em curso.
     function esperaDecorrida() {
@@ -207,15 +223,6 @@ export default function CrisisScreen({ navigation, route }) {
         setEsperaRodando(!esperaRodando);
     }
 
-    // Abre o modal de "como foi?" com o que já se sabe da sessão.
-    function encerrar(metodo, durationSec, completed) {
-        setPendente({
-            method: metodo ?? metodoAtivo,
-            durationSec: durationSec ?? segundosDecorridos(),
-            completed: completed === true,
-        });
-    }
-
     // "Agora não": usuário pediu ajuda mas não quis contar o desfecho — não
     // vira sessão registrada, só fecha a tela (sem XP, sem contar pras stats).
     function pular() {
@@ -228,10 +235,14 @@ export default function CrisisScreen({ navigation, route }) {
         if (salvandoRef.current) return;
         salvandoRef.current = true;
 
+        // date/time saem do início da crise, não do momento do salvamento: numa
+        // crise longa (ou virando a meia-noite) o registro sairia deslocado.
+        const inicio = new Date(iniciadoEm.current);
+
         const resultado = await salvarSessaoDeCrise({
             id: Date.now(),
-            date: dataDeHoje(),
-            time: horaAtualString(),
+            date: chaveDeDataLocal(inicio),
+            time: horaDaData(inicio),
             method: pendente?.method ?? null,
             durationSec: pendente?.durationSec ?? segundosDecorridos(),
             completed: pendente?.completed === true,

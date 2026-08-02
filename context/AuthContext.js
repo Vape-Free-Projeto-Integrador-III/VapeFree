@@ -13,10 +13,11 @@
 // Firebase (ver services/firebase.js). O AsyncStorage usado aqui guarda
 // apenas a preferência "está em modo convidado?" (true/false).
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '../services/firebase';
+import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
 import { contarPendencias, sincronizar } from '../utils/offline';
 import { descartarEspelhoDaConta } from '../utils/storage';
 import {
@@ -37,6 +38,8 @@ const AuthContext = createContext({
     migrando: false,
     iniciarMigracao: () => {},
     concluirMigracao: () => {},
+    pedirEscolhaDeDadosDeConvidado: async () => 'skip',
+    atualizarUsuario: async () => {},
     continuarSemConta: async () => {},
     sair: async () => {},
 });
@@ -56,6 +59,35 @@ export function AuthProvider({ children }) {
     // aberturas derivados de um histórico ainda vazio por cima do que a
     // migração acabou de subir (ou vice-versa). Ver docs/auth.md.
     const [migrando, setMigrando] = useState(false);
+    // Pergunta "o que fazer com os dados de convidado?". Mora AQUI, e não na
+    // tela de login, porque ela só pode ser feita DEPOIS do signIn: antes de
+    // logar não dá pra saber se a conta de destino já tem progresso salvo (e
+    // importar SOBREPÕE o que estiver lá). Depois do signIn a AuthStack já
+    // desmontou (ver AppNavigator: migrando -> loading), então um modal da tela
+    // sumiria no meio da pergunta. O AuthProvider fica montado o app inteiro.
+    const [escolhaDeConvidado, setEscolhaDeConvidado] = useState(null);
+    const resolverEscolhaRef = useRef(null);
+
+    const responderEscolhaDeConvidado = useCallback((resultado) => {
+        setEscolhaDeConvidado(null);
+        const resolver = resolverEscolhaRef.current;
+        resolverEscolhaRef.current = null;
+        if (resolver) {
+            resolver(resultado);
+        }
+    }, []);
+
+    // Devolve 'import' | 'discard' | 'skip'. 'skip' é o "decido depois": os
+    // dados de convidado continuam salvos no aparelho e a pergunta volta no
+    // próximo login — nada é apagado nem sobreposto.
+    const pedirEscolhaDeDadosDeConvidado = useCallback(
+        (config) =>
+            new Promise((resolve) => {
+                resolverEscolhaRef.current = resolve;
+                setEscolhaDeConvidado(config);
+            }),
+        []
+    );
 
     useEffect(() => {
         let montado = true;
@@ -90,8 +122,10 @@ export function AuthProvider({ children }) {
                     AsyncStorage.removeItem(CHAVE_MODO_CONVIDADO).catch(() => {});
                 } else {
                     // Rede de segurança: sem usuário não há migração possível,
-                    // então nunca deixamos a trava presa (ex.: logout no meio).
+                    // então nunca deixamos a trava presa (ex.: logout no meio)
+                    // nem a pergunta aberta sem conta de destino.
                     setMigrando(false);
+                    responderEscolhaDeConvidado('skip');
                 }
             },
             (erro) => {
@@ -108,7 +142,9 @@ export function AuthProvider({ children }) {
             montado = false;
             cancelarInscricao();
         };
-    }, []);
+        // responderEscolhaDeConvidado é estável (useCallback sem dependência),
+        // então isto continua rodando uma vez só.
+    }, [responderEscolhaDeConvidado]);
 
     // Agenda/cancela as notificações motivadoras conforme o usuário está
     // "dentro do app" (logado OU em modo convidado) ou não (tela de Login).
@@ -147,6 +183,28 @@ export function AuthProvider({ children }) {
     const iniciarMigracao = useCallback(() => setMigrando(true), []);
     const concluirMigracao = useCallback(() => setMigrando(false), []);
 
+    // Recarrega o usuário do Firebase e força o re-render de quem consome o
+    // context. Necessário porque updateProfile/updateEmail NÃO disparam o
+    // onAuthStateChanged: sem isto o `usuario` daqui fica com o displayName
+    // antigo até o app ser reaberto (a Profile mostrava o nome velho).
+    //
+    // O clone preserva o prototype do User do Firebase — só trocar a
+    // identidade do objeto (o que o React precisa pra re-renderizar) sem
+    // perder os métodos do SDK (getIdToken, reload, delete...).
+    const atualizarUsuario = useCallback(async () => {
+        const atual = auth.currentUser;
+        if (!atual) return;
+        try {
+            await atual.reload();
+        } catch (erro) {
+            // Sem internet o reload falha; o que já está em memória segue valendo.
+            console.log('Erro ao recarregar o usuário:', erro);
+        }
+        const recarregado = auth.currentUser;
+        if (!recarregado) return;
+        setUsuario(Object.assign(Object.create(Object.getPrototypeOf(recarregado)), recarregado));
+    }, []);
+
     // Chamado pelo botão "Continuar sem conta" na tela de Login.
     async function continuarSemConta() {
         await AsyncStorage.setItem(CHAVE_MODO_CONVIDADO, 'true');
@@ -165,11 +223,23 @@ export function AuthProvider({ children }) {
                 // Tenta subir o que ficou na fila antes de sair. Se ainda sobrar algo
                 // (sem internet), o espelho e a fila FICAM salvos — ao logar de novo
                 // nesse aparelho o dado sobe. Só descartamos com a fila zerada.
-                const { pendentes } = await sincronizar(uid);
-                if (pendentes === 0 && (await contarPendencias(uid)) === 0) {
-                    await descartarEspelhoDaConta(uid);
+                try {
+                    const { pendentes } = await sincronizar(uid);
+                    if (pendentes === 0 && (await contarPendencias(uid)) === 0) {
+                        await descartarEspelhoDaConta(uid);
+                    }
+                } catch (erro) {
+                    // Falha na sincronização não pode travar a saída: o espelho e a
+                    // fila ficam salvos e sobem no próximo login neste aparelho.
+                    console.log('Erro ao sincronizar antes de sair:', erro);
                 }
-                await signOut(auth);
+                try {
+                    await signOut(auth);
+                } catch (erro) {
+                    // Sem internet o signOut pode falhar; o onAuthStateChanged
+                    // corrige o estado quando a sessão realmente cair.
+                    console.log('Erro ao encerrar a sessão:', erro);
+                }
             }
         } finally {
             await AsyncStorage.removeItem(CHAVE_MODO_CONVIDADO).catch(() => {});
@@ -188,11 +258,24 @@ export function AuthProvider({ children }) {
                 migrando,
                 iniciarMigracao,
                 concluirMigracao,
+                pedirEscolhaDeDadosDeConvidado,
+                atualizarUsuario,
                 continuarSemConta,
                 sair,
             }}
         >
             {children}
+            <GuestDataChoiceModal
+                visivel={escolhaDeConvidado !== null}
+                titulo={escolhaDeConvidado?.titulo}
+                mensagem={escolhaDeConvidado?.mensagem}
+                rotuloImportar={escolhaDeConvidado?.rotuloImportar}
+                rotuloDescartar={escolhaDeConvidado?.rotuloDescartar}
+                rotuloCancelar="Decido depois"
+                aoImportar={() => responderEscolhaDeConvidado('import')}
+                aoDescartar={() => responderEscolhaDeConvidado('discard')}
+                aoCancelar={() => responderEscolhaDeConvidado('skip')}
+            />
         </AuthContext.Provider>
     );
 }

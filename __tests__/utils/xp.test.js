@@ -79,6 +79,25 @@ describe('calcularXp', () => {
         expect(calcularXp([], [], [{ id: 'x_2026-03-01', xp: 40 }])).toBe(40);
     });
 
+    it('nao conta duas vezes a missao ja coberta pelo resumo', () => {
+        // Delete que falhou: a entrada crua de 2026-03-01 voltou do servidor e
+        // convive com o resumo que já a contou (until = 2026-03-02).
+        const missoes = [
+            { id: '_resumo', summary: true, xp: 70, count: 2, until: '2026-03-02' },
+            { id: 'x_2026-03-01', periodKey: '2026-03-01', xp: 40 },
+            { id: 'y_2026-03-05', periodKey: '2026-03-05', xp: 25 },
+        ];
+        expect(calcularXp([], [], missoes)).toBe(70 + 25);
+    });
+
+    it('soma missao antiga sem periodKey mesmo com resumo presente', () => {
+        const missoes = [
+            { id: '_resumo', summary: true, xp: 70, until: '2026-03-02' },
+            { id: 'x_antiga', xp: 40 },
+        ];
+        expect(calcularXp([], [], missoes)).toBe(110);
+    });
+
     it('ignora conquista com id desconhecido', () => {
         expect(calcularXp([], [{ id: 'nao_existe' }])).toBe(0);
     });

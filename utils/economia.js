@@ -29,6 +29,19 @@ export function economiaAcumuladaAte(economia, data) {
     );
 }
 
+// Economia de um intervalo meio-aberto [de, ate) de 'YYYY-MM-DD' (comparação
+// lexicográfica, como no resto do app). `de` null = sem início, `ate` null =
+// sem fim — é o formato dos períodos de vigência de utils/aparelhos.js.
+export function economiaNoIntervalo(economia, de, ate) {
+    if (!economia) return 0;
+    const soma = Object.keys(economia).reduce((total, dia) => {
+        if (de !== null && de !== undefined && dia < de) return total;
+        if (ate !== null && ate !== undefined && dia >= ate) return total;
+        return total + valorDoDia(economia, dia);
+    }, 0);
+    return parseFloat(soma.toFixed(2));
+}
+
 // Série de economia acumulada nos dias pedidos: cada ponto é o total no bolso
 // ao fim daquele dia, incluindo o que veio antes da janela.
 // `dias` é uma lista de 'YYYY-MM-DD' em ordem crescente (ex.: ultimosNDias(30)).

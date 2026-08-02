@@ -74,6 +74,33 @@ export function contarDiasLimpos(registros) {
     ).length;
 }
 
+// Id da entrada de resumo das missões já consolidadas (ver o bloco de missões
+// em utils/storage.js, que importa esta constante daqui). Ela mora na mesma
+// lista das missões cruas e tem `xp` próprio — a soma abaixo depende disso.
+export const ID_DO_RESUMO_DE_MISSOES = '_resumo';
+
+// O resumo carrega o xp de TODO período fechado até `until`. A entrada crua
+// desses períodos deveria ter sido apagada na consolidação, mas um delete que
+// falhou volta do servidor na leitura seguinte — somar as duas infla o XP.
+// Por isso a entrada com `periodKey <= until` é descartada aqui, sem depender
+// de a consolidação ter rodado antes (o que era só uma garantia de ordem).
+// Entrada sem `periodKey` (formato antigo) continua somando: não dá pra saber
+// se o resumo já a cobre, e perder XP é pior que o risco de contar duas vezes.
+function somarXpDeMissoes(missoesConcluidas) {
+    const lista = missoesConcluidas || [];
+    const resumo = lista.find((missao) => missao?.id === ID_DO_RESUMO_DE_MISSOES);
+    const contadoAte = resumo?.until ?? '';
+
+    return lista.reduce((soma, missao) => {
+        const jaEstaNoResumo =
+            contadoAte &&
+            missao !== resumo &&
+            missao?.periodKey != null &&
+            String(missao.periodKey) <= contadoAte;
+        return jaEstaNoResumo ? soma : soma + (missao?.xp || 0);
+    }, 0);
+}
+
 // conquistasDesbloqueadas: array [{ id, unlockedAt }] vindo de obterConquistas().
 // missoesConcluidas: array [{ id, missionId, xp, completedAt }] vindo de
 // obterMissoes(). Aqui usamos o xp gravado na própria entrada (e não o valor
@@ -90,10 +117,7 @@ export function calcularXp(registros = [], conquistasDesbloqueadas = [], missoes
         0
     );
 
-    const xpDeMissoes = (missoesConcluidas || []).reduce(
-        (soma, missao) => soma + (missao.xp || 0),
-        0
-    );
+    const xpDeMissoes = somarXpDeMissoes(missoesConcluidas);
 
     return xpDeRegistros + xpDeDiasLimpos + xpDeStreak + xpDeConquistas + xpDeMissoes;
 }

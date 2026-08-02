@@ -35,6 +35,7 @@ import {
     calcularLembreteDeDiaCritico,
 } from '../utils/notifications';
 import { exportarDados } from '../utils/exportacao';
+import { importarBackup } from '../utils/importacao';
 import ScreenHeader from '../components/ScreenHeader';
 
 // Horários oferecidos pro lembrete diário: de meia em meia hora. É mais simples
@@ -53,6 +54,13 @@ const MOTIVO_DA_EXPORTACAO = {
     sem_dados: 'Você ainda não tem registro nenhum pra exportar.',
     sem_compartilhamento: 'Esse aparelho não tem como compartilhar arquivos.',
     falhou: 'Não deu pra gerar o arquivo. Tenta de novo daqui a pouco.',
+};
+
+const MOTIVO_DA_IMPORTACAO = {
+    formato: 'Esse arquivo não parece um backup do VapeFree. Escolhe o JSON que o app exportou.',
+    vazio: 'Esse backup não tem nenhum registro dentro.',
+    rede: 'Importar pra sua conta precisa de internet. Conecta e tenta de novo.',
+    falhou: 'Não deu pra ler o arquivo. Tenta de novo.',
 };
 
 // A linha de metas cobre as duas (redução e dinheiro), que são independentes:
@@ -79,6 +87,7 @@ export default function SettingsScreen({ navigation }) {
     const [seletorDeHorarioVisivel, setSeletorDeHorarioVisivel] = useState(false);
     const [apagando, setApagando] = useState(false);
     const [exportando, setExportando] = useState(false);
+    const [importando, setImportando] = useState(false);
 
     const versao = Constants.expoConfig?.version ?? '—';
 
@@ -172,6 +181,53 @@ export default function SettingsScreen({ navigation }) {
         }
     }
 
+    function handleImportar() {
+        Alert.alert(
+            'Importar backup',
+            'O backup SUBSTITUI o que está salvo hoje: registros, conquistas, missões, economia e aparelho. Não dá pra desfazer.',
+            [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Escolher arquivo', onPress: importar },
+            ]
+        );
+    }
+
+    async function importar() {
+        setImportando(true);
+        try {
+            const resultado = await importarBackup();
+
+            if (!resultado.ok) {
+                // Fechar o seletor de arquivos não é erro.
+                if (resultado.motivo !== 'cancelado') {
+                    mostrarErro(
+                        'Erro',
+                        MOTIVO_DA_IMPORTACAO[resultado.motivo] || MOTIVO_DA_IMPORTACAO.falhou
+                    );
+                }
+                return;
+            }
+
+            // A tela não remonta depois da importação: o state precisa
+            // acompanhar as metas que acabaram de vir do backup.
+            setMeta(await obterMeta());
+            setMetaDeDinheiro(await obterMetaDeDinheiro());
+            if (preferencias) {
+                const { hora, minuto } = preferencias;
+                setHorarioDeRisco(await calcularHorarioDoLembreteDeRisco(hora, minuto));
+                setLembreteDeDiaCritico(await calcularLembreteDeDiaCritico(hora, minuto));
+            }
+
+            mostrarAviso(
+                'Backup importado',
+                `${resultado.resumo.registros} registro(s) voltaram pro app.`,
+                'sucesso'
+            );
+        } finally {
+            setImportando(false);
+        }
+    }
+
     function handleApagarDados() {
         Alert.alert(
             'Apagar todos os meus dados',
@@ -197,6 +253,19 @@ export default function SettingsScreen({ navigation }) {
                         : 'Apagar os dados da conta precisa de internet. Conecta e tenta de novo.'
                 );
                 return;
+            }
+            // A tela não remonta depois de apagar, então o state precisa
+            // acompanhar: senão a linha "Minhas metas" segue mostrando meta que
+            // já não existe mais.
+            setMeta(null);
+            setMetaDeDinheiro(null);
+            // Os dois lembretes derivados saem das sessões de crise e dos
+            // registros, que também foram apagados — recalcula com o horário
+            // atual do lembrete diário.
+            if (preferencias) {
+                const { hora, minuto } = preferencias;
+                setHorarioDeRisco(await calcularHorarioDoLembreteDeRisco(hora, minuto));
+                setLembreteDeDiaCritico(await calcularLembreteDeDiaCritico(hora, minuto));
             }
             mostrarAviso('Pronto', 'Seus dados foram apagados. Dá pra começar do zero.', 'sucesso');
         } finally {
@@ -375,6 +444,18 @@ export default function SettingsScreen({ navigation }) {
                         descricao: 'Leva seu histórico em CSV ou JSON',
                         aoPressionar: exportando ? undefined : handleExportar,
                         direita: exportando ? (
+                            <ActivityIndicator color={cores.primary} />
+                        ) : undefined,
+                    })}
+
+                    {divisor}
+
+                    {renderizarLinha({
+                        icone: 'cloud-upload-outline',
+                        rotulo: 'Importar backup',
+                        descricao: 'Traz de volta um JSON exportado pelo app',
+                        aoPressionar: importando ? undefined : handleImportar,
+                        direita: importando ? (
                             <ActivityIndicator color={cores.primary} />
                         ) : undefined,
                     })}

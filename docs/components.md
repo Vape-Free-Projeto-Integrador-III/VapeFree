@@ -30,6 +30,8 @@ Quem decide o número de colunas é `usarLayoutResponsivo()` (`utils/responsivo.
 
 Modal genérico de 3 botões (Importar / Descartar / Cancelar) usado só no fluxo de login/cadastro quando existem dados de convidado a resolver. Props: `visivel`, `titulo`, `mensagem`, `rotuloImportar`, `rotuloDescartar`, `rotuloCancelar` (default `'Cancelar'`), `aoImportar`, `aoDescartar`, `aoCancelar`. Ver uso em [auth.md](auth.md).
 
+No login quem renderiza é o **`AuthProvider`** (via `pedirEscolhaDeDadosDeConvidado`), não a tela: a pergunta acontece depois do signIn, quando a AuthStack já saiu de cena. O `SignUpScreen` tem instância própria, porque lá a pergunta é antes do cadastro.
+
 Nota: usa paleta de cores própria hardcoded (`#2F6FED` etc.), não vem de `usarTema()` — é intencionalmente neutro/fora do tema claro-escuro do resto do app.
 
 ## `InsightsCard` (`components/InsightsCard.js`)
@@ -86,10 +88,11 @@ Card da `HomeScreen` com as missões **diárias** do dia. Props: `missoes` (já 
 
 ## `OfflineBanner` (`components/OfflineBanner.js`)
 
-Faixa fina no topo, sem props, montada uma única vez em `navigation/AppNavigator.js` acima do `NavigationContainer` — não replique por tela nem mexa no `ScreenHeader`. Lê `usarConexao()` (`context/ConnectionContext.js`) e só aparece pra usuário logado (convidado é sempre local, nunca tem pendência). Dois estados, nessa prioridade:
+Faixa fina no topo, sem props, montada uma única vez em `navigation/AppNavigator.js` acima do `NavigationContainer` — não replique por tela nem mexa no `ScreenHeader`. Lê `usarConexao()` (`context/ConnectionContext.js`) e só aparece pra usuário logado (convidado é sempre local, nunca tem pendência). Três estados, nessa prioridade:
 
 1. **`falhas > 0`** — faixa vermelha (`cores.danger`), ícone de alerta, aparece **mesmo online**: "N alterações não foram salvas na sua conta — toque pra ver". Tocar abre um `Alert` explicando que o dado continua valendo neste aparelho mas pode não estar em outro; "Entendi" chama `descartarFalhas()` e some. É o aviso de mutação que a fila desistiu de enviar — antes isso sumia só com um `console.log`.
 2. **offline** — faixa neutra, texto conforme `pendentes`: "Sem internet — N alterações vão sincronizar depois" ou, com a fila zerada, "Sem internet — seus dados estão salvos no aparelho".
+3. **`dadosIncompletos` estando online** — faixa neutra, ícone de recarregar: "Não deu pra carregar seus dados — toque pra tentar de novo". Tocar chama `recarregarDados()` (que é `precarregarEspelho()`), e a faixa some sozinha quando uma leitura do servidor passa. É o caso da leitura remota que falhou sem espelho pra servir de reserva: sem ele o app só aparecia zerado, como se o histórico tivesse sumido. Offline esse aviso não aparece — a faixa de "sem internet" já explica.
 
 Ver [database.md](database.md).
 

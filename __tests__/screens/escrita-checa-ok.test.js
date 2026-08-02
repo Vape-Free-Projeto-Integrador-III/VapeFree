@@ -59,6 +59,7 @@ jest.mock('../../utils/storage', () => {
         obterSessoesDeCrise: jest.fn(() => Promise.resolve([mockSessaoDeCrise])),
         obterRegistros: jest.fn(() => Promise.resolve([])),
         obterAparelho: jest.fn(() => Promise.resolve(null)),
+        obterHistoricoDeAparelhos: jest.fn(() => Promise.resolve([])),
         obterMeta: jest.fn(() => Promise.resolve(null)),
         obterEconomia: jest.fn(() => Promise.resolve({})),
         recalcularEconomia: jest.fn(() => Promise.resolve({})),

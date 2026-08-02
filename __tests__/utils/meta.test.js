@@ -195,4 +195,48 @@ describe('progressoDaMeta', () => {
     it('devolve null com meta invalida', () => {
         expect(progressoDaMeta(null, [], '2026-03-06')).toBeNull();
     });
+
+    it('rampa em andamento nao esta concluida', () => {
+        const progresso = progressoDaMeta(META, [], '2026-03-06');
+        expect(progresso.concluida).toBe(false);
+        expect(progresso.alcancada).toBe(false);
+    });
+
+    it('o proprio dia final ainda e rampa, nao conclusao', () => {
+        const progresso = progressoDaMeta(META, [], '2026-03-11');
+        expect(progresso.concluida).toBe(false);
+        expect(progresso.diasRestantes).toBe(0);
+    });
+
+    it('marca alcancada quando a semana que fecha a meta ficou no alvo', () => {
+        // Janela dos 7 dias que terminam no endDate: 05/03 a 11/03.
+        const registros = [
+            { date: '2026-03-09', used: true, puffs: 8 },
+            { date: '2026-03-10', used: true, puffs: 10 },
+            { date: '2026-03-11', used: true, puffs: 9 },
+        ];
+        const progresso = progressoDaMeta(META, registros, '2026-03-15');
+        expect(progresso.concluida).toBe(true);
+        expect(progresso.alcancada).toBe(true);
+    });
+
+    it('nao marca alcancada quando a semana final passou do alvo', () => {
+        const registros = [
+            { date: '2026-03-10', used: true, puffs: 40 },
+            { date: '2026-03-11', used: true, puffs: 30 },
+        ];
+        expect(progressoDaMeta(META, registros, '2026-03-15').alcancada).toBe(false);
+    });
+
+    it('ignora registros fora da janela do endDate ao decidir alcancada', () => {
+        // Registrou bem depois do prazo: nao conta como meta alcancada.
+        const registros = [{ date: '2026-03-20', used: true, puffs: 5 }];
+        const progresso = progressoDaMeta(META, registros, '2026-03-21');
+        expect(progresso.concluida).toBe(true);
+        expect(progresso.alcancada).toBe(false);
+    });
+
+    it('sem registro na janela final, alcancada e falso', () => {
+        expect(progressoDaMeta(META, [], '2026-03-15').alcancada).toBe(false);
+    });
 });

@@ -22,15 +22,15 @@ import {
 import { auth } from '../services/firebase';
 import { usarAuth } from '../context/AuthContext';
 import {
+    contaTemDados,
     temDadosLocaisDoConvidado,
     limparDadosLocaisDoConvidado,
     migrarDadosDoConvidadoParaConta,
     salvarPerfilDaConta,
 } from '../utils/storage';
-import GuestDataChoiceModal from '../components/GuestDataChoiceModal';
 
 /*Inicio import pro login do google*/
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 import * as WebBrowser from 'expo-web-browser';
 
@@ -88,77 +88,83 @@ export default function LoginScreen({ navigation }) {
     const [mostrarSenha, setMostrarSenha] = useState(false);
     const [carregando, setCarregando] = useState(false);
     const [enviandoReset, setEnviandoReset] = useState(false);
-    const [escolhaConvidadoVisivel, setEscolhaConvidadoVisivel] = useState(false);
-    const [configEscolhaConvidado, setConfigEscolhaConvidado] = useState(null);
-    const resolverEscolhaConvidadoRef = React.useRef(null);
-    const escolhaConvidadoGooglePendenteRef = React.useRef('skip');
-
-    const { continuarSemConta, iniciarMigracao, concluirMigracao } = usarAuth();
+    const { continuarSemConta, iniciarMigracao, concluirMigracao, pedirEscolhaDeDadosDeConvidado } =
+        usarAuth();
 
     async function handleContinuarSemConta() {
         await continuarSemConta();
     }
 
-    async function perguntarSobreDadosDeConvidado({
-        titulo,
-        mensagem,
-        rotuloImportar,
-        rotuloDescartar,
-    }) {
-        if (!(await temDadosLocaisDoConvidado())) {
-            return 'skip';
-        }
+    // Chamada SEMPRE depois do signIn: é só com o usuário logado que dá pra
+    // saber se a conta de destino já tem progresso — e isso muda tudo, porque
+    // importar os dados de convidado SOBREPÕE o que está na conta (ver
+    // migrarDadosDoConvidadoParaConta). Perguntar antes de logar era o que
+    // fazia o app oferecer "começar do zero" pra uma conta cheia de dados.
+    //
+    // O modal fica no AuthProvider, não aqui: a essa altura a AuthStack já
+    // desmontou (migrando -> loading no AppNavigator).
+    //
+    // useCallback porque o retorno do login com Google chama isto de dentro de
+    // um useEffect (que precisa dela na lista de dependências sem re-rodar a
+    // cada tecla digitada no formulário).
+    const tratarDadosDeConvidado = useCallback(
+        async (uid, nomeDaConta) => {
+            if (!(await temDadosLocaisDoConvidado())) {
+                return;
+            }
 
-        return new Promise((resolve) => {
-            resolverEscolhaConvidadoRef.current = resolve;
-            setConfigEscolhaConvidado({ titulo, mensagem, rotuloImportar, rotuloDescartar });
-            setEscolhaConvidadoVisivel(true);
-        });
-    }
+            const conta = await contaTemDados();
 
-    async function finalizarDadosDeConvidado(uid, escolha) {
-        if (escolha === 'import') {
-            const importado = await migrarDadosDoConvidadoParaConta(uid);
-            if (!importado) {
-                // Importar dados exige internet: é a única operação que não
-                // funciona offline (ver migrarDadosDoConvidadoParaConta).
+            // Leitura que não deu pra confirmar no servidor NÃO vira pergunta:
+            // se a conta tiver histórico e a gente perguntar como se estivesse
+            // vazia, "Usar meus dados" apagaria esse histórico (a importação
+            // sobrepõe). Sem confirmação, o certo é não oferecer nada.
+            if (!conta.ok) {
                 Alert.alert(
-                    'Erro',
-                    'Não deu pra importar seus dados de convidado. Confira sua conexão e tenta de novo — eles continuam salvos aqui no aparelho.'
+                    'Não deu pra conferir sua conta',
+                    'Sua conexão não respondeu, então não dá pra saber se essa conta já tem progresso salvo — e importar por cima poderia apagar ele. Seus dados de convidado continuam neste aparelho; a gente pergunta de novo no próximo login.'
                 );
-                return false;
+                return;
             }
-        }
 
-        if (escolha === 'discard') {
-            await limparDadosLocaisDoConvidado();
-        }
+            const escolha = await pedirEscolhaDeDadosDeConvidado(
+                conta.temDados
+                    ? {
+                          titulo: 'Essa conta já tem progresso',
+                          mensagem: `${nomeDaConta} já tem dados salvos, e você também registrou coisas como convidado neste aparelho. Usar os do convidado SUBSTITUI o que está na conta.`,
+                          rotuloImportar: 'Usar os do convidado',
+                          rotuloDescartar: 'Manter os da conta',
+                      }
+                    : {
+                          titulo: 'Achamos seus dados de convidado',
+                          mensagem: `Você tinha dados salvos como convidado, e ${nomeDaConta} ainda está vazia. Quer levar esses dados pra ela ou começar do zero?`,
+                          rotuloImportar: 'Usar meus dados',
+                          rotuloDescartar: 'Começar do zero',
+                      }
+            );
 
-        return true;
-    }
-
-    function fecharEscolhaConvidado(resultado) {
-        setEscolhaConvidadoVisivel(false);
-        setConfigEscolhaConvidado(null);
-        const resolver = resolverEscolhaConvidadoRef.current;
-        resolverEscolhaConvidadoRef.current = null;
-        if (resolver) {
-            resolver(resultado);
-        }
-    }
-
-    // Se a tela sair com o modal aberto, o await de
-    // perguntarSobreDadosDeConvidado ficaria órfão pra sempre. Resolve 'cancel',
-    // que é o que os dois chamadores já tratam como "não segue".
-    useEffect(() => {
-        return () => {
-            const resolver = resolverEscolhaConvidadoRef.current;
-            resolverEscolhaConvidadoRef.current = null;
-            if (resolver) {
-                resolver('cancel');
+            if (escolha === 'import') {
+                const importado = await migrarDadosDoConvidadoParaConta(uid);
+                if (!importado) {
+                    // Importar dados exige internet: é a única operação que não
+                    // funciona offline (ver migrarDadosDoConvidadoParaConta).
+                    Alert.alert(
+                        'Erro',
+                        'Não deu pra importar seus dados de convidado. Confira sua conexão e tenta de novo — eles continuam salvos aqui no aparelho.'
+                    );
+                }
+                return;
             }
-        };
-    }, []);
+
+            if (escolha === 'discard') {
+                await limparDadosLocaisDoConvidado();
+            }
+
+            // 'skip' (o "decido depois" do modal): os dados de convidado ficam
+            // no aparelho e a pergunta volta no próximo login.
+        },
+        [pedirEscolhaDeDadosDeConvidado]
+    );
 
     const [request, response, promptAsync] = Google.useAuthRequest({
         webClientId: CLIENT_ID_WEB,
@@ -176,11 +182,6 @@ export default function LoginScreen({ navigation }) {
             }
 
             if (response.type !== 'success') {
-                // Cancelou ou deu erro: a escolha sobre os dados de convidado
-                // não vale mais. Se ficasse pendurada no ref, o próximo login
-                // que desse certo importaria/descartaria sem perguntar.
-                escolhaConvidadoGooglePendenteRef.current = 'skip';
-
                 if (response.type === 'error') {
                     Alert.alert('Erro', 'Não deu pra entrar com o Google agora.');
                 }
@@ -218,11 +219,7 @@ export default function LoginScreen({ navigation }) {
                     console.log('Não deu pra salvar o perfil:', perfilSalvo.motivo);
                 }
 
-                await finalizarDadosDeConvidado(
-                    credencialDoUsuario.user.uid,
-                    escolhaConvidadoGooglePendenteRef.current
-                );
-                escolhaConvidadoGooglePendenteRef.current = 'skip';
+                await tratarDadosDeConvidado(credencialDoUsuario.user.uid, 'sua conta Google');
             } catch (erro) {
                 console.log('Erro no login com Google:', erro);
                 Alert.alert('Erro', 'Não deu pra entrar com o Google agora.');
@@ -232,24 +229,13 @@ export default function LoginScreen({ navigation }) {
         }
 
         autenticarComGoogle();
-    }, [response, iniciarMigracao, concluirMigracao]);
+    }, [response, iniciarMigracao, concluirMigracao, tratarDadosDeConvidado]);
 
     async function fazerLogin() {
         const emailFormatado = email.trim();
 
         if (!emailFormatado || !senha) {
             Alert.alert('Opa', 'Preenche seu e-mail e senha pra continuar.');
-            return;
-        }
-
-        const acao = await perguntarSobreDadosDeConvidado({
-            titulo: 'Achamos seus dados de convidado',
-            mensagem: `Você tinha dados salvos como convidado. Quer usar esses dados na conta ${emailFormatado} ou começar do zero?`,
-            rotuloImportar: 'Usar meus dados',
-            rotuloDescartar: 'Começar do zero',
-        });
-
-        if (acao === 'cancel') {
             return;
         }
 
@@ -263,7 +249,7 @@ export default function LoginScreen({ navigation }) {
                 emailFormatado,
                 senha
             );
-            await finalizarDadosDeConvidado(credencialDoUsuario.user.uid, acao);
+            await tratarDadosDeConvidado(credencialDoUsuario.user.uid, `a conta ${emailFormatado}`);
         } catch (erro) {
             if (CREDENCIAIS_INVALIDAS.includes(erro?.code)) {
                 Alert.alert('Erro', 'E-mail ou senha incorretos.');
@@ -328,30 +314,19 @@ export default function LoginScreen({ navigation }) {
             return;
         }
 
-        perguntarSobreDadosDeConvidado({
-            titulo: 'Achamos seus dados de convidado',
-            mensagem: 'Quer levar esses dados pra sua conta Google ou começar do zero?',
-            rotuloImportar: 'Levar meus dados',
-            rotuloDescartar: 'Começar do zero',
-        }).then((acao) => {
-            if (acao === 'cancel') {
-                return;
-            }
+        // A pergunta sobre os dados de convidado vem depois, no retorno do
+        // Google (ver o useEffect acima): só com a conta autenticada dá pra
+        // saber se ela já tem progresso salvo.
+        setCarregando(true);
 
-            escolhaConvidadoGooglePendenteRef.current = acao;
-
-            setCarregando(true);
-
-            promptAsync()
-                .catch((erro) => {
-                    console.log(erro);
-                    Alert.alert('Erro', 'Não deu pra entrar com o Google.');
-                    escolhaConvidadoGooglePendenteRef.current = 'skip';
-                })
-                .finally(() => {
-                    setCarregando(false);
-                });
-        });
+        promptAsync()
+            .catch((erro) => {
+                console.log(erro);
+                Alert.alert('Erro', 'Não deu pra entrar com o Google.');
+            })
+            .finally(() => {
+                setCarregando(false);
+            });
     }
 
     return (
@@ -495,19 +470,6 @@ export default function LoginScreen({ navigation }) {
                         </View>
                     </View>
                 </ScrollView>
-
-                {configEscolhaConvidado ? (
-                    <GuestDataChoiceModal
-                        visivel={escolhaConvidadoVisivel}
-                        titulo={configEscolhaConvidado.titulo}
-                        mensagem={configEscolhaConvidado.mensagem}
-                        rotuloImportar={configEscolhaConvidado.rotuloImportar}
-                        rotuloDescartar={configEscolhaConvidado.rotuloDescartar}
-                        aoImportar={() => fecharEscolhaConvidado('import')}
-                        aoDescartar={() => fecharEscolhaConvidado('discard')}
-                        aoCancelar={() => fecharEscolhaConvidado('cancel')}
-                    />
-                ) : null}
             </KeyboardAvoidingView>
         </View>
     );

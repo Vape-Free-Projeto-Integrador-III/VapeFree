@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -8,7 +8,9 @@ import {
     TextInput,
     Modal,
     Animated,
+    AppState,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Alert from '../utils/alert';
 import { Slider } from '@miblanchard/react-native-slider';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,10 +37,25 @@ import ScreenHeader from '../components/ScreenHeader';
 
 const NOMES_DOS_DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
-function formatarRotuloDaDataSelecionada(dataStr) {
-    if (dataStr === dataDeHoje()) return 'hoje';
+function formatarRotuloDaDataSelecionada(dataStr, hoje) {
+    if (dataStr === hoje) return 'hoje';
     const [ano, mes, dia] = dataStr.split('-');
     return `no dia ${dia}/${mes}/${ano}`;
+}
+
+// Milissegundos até o próximo 00:00:01 local — usado pra reavaliar o "hoje"
+// com o app aberto na virada do dia.
+function msAteAViradaDoDia() {
+    const agora = new Date();
+    const proximaMeiaNoite = new Date(
+        agora.getFullYear(),
+        agora.getMonth(),
+        agora.getDate() + 1,
+        0,
+        0,
+        1
+    );
+    return proximaMeiaNoite.getTime() - agora.getTime();
 }
 
 // Rótulo de cada opção do seletor: "Hoje", "Ontem" ou "Sexta, 18/07".
@@ -47,6 +64,24 @@ function formatarOpcaoDeData(dataStr, hoje) {
     if (dataStr === hoje) return `Hoje · ${dia}/${mes}`;
     if (dataStr === deslocarData(hoje, -1)) return `Ontem · ${dia}/${mes}`;
     return `${NOMES_DOS_DIAS[converterDataLocal(dataStr).getDay()]} · ${dia}/${mes}`;
+}
+
+// O registro guarda rótulos (`triggers`/`helps`), não ids. Pra repovoar os chips
+// ao abrir um dia já registrado, volta rótulo -> id; o que não bate com nenhuma
+// opção é o texto livre do chip "Outro".
+function reconstruirSelecao(opcoes, rotulosSalvos) {
+    const ids = [];
+    let textoOutro = '';
+    for (const rotulo of rotulosSalvos ?? []) {
+        const opcao = opcoes.find((o) => o.rotulo === rotulo);
+        if (opcao) {
+            if (!ids.includes(opcao.id)) ids.push(opcao.id);
+        } else if (!textoOutro) {
+            textoOutro = rotulo;
+            if (!ids.includes('outro')) ids.push('outro');
+        }
+    }
+    return { ids, textoOutro };
 }
 
 export default function RegisterScreen({ navigation }) {
@@ -65,9 +100,53 @@ export default function RegisterScreen({ navigation }) {
     const [dataSelecionada, setDataSelecionada] = useState(dataDeHoje());
     const [mostrarSeletorDeData, setMostrarSeletorDeData] = useState(false);
     const [registroExistente, setRegistroExistente] = useState(null);
+    // O dia atual vira state porque o app pode ficar aberto passando da
+    // meia-noite: sem reavaliar, "Hoje" continuaria apontando pro dia anterior
+    // e o salvamento morreria em "Data fora do prazo".
+    const [hoje, setHoje] = useState(dataDeHoje());
+    const hojeRef = useRef(hoje);
+
+    const sincronizarDiaAtual = useCallback(() => {
+        const atual = dataDeHoje();
+        if (atual === hojeRef.current) return;
+        const anterior = hojeRef.current;
+        hojeRef.current = atual;
+        setHoje(atual);
+        // Quem estava no "Hoje" antigo acompanha a virada; quem estava num dia
+        // que saiu da janela de registro também é puxado pro dia novo.
+        setDataSelecionada((selecionada) =>
+            selecionada === anterior || !dataEhRegistravel(selecionada) ? atual : selecionada
+        );
+    }, []);
+
+    // Reavalia ao focar a tela, ao voltar do background e na própria virada do
+    // dia (o timer cobre o caso do app ficar parado nesta tela).
+    useFocusEffect(
+        useCallback(() => {
+            let temporizador;
+            const agendarViradaDoDia = () => {
+                temporizador = setTimeout(() => {
+                    sincronizarDiaAtual();
+                    agendarViradaDoDia();
+                }, msAteAViradaDoDia());
+            };
+
+            sincronizarDiaAtual();
+            agendarViradaDoDia();
+            const inscricao = AppState.addEventListener('change', (estado) => {
+                if (estado === 'active') sincronizarDiaAtual();
+            });
+
+            return () => {
+                clearTimeout(temporizador);
+                inscricao.remove();
+            };
+        }, [sincronizarDiaAtual])
+    );
 
     // Só dá pra registrar hoje e os DIAS_PARA_TRAS_NO_REGISTRO dias anteriores
-    // (mais recente primeiro na lista).
+    // (mais recente primeiro na lista). Recalculado a cada render — `hoje`
+    // mudar de valor é o que garante que a lista acompanhe a virada.
     const datasDisponiveis = datasRegistraveis().slice().reverse();
 
     React.useEffect(() => {
@@ -77,10 +156,30 @@ export default function RegisterScreen({ navigation }) {
             if (!montado) return;
             const existente = todosOsRegistros.find((r) => r.date === dataSelecionada);
             setRegistroExistente(existente || null);
-            // A anotação é o único campo que volta preenchido ao trocar de data:
-            // salvar sobrescreve o registro do dia, e texto escrito à mão sumindo
-            // em silêncio dói bem mais que um chip perdido.
-            setNota(existente?.note ?? '');
+            // Salvar sobrescreve o registro do dia inteiro, então o formulário
+            // volta preenchido com o que já estava salvo — senão "Sobrescrever"
+            // gravaria campos vazios por cima, em silêncio.
+            if (existente) {
+                const gatilhosSalvos = reconstruirSelecao(GATILHOS, existente.triggers);
+                const ajudasSalvas = reconstruirSelecao(AJUDAS, existente.helps);
+                setUsou(existente.used ?? null);
+                setPuxadas(existente.puffs ?? 0);
+                setGatilhos(gatilhosSalvos.ids);
+                setGatilhoOutro(gatilhosSalvos.textoOutro);
+                setAjudas(ajudasSalvas.ids);
+                setAjudaOutro(ajudasSalvas.textoOutro);
+                setIntensidade(existente.intensity ?? 5);
+                setNota(existente.note ?? '');
+            } else {
+                setUsou(null);
+                setPuxadas(0);
+                setGatilhos([]);
+                setGatilhoOutro('');
+                setAjudas([]);
+                setAjudaOutro('');
+                setIntensidade(5);
+                setNota('');
+            }
         };
         verificarRegistroExistente();
         return () => {
@@ -92,6 +191,17 @@ export default function RegisterScreen({ navigation }) {
     // `salvando` (state) é só pro botão; a trava contra duplo toque precisa ser
     // ref, senão o segundo toque lê o state antigo antes do re-render.
     const salvandoRef = useRef(false);
+    // A animação de sucesso só termina ~2,6s depois de salvar: se a tela sair
+    // antes disso, o callback ainda rodaria e faria setState fora da árvore.
+    const estaMontadoRef = useRef(true);
+
+    React.useEffect(() => {
+        estaMontadoRef.current = true;
+        return () => {
+            estaMontadoRef.current = false;
+            animacaoDeFade.stopAnimation();
+        };
+    }, [animacaoDeFade]);
 
     const mostrarSucesso = (msg) => {
         setMensagemDeSucesso(msg);
@@ -99,7 +209,10 @@ export default function RegisterScreen({ navigation }) {
             Animated.timing(animacaoDeFade, { toValue: 1, duration: 300, useNativeDriver: true }),
             Animated.delay(2000),
             Animated.timing(animacaoDeFade, { toValue: 0, duration: 300, useNativeDriver: true }),
-        ]).start(() => resetarFormulario());
+        ]).start(() => {
+            if (!estaMontadoRef.current) return;
+            resetarFormulario();
+        });
     };
 
     const resetarFormulario = () => {
@@ -156,9 +269,24 @@ export default function RegisterScreen({ navigation }) {
         if (usou === null) {
             Alert.alert(
                 'Opa',
-                `Você usou o vape ${formatarRotuloDaDataSelecionada(dataSelecionada)}? Escolhe uma opção.`
+                `Você usou o vape ${formatarRotuloDaDataSelecionada(dataSelecionada, hoje)}? Escolhe uma opção.`
             );
             return;
+        }
+
+        // O dia pode ter virado com a tela aberta. Se a virada mexeu no que
+        // está selecionado, para aqui: o usuário confirma o dia novo antes de
+        // gravar, em vez de salvar num dia que não é mais o que ele viu.
+        if (dataDeHoje() !== hojeRef.current) {
+            const selecionadaEraHoje = dataSelecionada === hojeRef.current;
+            sincronizarDiaAtual();
+            if (selecionadaEraHoje || !dataEhRegistravel(dataSelecionada)) {
+                Alert.alert(
+                    'O dia virou',
+                    'Passou da meia-noite enquanto você preenchia. Confere a data e salva de novo.'
+                );
+                return;
+            }
         }
 
         if (!dataEhRegistravel(dataSelecionada)) {
@@ -166,7 +294,7 @@ export default function RegisterScreen({ navigation }) {
                 'Data fora do prazo',
                 `Só dá pra registrar hoje ou até ${DIAS_PARA_TRAS_NO_REGISTRO} dias atrás.`
             );
-            setDataSelecionada(dataDeHoje());
+            setDataSelecionada(hojeRef.current);
             return;
         }
 
@@ -198,7 +326,7 @@ export default function RegisterScreen({ navigation }) {
             setRegistroExistente(existente);
             Alert.alert(
                 'Dia já registrado',
-                `Você já registrou ${formatarRotuloDaDataSelecionada(dataSelecionada)}. Salvar de novo vai sobrescrever o registro anterior.`,
+                `Você já registrou ${formatarRotuloDaDataSelecionada(dataSelecionada, hoje)}. Salvar de novo vai sobrescrever o registro anterior.`,
                 [
                     { text: 'Cancelar', style: 'cancel' },
                     {
@@ -305,7 +433,7 @@ export default function RegisterScreen({ navigation }) {
 
     const corDaIntensidade =
         intensidade <= 3 ? cores.primary : intensidade <= 6 ? cores.warning : cores.danger;
-    const rotuloDaDataSelecionada = formatarRotuloDaDataSelecionada(dataSelecionada);
+    const rotuloDaDataSelecionada = formatarRotuloDaDataSelecionada(dataSelecionada, hoje);
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
@@ -404,7 +532,7 @@ export default function RegisterScreen({ navigation }) {
                                                     },
                                                 ]}
                                             >
-                                                {formatarOpcaoDeData(data, dataDeHoje())}
+                                                {formatarOpcaoDeData(data, hoje)}
                                             </Text>
                                         </TouchableOpacity>
                                     ))}

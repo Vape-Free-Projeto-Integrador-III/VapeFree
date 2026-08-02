@@ -4,6 +4,7 @@ import {
     serieDeEconomiaAcumulada,
     ganhoDaSerie,
     rotulosEspacados,
+    economiaNoIntervalo,
 } from '../../utils/economia';
 
 const ECONOMIA = {
@@ -102,5 +103,20 @@ describe('rotulosEspacados', () => {
 
     it('formata como DD/MM', () => {
         expect(rotulosEspacados(['2024-03-09'], 5)).toEqual(['09/03']);
+    });
+});
+
+describe('economiaNoIntervalo', () => {
+    it('soma o intervalo meio-aberto [de, ate)', () => {
+        const economia = { '2024-03-01': 1, '2024-03-05': 2, '2024-03-10': 4 };
+
+        expect(economiaNoIntervalo(economia, '2024-03-01', '2024-03-10')).toBe(3);
+        expect(economiaNoIntervalo(economia, '2024-03-10', null)).toBe(4);
+        expect(economiaNoIntervalo(economia, null, '2024-03-05')).toBe(1);
+        expect(economiaNoIntervalo(economia, null, null)).toBe(7);
+    });
+
+    it('sem economia devolve zero', () => {
+        expect(economiaNoIntervalo(null, null, null)).toBe(0);
     });
 });

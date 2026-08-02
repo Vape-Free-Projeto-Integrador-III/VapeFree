@@ -41,20 +41,23 @@ import {
     comTempoLimite,
     enfileirar,
     escreverCache,
+    espelhoEstaCompleto,
     espelhoEstaFresco,
+    esquecerLeituraFria,
     estaOnline,
     invalidarEspelho,
     lerCache,
     limparCacheEFila,
     marcarLeituraDoServidor,
+    registrarLeituraFria,
     sincronizar,
-    temEspelho,
 } from './offline';
 import { verificarConquistas, calcularStreak, calcularEstadoDeStreak } from './achievements';
 import { montarContextoDeMissoes, verificarMissoes } from './missions';
 import { normalizarRegistro, somarPuxadas, custoPorPuxada } from './records';
+import { aparelhoEm, historicoComNovoAparelho, normalizarHistorico } from './aparelhos';
 import { limiteDoDia } from './meta';
-import { resumoDeXp } from './xp';
+import { resumoDeXp, ID_DO_RESUMO_DE_MISSOES } from './xp';
 import { dataDeHoje, ultimosNDias, converterDataLocal, inicioDaSemana } from './datas';
 
 export { calcularStreak, calcularEstadoDeStreak };
@@ -62,6 +65,7 @@ export { calcularStreak, calcularEstadoDeStreak };
 const CHAVES = {
     REGISTROS: '@vapefree_records',
     APARELHO: '@vapefree_device',
+    HISTORICO_DE_APARELHOS: '@vapefree_device_history',
     META: '@vapefree_goal',
     META_DE_DINHEIRO: '@vapefree_money_goal',
     ECONOMIA: '@vapefree_economy',
@@ -107,9 +111,22 @@ const falha = (motivo) => ({ ok: false, motivo });
 // conquista/missão sem desbloquear até a próxima escrita.
 let gamificacaoSuja = true;
 let ultimaSincronizacao = null;
+// Trava de execução única do sincronizarGamificacao() — ver lá embaixo.
+let sincronizacaoDeGamificacaoEmAndamento = null;
 
 export function marcarGamificacaoSuja() {
     gamificacaoSuja = true;
+}
+
+// Memo da abertura do dia: registrarAberturaDoApp() roda a cada foco da Home
+// (trocar de aba já é um foco) e é idempotente, mas sem isso cada foco pagava
+// uma obterDiasDeAbertura(). Guarda uid + dia como o memo da sincronização
+// acima: trocar de conta ou virar o dia derruba sozinho. Só apagar dados
+// precisa limpar na mão.
+let ultimaAbertura = null;
+
+function esquecerAberturaMemoizada() {
+    ultimaAbertura = null;
 }
 
 async function lerJson(chave, padrao) {
@@ -147,30 +164,66 @@ async function lerDaConta(uid, nome, buscarNoServidor, padrao) {
     }
     try {
         const remoto = await comTempoLimite(buscarNoServidor());
+        // Espelho completo: veio do servidor. Isso apaga tanto a marca de
+        // parcial quanto a de leitura fria que uma falha anterior tenha deixado.
         await escreverCache(uid, nome, remoto);
         marcarLeituraDoServidor(uid, nome);
+        esquecerLeituraFria(uid, nome);
         return remoto;
     } catch {
+        // Servidor fora (ou comTempoLimite estourado) COM o espelho frio ou
+        // truncado: o padrão vazio que sai daqui não é o estado da conta, é só
+        // a ausência de resposta. A tela recebe ele porque precisa renderizar
+        // algo, mas a leitura fica marcada — é o que impede uma escrita
+        // derivada de subir por cima da conta (podeEscreverDerivado) e o que
+        // faz o banner avisar que a tela está incompleta.
+        if (!(await espelhoEstaCompleto(uid, nome))) {
+            registrarLeituraFria(uid, nome);
+        }
         return lerCache(uid, nome, padrao);
     }
 }
 
 // Escrita do usuário logado: espelho na hora, fila depois, sincronização em
 // segundo plano (sem await de propósito — a tela não pode esperar a rede).
-async function escreverNaConta(uid, nome, valorNoEspelho, mutacao) {
-    await escreverCache(uid, nome, valorNoEspelho);
+//
+// `parcial` diz se o valor gravado no espelho é o estado da conta ou só um
+// pedaço dele — ver escreverListaNaConta.
+async function escreverNaConta(uid, nome, valorNoEspelho, mutacao, parcial = false) {
+    await escreverCache(uid, nome, valorNoEspelho, parcial);
     await enfileirar(uid, mutacao);
     sincronizar(uid);
 }
 
-// Economia, XP e dias de abertura são valores DERIVADOS que sobem inteiros
-// (não são um documento por item). Se o espelho de origem ainda está frio e
-// não tem rede, esse valor teria sido calculado em cima de um histórico vazio
-// e apagaria o que está na conta — nesse caso é melhor não escrever nada e
-// deixar a próxima leitura online refazer a conta.
+// Escrita de LISTA (registros, conquistas, crises, missões): o valor novo do
+// espelho é montado a partir do que já estava nele (`[...cache, entrada]`). Com
+// o espelho frio — leitura remota que falhou num aparelho novo — isso não
+// resulta na conta, e sim só no que foi escrito DEPOIS da falha. A escrita do
+// usuário sobe igual (a mutação vai pra fila e o servidor não perde nada), mas
+// o espelho nasce marcado como parcial, pra ninguém tratá-lo como verdade: é o
+// que antes deixava o histórico truncado servir de base pra economia e pro XP.
+// A primeira leitura que der certo substitui tudo e limpa a marca.
+async function escreverListaNaConta(uid, nome, lista, mutacao) {
+    const parcial = !(await espelhoEstaCompleto(uid, nome));
+    await escreverNaConta(uid, nome, lista, mutacao, parcial);
+}
+
+// Economia, XP, dias de abertura e histórico de aparelhos são valores DERIVADOS
+// que sobem INTEIROS (o merge_usuario usa mergeFields, que substitui o campo por
+// completo). Calculados em cima de um histórico que não foi carregado, eles
+// APAGAM o que está na conta: o mapa de economia de meses vira o mapa de um dia
+// só.
+//
+// Estar online não prova nada — era exatamente esse o furo. Com o espelho frio
+// e o getDocs estourando o comTempoLimite, obterRegistros devolve [] com o
+// aparelho ONLINE, e a escrita derivada saía por cima da conta. A única prova
+// de que o cálculo enxergou o histórico é o espelho de origem estar COMPLETO,
+// isto é, ter vindo do servidor (nem frio, nem truncado por escrita local).
+//
+// Recusar aqui não perde nada: o valor é derivado, então a próxima leitura que
+// der certo o recalcula igual.
 async function podeEscreverDerivado(uid, nomeDeOrigem) {
-    if (await temEspelho(uid, nomeDeOrigem)) return true;
-    return estaOnline();
+    return espelhoEstaCompleto(uid, nomeDeOrigem);
 }
 
 // Aquece o espelho logo depois do login/reconexão, pra que o app já funcione
@@ -187,6 +240,7 @@ export async function precarregarEspelho() {
         obterSessoesDeCrise(),
         obterMissoes(),
         obterAparelho(),
+        obterHistoricoDeAparelhos(),
         obterMeta(),
         obterMetaDeDinheiro(),
         obterEconomia(),
@@ -213,6 +267,7 @@ export async function obterDadosLocaisDoConvidado() {
     const [
         registros,
         aparelho,
+        historicoDeAparelhos,
         meta,
         metaDeDinheiro,
         economia,
@@ -224,6 +279,7 @@ export async function obterDadosLocaisDoConvidado() {
     ] = await Promise.all([
         lerJson(CHAVES.REGISTROS, []),
         lerJson(CHAVES.APARELHO, null),
+        lerJson(CHAVES.HISTORICO_DE_APARELHOS, []),
         lerJson(CHAVES.META, null),
         lerJson(CHAVES.META_DE_DINHEIRO, null),
         lerJson(CHAVES.ECONOMIA, {}),
@@ -237,6 +293,10 @@ export async function obterDadosLocaisDoConvidado() {
     return {
         registros: Array.isArray(registros) ? registros : [],
         aparelho: aparelho ?? null,
+        // Convidado antigo (aparelho salvo antes do histórico existir) sobe com
+        // a lista vazia — quem lê aplica o mesmo fallback de
+        // obterHistoricoDeAparelhos e trata `device` como válido desde sempre.
+        historicoDeAparelhos: normalizarHistorico(historicoDeAparelhos),
         meta: meta && typeof meta === 'object' ? meta : null,
         metaDeDinheiro:
             metaDeDinheiro && typeof metaDeDinheiro === 'object' ? metaDeDinheiro : null,
@@ -265,6 +325,7 @@ export async function temDadosLocaisDoConvidado() {
 
 export async function limparDadosLocaisDoConvidado() {
     marcarGamificacaoSuja();
+    esquecerAberturaMemoizada();
     await Promise.all(Object.values(CHAVES).map((chave) => AsyncStorage.removeItem(chave)));
 }
 
@@ -389,26 +450,24 @@ async function substituirDocsDaColecao(uid, subcolecao, entradas) {
     await executarEmLotes(obsoletos.map((item) => (lote) => lote.delete(item.ref)));
 }
 
-// Migração é a única operação que NÃO funciona offline: precisa listar o que
-// já existe no servidor pra sobrepor as subcoleções (substituirDocsDaColecao).
-// Por isso exige rede e só limpa os dados locais depois que tudo subiu. Falha
-// no meio deixa dado a mais no servidor, nunca a menos — a próxima tentativa
-// reescreve e limpa o resto. Toda operação passa por
-// comTempoLimite: se a rede cair depois do estaOnline(), o SDK não rejeita e a
-// tela de login ficaria presa pra sempre — o timeout vira falha de migração.
-export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
-    if (!uid || !(await estaOnline())) {
-        return false;
-    }
-
-    const dados = await obterDadosLocaisDoConvidado();
-
+// Sobrepõe TUDO o que a conta tem com `dados` (mesmo formato de
+// obterDadosLocaisDoConvidado). Usado pela migração de convidado e pela
+// importação de backup — as duas únicas escritas em massa do app.
+//
+// NÃO funciona offline: precisa listar o que já existe no servidor pra sobrepor
+// as subcoleções (substituirDocsDaColecao). Falha no meio deixa dado a mais no
+// servidor, nunca a menos — a próxima tentativa reescreve e limpa o resto. Toda
+// operação passa por comTempoLimite: se a rede cair depois do estaOnline(), o
+// SDK não rejeita e a tela que chamou ficaria presa pra sempre — o timeout vira
+// falha.
+async function escreverTudoNaConta(uid, dados) {
     try {
         await comTempoLimite(
             setDoc(
                 doc(db, 'users', uid),
                 {
                     device: dados.aparelho ?? null,
+                    deviceHistory: dados.historicoDeAparelhos,
                     goal: dados.meta ?? null,
                     moneyGoal: dados.metaDeDinheiro ?? null,
                     economy:
@@ -425,13 +484,11 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
         await substituirDocsDaColecao(uid, 'crisisSessions', dados.sessoesDeCrise);
         await substituirDocsDaColecao(uid, 'missions', dados.missoes);
     } catch (e) {
-        // Os dados locais ficam intactos de propósito: o usuário pode tentar
-        // importar de novo com internet.
-        console.log('Erro ao migrar dados de convidado:', e);
+        console.log('Erro ao escrever os dados na conta:', e);
         return false;
     }
 
-    // Já aquece o espelho com o que acabou de subir, pra conta nova funcionar
+    // Já aquece o espelho com o que acabou de subir, pra conta funcionar
     // offline sem precisar de uma leitura remota antes.
     await Promise.all([
         escreverCache(uid, ESPELHOS.REGISTROS, dados.registros),
@@ -439,6 +496,7 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
         escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, dados.sessoesDeCrise),
         escreverCache(uid, ESPELHOS.MISSOES, dados.missoes),
         escreverCache(uid, ESPELHOS.APARELHO, dados.aparelho ?? null),
+        escreverCache(uid, ESPELHOS.HISTORICO_DE_APARELHOS, dados.historicoDeAparelhos),
         escreverCache(uid, ESPELHOS.META, dados.meta ?? null),
         escreverCache(uid, ESPELHOS.META_DE_DINHEIRO, dados.metaDeDinheiro ?? null),
         escreverCache(uid, ESPELHOS.ECONOMIA, dados.economia),
@@ -446,8 +504,129 @@ export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
         escreverCache(uid, ESPELHOS.ABERTURAS, dados.diasDeAbertura),
     ]);
 
+    return true;
+}
+
+// Só limpa os dados locais depois que tudo subiu: falhar antes disso deixa o
+// convidado com o histórico intacto pra tentar de novo com internet.
+export async function migrarDadosDoConvidadoParaConta(uid = obterUid()) {
+    if (!uid || !(await estaOnline())) {
+        return false;
+    }
+
+    const dados = await obterDadosLocaisDoConvidado();
+
+    if (!(await escreverTudoNaConta(uid, dados))) {
+        return false;
+    }
+
     await limparDadosLocaisDoConvidado();
     return true;
+}
+
+// Grava um conjunto completo de dados por cima do que existe hoje — é o caminho
+// de escrita da importação de backup (utils/importacao.js). Sobrepõe, não
+// mistura: o que estava salvo e não veio no backup some.
+//
+// `dados` vem no formato de obterDadosLocaisDoConvidado(); quem monta ele é
+// quem valida (a importação normaliza o JSON antes de chegar aqui).
+export async function substituirTodosOsDados(dados) {
+    const uid = obterUid();
+    marcarGamificacaoSuja();
+    esquecerAberturaMemoizada();
+
+    if (!uid) {
+        try {
+            await Promise.all([
+                AsyncStorage.setItem(CHAVES.REGISTROS, JSON.stringify(dados.registros)),
+                AsyncStorage.setItem(CHAVES.APARELHO, JSON.stringify(dados.aparelho ?? null)),
+                AsyncStorage.setItem(
+                    CHAVES.HISTORICO_DE_APARELHOS,
+                    JSON.stringify(dados.historicoDeAparelhos)
+                ),
+                AsyncStorage.setItem(CHAVES.META, JSON.stringify(dados.meta ?? null)),
+                AsyncStorage.setItem(
+                    CHAVES.META_DE_DINHEIRO,
+                    JSON.stringify(dados.metaDeDinheiro ?? null)
+                ),
+                AsyncStorage.setItem(CHAVES.ECONOMIA, JSON.stringify(dados.economia)),
+                AsyncStorage.setItem(CHAVES.CONQUISTAS, JSON.stringify(dados.conquistas)),
+                AsyncStorage.setItem(CHAVES.CRISE, JSON.stringify(dados.sessoesDeCrise)),
+                AsyncStorage.setItem(CHAVES.MISSOES, JSON.stringify(dados.missoes)),
+                AsyncStorage.setItem(CHAVES.XP, JSON.stringify(dados.xp ?? null)),
+                AsyncStorage.setItem(CHAVES.ABERTURAS, JSON.stringify(dados.diasDeAbertura)),
+            ]);
+            return OK;
+        } catch (e) {
+            console.log('Erro ao importar os dados no modo convidado:', e);
+            return falha('falhou');
+        }
+    }
+
+    if (!(await estaOnline())) {
+        return falha('rede');
+    }
+
+    // A fila pendente é de escritas do estado ANTIGO: deixá-la subir depois da
+    // importação ressuscitaria dado que o backup acabou de substituir.
+    await limparCacheEFila(uid);
+
+    return (await escreverTudoNaConta(uid, dados)) ? OK : falha('rede');
+}
+
+// A conta já tem progresso salvo? Usado no login pra saber se importar os dados
+// de convidado vai SOBREPOR algo (ver escreverTudoNaConta) — é o que muda o
+// texto da pergunta. Só faz sentido chamar com o usuário JÁ logado.
+//
+// Devolve { ok, temDados }: `ok: false` é "NÃO DEU PRA CONFERIR", que é
+// diferente de conta vazia e o login é obrigado a tratar separado. Antes essa
+// distinção não existia e custava dado do usuário: a função lia pelas funções
+// normais, que caem no espelho local quando o servidor falha ou estoura o
+// comTempoLimite — num aparelho novo o espelho está vazio, então uma leitura
+// que só FALHOU virava "conta vazia", o modal oferecia importar sem avisar da
+// sobreposição e substituirDocsDaColecao apagava o histórico da nuvem.
+//
+// Por isso aqui a leitura é direta no Firestore, sem passar por lerDaConta: o
+// fallback pro espelho é justamente o que não pode acontecer nesta pergunta.
+export async function contaTemDados() {
+    const uid = obterUid();
+    if (!uid) return { ok: true, temDados: false };
+
+    if (!(await estaOnline())) {
+        return { ok: false, temDados: false };
+    }
+
+    // Fila pendente = escrita local que ainda não subiu; o servidor sozinho não
+    // é a verdade completa da conta, então também não dá pra afirmar nada.
+    const { pendentes } = await sincronizar(uid);
+    if (pendentes > 0) {
+        return { ok: false, temDados: false };
+    }
+
+    try {
+        const [perfil, ...colecoes] = await Promise.all([
+            comTempoLimite(getDoc(doc(db, 'users', uid))),
+            ...SUBCOLECOES.map((subcolecao) =>
+                comTempoLimite(getDocs(collection(db, 'users', uid, subcolecao)))
+            ),
+        ]);
+
+        const dados = perfil.exists() ? (perfil.data() ?? {}) : {};
+
+        return {
+            ok: true,
+            temDados:
+                colecoes.some((snap) => snap.docs.length > 0) ||
+                (dados.device ?? null) !== null ||
+                (dados.goal ?? null) !== null ||
+                (dados.moneyGoal ?? null) !== null ||
+                (dados.xp ?? null) !== null ||
+                Object.keys(dados.economy ?? {}).length > 0,
+        };
+    } catch (e) {
+        console.log('Erro ao conferir se a conta tem dados:', e);
+        return { ok: false, temDados: false };
+    }
 }
 
 // ─── Apagar tudo ────────────────────────────────────────────────────────────
@@ -470,6 +649,7 @@ async function apagarDocsDaColecao(uid, subcolecao) {
 // existindo — quem apaga ele é apagarContaNoBanco, na exclusão de conta.
 async function apagarDadosDaConta(uid) {
     marcarGamificacaoSuja();
+    esquecerAberturaMemoizada();
     await limparCacheEFila(uid);
 
     for (const subcolecao of SUBCOLECOES) {
@@ -486,6 +666,7 @@ async function apagarDadosDaConta(uid) {
             doc(db, 'users', uid),
             {
                 device: null,
+                deviceHistory: [],
                 goal: null,
                 moneyGoal: null,
                 economy: deleteField(),
@@ -504,6 +685,7 @@ async function apagarDadosDaConta(uid) {
         escreverCache(uid, ESPELHOS.SESSOES_DE_CRISE, []),
         escreverCache(uid, ESPELHOS.MISSOES, []),
         escreverCache(uid, ESPELHOS.APARELHO, null),
+        escreverCache(uid, ESPELHOS.HISTORICO_DE_APARELHOS, []),
         escreverCache(uid, ESPELHOS.META, null),
         escreverCache(uid, ESPELHOS.META_DE_DINHEIRO, null),
         escreverCache(uid, ESPELHOS.ECONOMIA, {}),
@@ -648,7 +830,7 @@ export async function salvarRegistro(novoRegistro) {
                     docId: String(antigo.id),
                 });
             }
-            await escreverNaConta(
+            await escreverListaNaConta(
                 uid,
                 ESPELHOS.REGISTROS,
                 [
@@ -675,7 +857,7 @@ export async function excluirRegistro(id) {
     try {
         if (uid) {
             const registros = await lerCache(uid, ESPELHOS.REGISTROS, []);
-            await escreverNaConta(
+            await escreverListaNaConta(
                 uid,
                 ESPELHOS.REGISTROS,
                 registros.filter((r) => r.id !== id),
@@ -712,7 +894,7 @@ export async function atualizarRegistro(registro) {
                     docId: String(antigo.id),
                 });
             }
-            await escreverNaConta(
+            await escreverListaNaConta(
                 uid,
                 ESPELHOS.REGISTROS,
                 [
@@ -748,6 +930,10 @@ export async function atualizarRegistro(registro) {
 // ─── Aparelho ───────────────────────────────────────────────────────────────
 // Modo conta: campo "device" dentro do documento users/{uid}.
 // Modo convidado: AsyncStorage, como já era antes.
+//
+// `device` é sempre o aparelho ATUAL — é ele que a UI inteira lê. Ao lado dele
+// mora `deviceHistory`, a lista de aparelhos com vigência que a economia usa
+// pra precificar cada dia com o aparelho daquela data (ver utils/aparelhos.js).
 
 export async function obterAparelho() {
     const uid = obterUid();
@@ -765,18 +951,72 @@ export async function obterAparelho() {
     return lerJson(CHAVES.APARELHO, null);
 }
 
+// Histórico de aparelhos, em ordem cronológica. Quem nunca trocou de aparelho
+// depois dessa feature não tem o campo salvo: nesse caso o aparelho atual vira
+// a entrada única, SEM `desde` — ou seja, valendo pra todo o passado, que é
+// exatamente o comportamento que o app já tinha.
+export async function obterHistoricoDeAparelhos() {
+    const uid = obterUid();
+    let historico;
+    if (uid) {
+        historico = await lerDaConta(
+            uid,
+            ESPELHOS.HISTORICO_DE_APARELHOS,
+            async () => {
+                const snap = await getDoc(doc(db, 'users', uid));
+                return snap.exists() ? (snap.data().deviceHistory ?? []) : [];
+            },
+            []
+        );
+    } else {
+        historico = await lerJson(CHAVES.HISTORICO_DE_APARELHOS, []);
+    }
+
+    const lista = normalizarHistorico(historico);
+    if (lista.length > 0) return lista;
+
+    const aparelho = await obterAparelho();
+    return normalizarHistorico(aparelho ? [{ ...aparelho }] : []);
+}
+
 export async function salvarAparelho(aparelho) {
     const uid = obterUid();
     marcarGamificacaoSuja();
     try {
+        // O histórico é lido ANTES da escrita do aparelho: depois dela o
+        // fallback de obterHistoricoDeAparelhos já devolveria o aparelho novo
+        // como se ele valesse desde sempre, apagando a vigência do anterior.
+        const historico = historicoComNovoAparelho(
+            await obterHistoricoDeAparelhos(),
+            aparelho,
+            dataDeHoje()
+        );
+
         if (uid) {
             await escreverNaConta(uid, ESPELHOS.APARELHO, aparelho, {
                 tipo: 'merge_usuario',
                 dados: { device: aparelho },
             });
+            // Segunda escrita, mesma fila: offline as duas sobem juntas quando
+            // a rede voltar.
+            //
+            // O histórico é DERIVADO do que já estava salvo (a vigência antiga
+            // vem da leitura acima) e sobe inteiro: montado em cima de uma
+            // leitura que falhou, ele apagaria a vigência de todos os aparelhos
+            // anteriores — e aí a economia do passado seria recalculada com o
+            // preço do vape de agora. Sem espelho de origem confiável, só o
+            // `device` (que o usuário acabou de digitar, e vale por si) sobe; a
+            // vigência entra na próxima vez, já com o histórico carregado.
+            if (await podeEscreverDerivado(uid, ESPELHOS.HISTORICO_DE_APARELHOS)) {
+                await escreverNaConta(uid, ESPELHOS.HISTORICO_DE_APARELHOS, historico, {
+                    tipo: 'merge_usuario',
+                    dados: { deviceHistory: historico },
+                });
+            }
             return OK;
         }
         await AsyncStorage.setItem(CHAVES.APARELHO, JSON.stringify(aparelho));
+        await AsyncStorage.setItem(CHAVES.HISTORICO_DE_APARELHOS, JSON.stringify(historico));
         return OK;
     } catch {
         return falha('rede');
@@ -947,11 +1187,21 @@ export async function definirEconomia(mapaDeEconomia) {
 // disso o dia continua valendo pelo aparelho. `meta` é opcional — sem ela a
 // função lê a atual, então quem não tem a meta em mãos chama com dois
 // argumentos, como antes.
-export async function recalcularEconomia(registros, aparelho, meta) {
+//
+// Cada dia é precificado pelo aparelho que valia NAQUELA data (aparelhoEm, em
+// utils/aparelhos.js), não pelo atual: senão cadastrar um vape mais caro
+// reescreveria a economia do passado inteiro. `historico` também é opcional —
+// sem ele a função lê o atual, pelo mesmo motivo do `meta`.
+export async function recalcularEconomia(registros, aparelho, meta, historico) {
     if (!aparelho) return {};
-    const custoDaPuxada = custoPorPuxada(aparelho);
-    if (custoDaPuxada === null) return {};
+    // Aparelho sem preço/total não precifica nada — nem o dia de hoje, nem o
+    // passado (o histórico descarta entrada assim). Mapa vazio, como antes.
+    if (custoPorPuxada(aparelho) === null) return {};
     const metaAtual = meta !== undefined ? meta : await obterMeta();
+    const historicoAtual =
+        historico !== undefined
+            ? normalizarHistorico(historico)
+            : await obterHistoricoDeAparelhos();
 
     // Agrupa os registros por data
     const porData = {};
@@ -963,10 +1213,13 @@ export async function recalcularEconomia(registros, aparelho, meta) {
     const mapaDeEconomia = {};
     Object.entries(porData).forEach(([data, registrosDoDia]) => {
         const usadasHoje = somarPuxadas(registrosDoDia);
+        const aparelhoDoDia = aparelhoEm(historicoAtual, data) ?? aparelho;
+        const custoDaPuxada = custoPorPuxada(aparelhoDoDia);
         // Sem limite nenhum pro dia não dá pra saber quanto foi poupado.
-        const limite = limiteDoDia(metaAtual, aparelho, data);
+        const limite = limiteDoDia(metaAtual, aparelhoDoDia, data);
         const naoDadas = limite === null ? 0 : Math.max(0, limite - usadasHoje);
-        mapaDeEconomia[data] = parseFloat((naoDadas * custoDaPuxada).toFixed(2));
+        mapaDeEconomia[data] =
+            custoDaPuxada === null ? 0 : parseFloat((naoDadas * custoDaPuxada).toFixed(2));
     });
 
     // O retorno continua sendo o mapa (as telas usam pra setState). Uma falha
@@ -1037,8 +1290,12 @@ export async function registrarAberturaDoApp() {
     const uid = obterUid();
     try {
         const hoje = dataDeHoje();
+        if (ultimaAbertura !== null && ultimaAbertura.uid === uid && ultimaAbertura.dia === hoje) {
+            return ultimaAbertura.dias;
+        }
         const dias = await obterDiasDeAbertura();
         if (dias.includes(hoje)) {
+            ultimaAbertura = { uid, dia: hoje, dias };
             return dias;
         }
         const atualizados = [...dias, hoje].sort().slice(-LIMITE_DE_ABERTURAS);
@@ -1055,6 +1312,7 @@ export async function registrarAberturaDoApp() {
         } else {
             await AsyncStorage.setItem(CHAVES.ABERTURAS, JSON.stringify(atualizados));
         }
+        ultimaAbertura = { uid, dia: hoje, dias: atualizados };
         return atualizados;
     } catch {
         return [];
@@ -1091,7 +1349,7 @@ export async function salvarConquista(idDaConquista, desbloqueadaEm) {
         };
         if (uid) {
             const conquistas = await lerCache(uid, ESPELHOS.CONQUISTAS, []);
-            await escreverNaConta(
+            await escreverListaNaConta(
                 uid,
                 ESPELHOS.CONQUISTAS,
                 conquistas.find((c) => c.id === idDaConquista)
@@ -1211,7 +1469,7 @@ export async function salvarSessaoDeCrise(sessao) {
     try {
         if (uid) {
             const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
-            await escreverNaConta(
+            await escreverListaNaConta(
                 uid,
                 ESPELHOS.SESSOES_DE_CRISE,
                 [...sessoes.filter((s) => s.id !== sessao.id), sessao],
@@ -1236,7 +1494,7 @@ export async function atualizarSessaoDeCrise(sessao) {
     try {
         if (uid) {
             const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
-            await escreverNaConta(
+            await escreverListaNaConta(
                 uid,
                 ESPELHOS.SESSOES_DE_CRISE,
                 [...sessoes.filter((s) => s.id !== sessao.id), sessao],
@@ -1262,7 +1520,7 @@ export async function excluirSessaoDeCrise(id) {
     try {
         if (uid) {
             const sessoes = await lerCache(uid, ESPELHOS.SESSOES_DE_CRISE, []);
-            await escreverNaConta(
+            await escreverListaNaConta(
                 uid,
                 ESPELHOS.SESSOES_DE_CRISE,
                 sessoes.filter((s) => s.id !== id),
@@ -1304,12 +1562,13 @@ export async function excluirSessaoDeCrise(id) {
 //     until -> maior periodKey já contado (trava contra contar duas vezes)
 //
 // Ela viaja junto com as outras na lista de obterMissoes() de propósito: como
-// tem `xp`, `calcularXp` (utils/xp.js) soma sem saber que é resumo; como nenhum
-// `missionId_periodKey` colide com `_resumo`, `verificarMissoes` a ignora.
+// tem `xp`, `calcularXp` (utils/xp.js) soma o resumo e ignora a entrada crua
+// que já esteja coberta pelo `until`; como nenhum `missionId_periodKey` colide
+// com `_resumo`, `verificarMissoes` a ignora.
 // Cuidado: por isso `missoesConcluidas.length` NÃO é o número de missões
 // concluídas (a conquista `first_mission` só pergunta se é >= 1, o que continua
 // certo — o resumo só existe se houve pelo menos uma).
-const ID_DO_RESUMO_DE_MISSOES = '_resumo';
+// O id vem de utils/xp.js (lá é que a soma precisa reconhecer o resumo).
 
 function ehResumoDeMissoes(entrada) {
     return entrada?.id === ID_DO_RESUMO_DE_MISSOES;
@@ -1343,7 +1602,7 @@ export async function salvarMissao(entrada) {
     try {
         if (uid) {
             const missoes = await lerCache(uid, ESPELHOS.MISSOES, []);
-            await escreverNaConta(
+            await escreverListaNaConta(
                 uid,
                 ESPELHOS.MISSOES,
                 missoes.find((m) => m.id === entrada.id) ? missoes : [...missoes, entrada],
@@ -1405,7 +1664,7 @@ export async function consolidarMissoesFechadas(hoje = dataDeHoje(), entradas) {
                     docId: String(fechada.id),
                 });
             }
-            await escreverNaConta(uid, ESPELHOS.MISSOES, consolidada, {
+            await escreverListaNaConta(uid, ESPELHOS.MISSOES, consolidada, {
                 tipo: 'set',
                 colecao: 'missions',
                 docId: ID_DO_RESUMO_DE_MISSOES,
@@ -1527,7 +1786,29 @@ export async function verificarEDesbloquearConquistas(
 // escrita passa por lá), quando o dia virou (missão diária/streak dependem da
 // data) ou quando o uid mudou (login/logout/migração). Fora disso devolve o
 // resultado guardado da última execução, com recompensas vazias.
-export async function sincronizarGamificacao(entrada = {}) {
+//
+// Serializada: duas telas focando quase juntas (trocar de aba rápido) chamariam
+// isto em paralelo, as duas leriam `gamificacaoSuja === true` antes do reset e
+// as duas devolveriam a MESMA conquista em `recompensas` — o troféu abria duas
+// vezes. Cada chamada espera a anterior terminar; a segunda já encontra a flag
+// limpa e o resultado guardado, então cai no reuso com recompensas vazias.
+export function sincronizarGamificacao(entrada = {}) {
+    const anterior = sincronizacaoDeGamificacaoEmAndamento ?? Promise.resolve();
+    const minha = anterior.catch(() => {}).then(() => executarSincronizacaoDeGamificacao(entrada));
+
+    sincronizacaoDeGamificacaoEmAndamento = minha;
+    minha
+        .catch(() => {})
+        .then(() => {
+            if (sincronizacaoDeGamificacaoEmAndamento === minha) {
+                sincronizacaoDeGamificacaoEmAndamento = null;
+            }
+        });
+
+    return minha;
+}
+
+async function executarSincronizacaoDeGamificacao(entrada) {
     const uid = obterUid();
     const hoje = dataDeHoje();
     const podeReusar =

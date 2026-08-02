@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     View,
     Text,
@@ -14,10 +15,13 @@ import {
     obterAparelho,
     salvarAparelho,
     obterRegistros,
+    obterHistoricoDeAparelhos,
+    obterEconomia,
     recalcularEconomia,
     sincronizarGamificacao,
 } from '../utils/storage';
-import { custoPorPuxada, metaDiaria } from '../utils/records';
+import { custoPorPuxada, metaDiaria, resumoDeAparelhos } from '../utils/records';
+import { deslocarData } from '../utils/datas';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
@@ -32,8 +36,11 @@ export default function DeviceScreen({ navigation }) {
     const [dias, setDias] = useState('');
     const [salvando, setSalvando] = useState(false);
     const [sucessoVisivel, setSucessoVisivel] = useState(false);
+    const [resumo, setResumo] = useState([]);
     const animacaoDeFade = useState(new Animated.Value(0))[0];
 
+    // Carrega o formulário uma vez só: recarregar no foco apagaria o que o
+    // usuário já digitou e não salvou.
     useEffect(() => {
         obterAparelho().then((a) => {
             if (a) {
@@ -44,6 +51,21 @@ export default function DeviceScreen({ navigation }) {
             }
         });
     }, []);
+
+    const carregarResumo = useCallback(async () => {
+        const [historico, registros, economia] = await Promise.all([
+            obterHistoricoDeAparelhos(),
+            obterRegistros(),
+            obterEconomia(),
+        ]);
+        setResumo(resumoDeAparelhos(historico, registros, economia));
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            carregarResumo();
+        }, [carregarResumo])
+    );
 
     const aoDigitarPreco = (texto) => {
         const limpo = texto.replace(/[^0-9,.]/g, '');
@@ -93,8 +115,10 @@ export default function DeviceScreen({ navigation }) {
             mostrarErro('Não deu pra salvar o aparelho', 'Verifique sua conexão e tente de novo.');
             return;
         }
-        // Trocar o aparelho recalcula a economia inteira, então conquistas de
-        // economia (economy_50/200/...) e missões podem cair na hora.
+        // A economia é recalculada, mas o aparelho novo só vale de hoje em
+        // diante: os dias já registrados continuam precificados pelo aparelho
+        // que valia neles (ver utils/aparelhos.js). Ainda assim conquistas e
+        // missões são resincronizadas, porque o dia de hoje muda de preço.
         const todosRegistros = await obterRegistros();
         const economia = await recalcularEconomia(todosRegistros, aparelho);
         const { recompensas } = await sincronizarGamificacao({
@@ -102,8 +126,22 @@ export default function DeviceScreen({ navigation }) {
             economia,
         });
         setSalvando(false);
+        await carregarResumo();
         mostrarSucesso();
         mostrarRecompensas(recompensas);
+    };
+
+    // 'YYYY-MM-DD' → 'DD/MM/AAAA'. O fim do período vem exclusivo (é o dia em
+    // que o aparelho seguinte entrou), então mostra-se o dia anterior a ele.
+    const formatarDia = (data) => {
+        const [ano, mes, dia] = data.split('-');
+        return `${dia}/${mes}/${ano}`;
+    };
+
+    const textoDoPeriodo = ({ de, ate }) => {
+        const inicio = de === null ? 'desde sempre' : `de ${formatarDia(de)}`;
+        const fim = ate === null ? 'até hoje' : `até ${formatarDia(deslocarData(ate, -1))}`;
+        return `${inicio} ${fim}`;
     };
 
     // Aparelho "em rascunho", só pra prévia — os helpers puros fazem as contas.
@@ -250,11 +288,105 @@ export default function DeviceScreen({ navigation }) {
                     )}
                 </View>
 
+                {resumo.length > 0 && (
+                    <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <Text style={[styles.cardTitle, { color: cores.text }]}>
+                            Seus aparelhos
+                        </Text>
+                        <Text style={[styles.cardSubtitle, { color: cores.textSecondary }]}>
+                            Cada um pelo preço que ele tinha na época
+                        </Text>
+
+                        {[...resumo].reverse().map((item, indice) => (
+                            <View
+                                key={`${item.aparelho.name}-${item.de ?? 'inicio'}`}
+                                style={[
+                                    styles.deviceRow,
+                                    { borderTopColor: cores.border },
+                                    indice === 0 && styles.deviceRowFirst,
+                                ]}
+                            >
+                                <View style={styles.deviceHead}>
+                                    <Text
+                                        style={[styles.deviceName, { color: cores.text }]}
+                                        numberOfLines={1}
+                                    >
+                                        {item.aparelho.name || 'Sem nome'}
+                                    </Text>
+                                    {item.ate === null && (
+                                        <View
+                                            style={[
+                                                styles.badge,
+                                                { backgroundColor: cores.primaryLight },
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[styles.badgeText, { color: cores.primary }]}
+                                            >
+                                                atual
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <Text style={[styles.devicePeriod, { color: cores.textMuted }]}>
+                                    {textoDoPeriodo(item)}
+                                </Text>
+                                <View style={styles.deviceStats}>
+                                    <View style={styles.deviceStat}>
+                                        <Text
+                                            style={[
+                                                styles.deviceStatLabel,
+                                                { color: cores.textSecondary },
+                                            ]}
+                                        >
+                                            Custou
+                                        </Text>
+                                        <Text
+                                            style={[styles.deviceStatVal, { color: cores.danger }]}
+                                        >
+                                            R$ {item.gasto.toFixed(2)}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.deviceStat}>
+                                        <Text
+                                            style={[
+                                                styles.deviceStatLabel,
+                                                { color: cores.textSecondary },
+                                            ]}
+                                        >
+                                            Economizou
+                                        </Text>
+                                        <Text
+                                            style={[styles.deviceStatVal, { color: cores.primary }]}
+                                        >
+                                            R$ {item.economizado.toFixed(2)}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.deviceStat}>
+                                        <Text
+                                            style={[
+                                                styles.deviceStatLabel,
+                                                { color: cores.textSecondary },
+                                            ]}
+                                        >
+                                            Puxadas
+                                        </Text>
+                                        <Text style={[styles.deviceStatVal, { color: cores.text }]}>
+                                            {item.puxadas} em {item.dias}d
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
                 <View style={[styles.infoBox, { backgroundColor: cores.primaryLight }]}>
                     <Ionicons name="information-circle-outline" size={18} color={cores.primary} />
                     <Text style={[styles.infoText, { color: cores.primaryDark }]}>
                         Com esses dados a gente calcula quanto você economiza cada vez que resiste
-                        ao vape.
+                        ao vape. Trocou de aparelho? O preço novo vale de hoje em diante — os dias
+                        já registrados continuam valendo pelo aparelho anterior.
                     </Text>
                 </View>
 
@@ -277,6 +409,24 @@ const styles = StyleSheet.create({
         fontFamily: 'Poppins_400Regular',
         marginBottom: 14,
     },
+    cardTitle: { fontSize: 16, fontFamily: 'Poppins_700Bold' },
+    cardSubtitle: { fontSize: 13, fontFamily: 'Poppins_400Regular', marginTop: 2 },
+    deviceRow: { borderTopWidth: 1, paddingTop: 12, marginTop: 12 },
+    deviceRowFirst: { marginTop: 14 },
+    deviceHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    deviceName: { flex: 1, fontSize: 15, fontFamily: 'Poppins_600SemiBold' },
+    badge: { borderRadius: RAIO.sm, paddingHorizontal: 8, paddingVertical: 2 },
+    badgeText: {
+        fontSize: 11,
+        fontFamily: 'Poppins_700Bold',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    devicePeriod: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
+    deviceStats: { flexDirection: 'row', marginTop: 10, gap: 12 },
+    deviceStat: { flex: 1 },
+    deviceStatLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular' },
+    deviceStatVal: { fontSize: 14, fontFamily: 'Poppins_700Bold', marginTop: 2 },
     previewBox: { borderRadius: RAIO.md, padding: 14, marginBottom: 16 },
     previewTitle: {
         fontSize: 12,

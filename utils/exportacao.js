@@ -17,6 +17,8 @@ import { File, Paths } from 'expo-file-system';
 import {
     obterRegistros,
     obterAparelho,
+    obterHistoricoDeAparelhos,
+    obterDiasDeAbertura,
     obterMeta,
     obterMetaDeDinheiro,
     obterEconomia,
@@ -81,11 +83,14 @@ export function registrosParaCsv(registros, economia = {}) {
 
 // Junta tudo o que o app guarda do usuário. O CSV só tem os registros (é o que
 // abre no Excel); o JSON leva o resto junto, pra exportação ser de verdade um
-// backup do progresso.
+// backup do progresso — é exatamente esse JSON que utils/importacao.js lê de
+// volta, então as chaves daqui são o formato do backup (mexer nelas quebra os
+// arquivos que os usuários já guardaram).
 async function carregarDados() {
     const [
         registros,
         aparelho,
+        historicoDeAparelhos,
         meta,
         metaDeDinheiro,
         economia,
@@ -93,9 +98,11 @@ async function carregarDados() {
         sessoesDeCrise,
         missoes,
         xp,
+        diasDeAbertura,
     ] = await Promise.all([
         obterRegistros(),
         obterAparelho(),
+        obterHistoricoDeAparelhos(),
         obterMeta(),
         obterMetaDeDinheiro(),
         obterEconomia(),
@@ -103,11 +110,13 @@ async function carregarDados() {
         obterSessoesDeCrise(),
         obterMissoes(),
         obterEstadoDeXp(),
+        obterDiasDeAbertura(),
     ]);
 
     return {
         registros,
         aparelho,
+        historicoDeAparelhos,
         meta,
         metaDeDinheiro,
         economia,
@@ -115,6 +124,7 @@ async function carregarDados() {
         sessoesDeCrise,
         missoes,
         xp,
+        diasDeAbertura,
     };
 }
 

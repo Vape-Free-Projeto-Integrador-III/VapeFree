@@ -59,42 +59,49 @@ export default function HomeScreen({ navigation }) {
     const [mesDoCalendario, setMesDoCalendario] = useState(() => mesDeData(dataDeHoje()));
 
     const carregar = useCallback(async () => {
-        // Home é a porta de entrada do app — marcar aqui o dia de abertura
-        // alimenta a conquista de presença diária (app_open_7).
-        const diasDeAbertura = await registrarAberturaDoApp();
-        const [r, d, e, c, m, md] = await Promise.all([
-            obterRegistros(),
-            obterAparelho(),
-            obterEconomia(),
-            obterSessoesDeCrise(),
-            obterMeta(),
-            obterMetaDeDinheiro(),
-        ]);
-        setRegistros(r);
-        setAparelho(d);
-        setEconomia(e);
-        setMeta(m);
-        setMetaDeDinheiro(md);
+        // As leituras já engolem erro e devolvem valor neutro; o try aqui é a
+        // rede de segurança pra qualquer falha inesperada não derrubar a tela
+        // (nem travar o pull-to-refresh).
+        try {
+            // Home é a porta de entrada do app — marcar aqui o dia de abertura
+            // alimenta a conquista de presença diária (app_open_7).
+            const diasDeAbertura = await registrarAberturaDoApp();
+            const [r, d, e, c, m, md] = await Promise.all([
+                obterRegistros(),
+                obterAparelho(),
+                obterEconomia(),
+                obterSessoesDeCrise(),
+                obterMeta(),
+                obterMetaDeDinheiro(),
+            ]);
+            setRegistros(r);
+            setAparelho(d);
+            setEconomia(e);
+            setMeta(m);
+            setMetaDeDinheiro(md);
 
-        const { missoesConcluidas, resumo, recompensas } = await sincronizarGamificacao({
-            registros: r,
-            economia: e,
-            sessoesDeCrise: c,
-            diasDeAbertura,
-            meta: m,
-            aparelho: d,
-        });
-        const contextoDeMissoes = montarContextoDeMissoes({
-            registros: r,
-            economia: e,
-            sessoesDeCrise: c,
-            meta: m,
-            aparelho: d,
-            hoje: dataDeHoje(),
-        });
-        setMissoes(verificarMissoes(contextoDeMissoes, missoesConcluidas));
-        setXp(resumo.xp);
-        mostrarRecompensas(recompensas);
+            const { missoesConcluidas, resumo, recompensas } = await sincronizarGamificacao({
+                registros: r,
+                economia: e,
+                sessoesDeCrise: c,
+                diasDeAbertura,
+                meta: m,
+                aparelho: d,
+            });
+            const contextoDeMissoes = montarContextoDeMissoes({
+                registros: r,
+                economia: e,
+                sessoesDeCrise: c,
+                meta: m,
+                aparelho: d,
+                hoje: dataDeHoje(),
+            });
+            setMissoes(verificarMissoes(contextoDeMissoes, missoesConcluidas));
+            setXp(resumo.xp);
+            mostrarRecompensas(recompensas);
+        } catch {
+            // Silencioso: leitura de tela, mantém o que já está renderizado.
+        }
     }, [mostrarRecompensas]);
 
     useFocusEffect(
@@ -108,8 +115,11 @@ export default function HomeScreen({ navigation }) {
         // O gesto é um pedido explícito de dado novo: ignora a validade do
         // espelho e vai no servidor.
         forcarLeituraRemota();
-        await carregar();
-        setAtualizando(false);
+        try {
+            await carregar();
+        } finally {
+            setAtualizando(false);
+        }
     };
 
     function abrirConfiguracoes() {
@@ -192,8 +202,11 @@ export default function HomeScreen({ navigation }) {
         [metaDeDinheiro, economia, hoje]
     );
 
-    // Escudo: derivado dos registros, protege um dia com uso registrado.
+    // Escudo: derivado dos registros, protege um dia com uso registrado. Quem
+    // ainda não registrou nada não vê a linha — é mecânica avançada demais pro
+    // primeiro minuto de uso.
     const temEscudo = escudos > 0;
+    const mostrarEscudo = registros.length > 0;
     const mensagemDoEscudo = (() => {
         if (temEscudo) {
             return 'Escudo pronto: se você registrar uso, a sequência não zera';
@@ -214,6 +227,9 @@ export default function HomeScreen({ navigation }) {
     );
     const temMeta = metaValida(meta);
     const [anoFinal, mesFinal, diaFinal] = temMeta ? meta.endDate.split('-') : [];
+    // Rampa vencida: o card 🎯 troca de rosto — encerra a meta e convida pra
+    // próxima, em vez de ficar mostrando "0 dias restantes" pra sempre.
+    const metaConcluida = !!progressoDoObjetivo?.concluida;
 
     // Excesso: quanto o dia passou da meta, e o custo disso. A economia trunca
     // esse valor em zero, então o alerta é o único lugar que mostra o que foi
@@ -374,33 +390,37 @@ export default function HomeScreen({ navigation }) {
                                 </View>
                             </View>
 
-                            <View
-                                style={[
-                                    styles.shieldRow,
-                                    {
-                                        backgroundColor: cores.primaryLight,
-                                        borderColor: temEscudo ? cores.primary : cores.borderLight,
-                                    },
-                                ]}
-                            >
-                                <Ionicons
-                                    name={temEscudo ? 'shield-checkmark' : 'shield-outline'}
-                                    size={20}
-                                    color={temEscudo ? cores.primary : cores.textMuted}
-                                />
-                                <Text
+                            {mostrarEscudo ? (
+                                <View
                                     style={[
-                                        styles.shieldText,
+                                        styles.shieldRow,
                                         {
-                                            color: temEscudo
-                                                ? cores.primaryDark
-                                                : cores.textSecondary,
+                                            backgroundColor: cores.primaryLight,
+                                            borderColor: temEscudo
+                                                ? cores.primary
+                                                : cores.borderLight,
                                         },
                                     ]}
                                 >
-                                    {mensagemDoEscudo}
-                                </Text>
-                            </View>
+                                    <Ionicons
+                                        name={temEscudo ? 'shield-checkmark' : 'shield-outline'}
+                                        size={20}
+                                        color={temEscudo ? cores.primary : cores.textMuted}
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.shieldText,
+                                            {
+                                                color: temEscudo
+                                                    ? cores.primaryDark
+                                                    : cores.textSecondary,
+                                            },
+                                        ]}
+                                    >
+                                        {mensagemDoEscudo}
+                                    </Text>
+                                </View>
+                            ) : null}
 
                             {mostrarExcesso ? (
                                 <View
@@ -517,9 +537,73 @@ export default function HomeScreen({ navigation }) {
 
                         <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
                             <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
-                                🎯 Seu limite de hoje
+                                {metaConcluida
+                                    ? '🎯 Sua meta chegou ao fim'
+                                    : '🎯 Seu limite de hoje'}
                             </Text>
-                            {progressoDoObjetivo ? (
+                            {metaConcluida ? (
+                                <>
+                                    <View style={styles.goalTopRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.goalBig, { color: cores.text }]}>
+                                                {progressoDoObjetivo.alcancada
+                                                    ? `Você chegou a ${meta.target}/dia 🏆`
+                                                    : 'Prazo encerrado'}
+                                            </Text>
+                                            <Text
+                                                style={[
+                                                    styles.goalSub,
+                                                    { color: cores.textSecondary },
+                                                ]}
+                                            >
+                                                {progressoDoObjetivo.alcancada
+                                                    ? `Sua meta terminou em ${diaFinal}/${mesFinal}/${anoFinal} e você fechou dentro do alvo. Esse limite continua valendo.`
+                                                    : `Sua meta terminou em ${diaFinal}/${mesFinal}/${anoFinal}. O alvo de ${meta.target}/dia segue valendo como seu limite — dá pra retomar de onde parou.`}
+                                            </Text>
+                                        </View>
+                                        {progressoDoObjetivo.alcancada && (
+                                            <View
+                                                style={[
+                                                    styles.goalBadge,
+                                                    { backgroundColor: cores.primaryLight },
+                                                ]}
+                                            >
+                                                <Ionicons
+                                                    name="trophy"
+                                                    size={16}
+                                                    color={cores.primary}
+                                                />
+                                            </View>
+                                        )}
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.devicePrompt,
+                                            {
+                                                backgroundColor: cores.primaryLight,
+                                                borderColor: cores.primary,
+                                                marginTop: 12,
+                                            },
+                                        ]}
+                                        onPress={() => navigation.navigate('Goal')}
+                                    >
+                                        <Ionicons
+                                            name="flag-outline"
+                                            size={20}
+                                            color={cores.primary}
+                                        />
+                                        <Text
+                                            style={[
+                                                styles.devicePromptText,
+                                                { color: cores.primaryDark },
+                                            ]}
+                                        >
+                                            Definir a próxima meta
+                                        </Text>
+                                    </TouchableOpacity>
+                                </>
+                            ) : progressoDoObjetivo ? (
                                 <>
                                     <View style={styles.goalTopRow}>
                                         <View>

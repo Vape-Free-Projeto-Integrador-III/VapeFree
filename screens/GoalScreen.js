@@ -15,7 +15,7 @@
 // salvarMeta()/salvarMetaDeDinheiro() (utils/storage.js) com checagem de `ok`
 // antes de dar sucesso.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -26,6 +26,7 @@ import {
     Animated,
     Modal,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Alert from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -104,29 +105,27 @@ export default function GoalScreen({ navigation }) {
     const [economia, setEconomia] = useState({});
     const animacaoDeFadeDoDinheiro = useState(new Animated.Value(0))[0];
 
-    useEffect(() => {
-        let montado = true;
-        Promise.all([obterMetaDeDinheiro(), obterEconomia()]).then(
-            ([metaDeDinheiro, economiaSalva]) => {
+    // Recarrega ao focar, não só na montagem: voltar da DeviceScreen depois de
+    // cadastrar o aparelho tem que atualizar o baseline sugerido e a prévia.
+    useFocusEffect(
+        useCallback(() => {
+            let montado = true;
+            Promise.all([
+                obterMeta(),
+                obterRegistros(),
+                obterAparelho(),
+                obterMetaDeDinheiro(),
+                obterEconomia(),
+            ]).then(([meta, registros, aparelho, metaDeDinheiro, economiaSalva]) => {
                 if (!montado) return;
+
                 setEconomia(economiaSalva || {});
                 if (metaDeDinheiro && Number(metaDeDinheiro.amount) > 0) {
                     setTemMetaDeDinheiroSalva(true);
                     setValorDaMeta(String(Math.round(Number(metaDeDinheiro.amount))));
                     setRotuloDaMeta(metaDeDinheiro.label || '');
                 }
-            }
-        );
-        return () => {
-            montado = false;
-        };
-    }, []);
 
-    useEffect(() => {
-        let montado = true;
-        Promise.all([obterMeta(), obterRegistros(), obterAparelho()]).then(
-            ([meta, registros, aparelho]) => {
-                if (!montado) return;
                 if (metaValida(meta)) {
                     setTemMetaSalva(true);
                     setBaseline(String(meta.baseline));
@@ -139,13 +138,16 @@ export default function GoalScreen({ navigation }) {
                     return;
                 }
                 const sugerido = baselineSugerido(registros, aparelho, dataDeHoje());
-                if (sugerido !== null) setBaseline(String(sugerido));
-            }
-        );
-        return () => {
-            montado = false;
-        };
-    }, []);
+                // Só sugere em campo vazio: com o recarregar a cada foco, escrever
+                // por cima apagaria o número que o usuário estava digitando.
+                if (sugerido !== null)
+                    setBaseline((atual) => (atual === '' ? String(sugerido) : atual));
+            });
+            return () => {
+                montado = false;
+            };
+        }, [])
+    );
 
     const aoDigitarInteiro = (setter) => (texto) => {
         setter(texto.replace(/[^0-9]/g, ''));
@@ -178,15 +180,17 @@ export default function GoalScreen({ navigation }) {
     };
 
     const salvarDinheiro = async () => {
-        const alvo = parseInt(valorDaMeta);
-        if (isNaN(alvo) || alvo <= 0) {
+        // `alvoEmReais` e não `alvo`: `alvo` é o state da meta de REDUÇÃO
+        // (puxadas por dia) e sombreá-lo aqui já foi armadilha uma vez.
+        const alvoEmReais = parseInt(valorDaMeta);
+        if (isNaN(alvoEmReais) || alvoEmReais <= 0) {
             Alert.alert('Opa', 'Quanto você quer juntar? Coloca um valor maior que zero.');
             return;
         }
 
         setSalvandoDinheiro(true);
         const resultado = await salvarMetaDeDinheiro({
-            amount: alvo,
+            amount: alvoEmReais,
             label: rotuloDaMeta.trim(),
             createdAt: new Date().toISOString(),
         });

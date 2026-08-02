@@ -86,7 +86,7 @@ function mensagemDoErro(erro, ehReautenticacao = false) {
 
 export default function AccountScreen({ navigation }) {
     const { cores } = usarTema();
-    const { usuario, sair } = usarAuth();
+    const { usuario, sair, atualizarUsuario } = usarAuth();
     const { mostrarErro, mostrarAviso } = usarToast();
 
     const usaSenha = !!usuario?.providerData?.some((p) => p.providerId === 'password');
@@ -181,6 +181,10 @@ export default function AccountScreen({ navigation }) {
                     nome: nomeFormatado,
                     email: auth.currentUser.email,
                 });
+                // updateProfile não dispara o onAuthStateChanged: sem isto o
+                // `usuario` do context fica com o nome antigo (a Profile
+                // seguia mostrando o nome velho até reabrir o app).
+                await atualizarUsuario();
                 mostrarAviso('Pronto', 'Seu nome foi atualizado.', 'sucesso');
             },
             { exigeSenha: false }

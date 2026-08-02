@@ -270,6 +270,45 @@ describe('sincronizar', () => {
         silencio.mockRestore();
     });
 
+    it('falha de rede NAO conta tentativa: a mutacao fica intacta na fila', async () => {
+        semearFila([
+            { id: 'm1', tipo: 'set', colecao: 'records', docId: '1', dados: {}, tentativas: 2 },
+        ]);
+        mockSetDoc.mockRejectedValueOnce(new Error('tempo_limite'));
+
+        const resultado = await offline.sincronizar(UID);
+
+        expect(resultado).toEqual({ enviadas: 0, pendentes: 1, falhas: 0 });
+        expect(filaSalva()[0].tentativas).toBe(2); // nao subiu
+    });
+
+    it('erro transitorio do firestore tambem nao conta tentativa', async () => {
+        semearFila([
+            { id: 'm1', tipo: 'set', colecao: 'records', docId: '1', dados: {}, tentativas: 0 },
+        ]);
+        const erro = new Error('Failed to get document because the client is offline.');
+        erro.code = 'unavailable';
+        mockSetDoc.mockRejectedValueOnce(erro);
+
+        await offline.sincronizar(UID);
+
+        expect(filaSalva()[0].tentativas).toBe(0);
+        expect(falhasSalvas()).toHaveLength(0);
+    });
+
+    it('rede ruim no limite de tentativas nao descarta o registro do usuario', async () => {
+        semearFila([
+            { id: 'm1', tipo: 'set', colecao: 'records', docId: '1', dados: {}, tentativas: 4 },
+        ]);
+        mockSetDoc.mockRejectedValueOnce(new Error('tempo_limite'));
+
+        const resultado = await offline.sincronizar(UID);
+
+        expect(resultado.falhas).toBe(0);
+        expect(filaSalva()).toHaveLength(1);
+        expect(falhasSalvas()).toHaveLength(0);
+    });
+
     it('chamadas no mesmo tique compartilham a drenagem que ainda nao leu a fila', async () => {
         await offline.enfileirar(UID, { tipo: 'set', colecao: 'records', docId: '1', dados: {} });
 
@@ -318,6 +357,28 @@ describe('sincronizar', () => {
         expect(await doUid1).toEqual({ enviadas: 1, pendentes: 0, falhas: 0 });
         expect(await doUid2).toEqual({ enviadas: 0, pendentes: 0, falhas: 0 });
         expect(mockSetDoc).toHaveBeenCalledTimes(1); // a fila do uid2 esta vazia
+    });
+});
+
+describe('erroEhDeRede', () => {
+    it('reconhece o tempo_limite do comTempoLimite', () => {
+        expect(offline.erroEhDeRede(new Error('tempo_limite'))).toBe(true);
+    });
+
+    it('reconhece codigo transitorio do firestore, com ou sem prefixo', () => {
+        const semPrefixo = Object.assign(new Error('x'), { code: 'unavailable' });
+        const comPrefixo = Object.assign(new Error('x'), { code: 'firestore/deadline-exceeded' });
+        expect(offline.erroEhDeRede(semPrefixo)).toBe(true);
+        expect(offline.erroEhDeRede(comPrefixo)).toBe(true);
+    });
+
+    it('erro permanente nao passa por erro de rede', () => {
+        const negado = Object.assign(new Error('Missing or insufficient permissions.'), {
+            code: 'permission-denied',
+        });
+        expect(offline.erroEhDeRede(negado)).toBe(false);
+        expect(offline.erroEhDeRede(new Error('invalid-argument'))).toBe(false);
+        expect(offline.erroEhDeRede(null)).toBe(false);
     });
 });
 
