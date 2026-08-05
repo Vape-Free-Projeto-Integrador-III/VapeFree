@@ -4,18 +4,25 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { sincronizarGamificacao, obterConquistas, dataDeHoje } from '../utils/storage';
 import { verificarConquistas } from '../utils/achievements';
+import { obterNivel } from '../utils/xp';
+import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 import { RAIO, SOMBRA } from '../utils/theme';
 import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
 import GradeDeCards from '../components/GradeDeCards';
+import MissionsCard from '../components/MissionsCard';
 
 export default function AchievementsScreen({ navigation }) {
     const { cores } = usarTema();
     const { colunas } = usarLayoutResponsivo();
     const { mostrarRecompensas } = usarToast();
     const [conquistas, setConquistas] = useState([]);
+    // XP, nível e missões moram aqui: tudo que é progressão ficou nesta tela,
+    // pra Home voltar a ser só o acompanhamento do uso.
+    const [xp, setXp] = useState(0);
+    const [missoes, setMissoes] = useState([]);
 
     // Persiste antes de exibir: sem `sincronizarGamificacao` a tela mostrava a
     // conquista como desbloqueada sem salvar nada — nem XP, nem celebração, até
@@ -29,6 +36,7 @@ export default function AchievementsScreen({ navigation }) {
             meta,
             aparelho,
             missoesConcluidas,
+            resumo,
             recompensas,
         } = await sincronizarGamificacao();
 
@@ -43,7 +51,17 @@ export default function AchievementsScreen({ navigation }) {
             missoesConcluidas,
             { sessoesDeCrise, diasDeAbertura, meta, aparelho, hoje: dataDeHoje() }
         );
+        const contextoDeMissoes = montarContextoDeMissoes({
+            registros,
+            economia,
+            sessoesDeCrise,
+            meta,
+            aparelho,
+            hoje: dataDeHoje(),
+        });
         setConquistas(resultados);
+        setXp(resumo.xp);
+        setMissoes(verificarMissoes(contextoDeMissoes, missoesConcluidas));
         mostrarRecompensas(recompensas);
     }, [mostrarRecompensas]);
 
@@ -55,6 +73,7 @@ export default function AchievementsScreen({ navigation }) {
 
     const quantidadeDesbloqueadas = conquistas.filter((c) => c.desbloqueada).length;
     const quantidadeTotal = conquistas.length;
+    const nivel = obterNivel(xp);
 
     return (
         <View style={{ flex: 1, backgroundColor: cores.background }}>
@@ -71,6 +90,42 @@ export default function AchievementsScreen({ navigation }) {
                 />
 
                 <View style={estiloDoConteudo}>
+                    <View style={[styles.xpCard, { backgroundColor: cores.card }, SOMBRA.media]}>
+                        <View style={styles.xpHeader}>
+                            <Text style={styles.xpIcon}>{nivel.icone}</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.xpLevel, { color: cores.text }]}>
+                                    Nível {nivel.numero} · {nivel.nome}
+                                </Text>
+                                <Text style={[styles.xpSub, { color: cores.textSecondary }]}>
+                                    {nivel.nomeDoProximo
+                                        ? `${nivel.xpParaProximo} XP pra virar ${nivel.nomeDoProximo}`
+                                        : 'Nível máximo — você é lenda 👑'}
+                                </Text>
+                            </View>
+                            <Text style={[styles.xpTotal, { color: cores.primaryDark }]}>
+                                {xp} XP
+                            </Text>
+                        </View>
+                        <View style={[styles.xpTrack, { backgroundColor: cores.primaryLight }]}>
+                            <View
+                                style={[
+                                    styles.xpFill,
+                                    {
+                                        backgroundColor: cores.primary,
+                                        width: `${Math.round(nivel.progresso * 100)}%`,
+                                    },
+                                ]}
+                            />
+                        </View>
+                    </View>
+
+                    <MissionsCard
+                        missoes={missoes.filter((missao) => missao.period === 'daily')}
+                        cores={cores}
+                        aoPressionar={() => navigation.navigate('Missions')}
+                    />
+
                     <View style={[styles.statsCard, { backgroundColor: cores.card }, SOMBRA.media]}>
                         <View style={styles.statsRow}>
                             <View style={styles.statItem}>
@@ -242,6 +297,14 @@ export default function AchievementsScreen({ navigation }) {
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { paddingBottom: 24 },
+    xpCard: { borderRadius: RAIO.lg, padding: 16, marginHorizontal: 16, marginTop: 16 },
+    xpHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+    xpIcon: { fontSize: 26, fontFamily: 'Poppins_400Regular' },
+    xpLevel: { fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },
+    xpSub: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
+    xpTotal: { fontSize: 16, fontFamily: 'Poppins_800ExtraBold' },
+    xpTrack: { height: 10, borderRadius: RAIO.md, overflow: 'hidden' },
+    xpFill: { height: '100%', borderRadius: RAIO.md },
     statsCard: { borderRadius: RAIO.lg, padding: 16, marginHorizontal: 16, marginTop: 16 },
     statsRow: { flexDirection: 'row', alignItems: 'center' },
     statItem: { flex: 1, alignItems: 'center' },

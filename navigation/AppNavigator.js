@@ -10,6 +10,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import AchievementsScreen from '../screens/AchievementsScreen';
 import DeviceScreen from '../screens/DeviceScreen';
+import DeviceFormScreen from '../screens/DeviceFormScreen';
 import GoalScreen from '../screens/GoalScreen';
 import Profile from '../screens/Profile';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -91,6 +92,7 @@ function MainStack() {
         <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
             <Stack.Screen name="Main" component={HomeTabs} />
             <Stack.Screen name="Device" component={DeviceScreen} />
+            <Stack.Screen name="DeviceForm" component={DeviceFormScreen} />
             <Stack.Screen name="Goal" component={GoalScreen} />
             <Stack.Screen name="Profile" component={Profile} />
             <Stack.Screen name="Settings" component={SettingsScreen} />

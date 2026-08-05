@@ -19,6 +19,8 @@ import {
     atualizarRegistro,
     obterRegistros,
     obterAparelho,
+    obterDispositivos,
+    arquivarDispositivo,
     recalcularEconomia,
     sincronizarGamificacao,
     obterEconomia,
@@ -29,7 +31,19 @@ import {
 } from '../utils/storage';
 import { aplicarPreferenciasDeNotificacao } from '../utils/notifications';
 import { deslocarData, converterDataLocal } from '../utils/datas';
-import { MAX_PUXADAS_DIA, MAX_NOTA, limitarPuxadas, normalizarNota } from '../utils/records';
+import {
+    MAX_NOTA,
+    limitarPuxadas,
+    normalizarNota,
+    tetoDePuxadasDoDispositivo,
+} from '../utils/records';
+import {
+    dispositivosAtivos,
+    dispositivoPorId,
+    dispositivoPadrao,
+    consumoPorDispositivo,
+    estadoDoDispositivo,
+} from '../utils/aparelhos';
 import { RAIO, SOMBRA, GATILHOS, AJUDAS, MENSAGENS_MOTIVACIONAIS } from '../utils/theme';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
@@ -100,6 +114,11 @@ export default function RegisterScreen({ navigation }) {
     const [dataSelecionada, setDataSelecionada] = useState(dataDeHoje());
     const [mostrarSeletorDeData, setMostrarSeletorDeData] = useState(false);
     const [registroExistente, setRegistroExistente] = useState(null);
+    const [dispositivos, setDispositivos] = useState([]);
+    const [dispositivoId, setDispositivoId] = useState(null);
+    // O usuário trocou o dispositivo à mão neste formulário? Enquanto não
+    // trocou, a seleção acompanha o padrão da lista de dispositivos.
+    const escolhaManualRef = useRef(false);
     // O dia atual vira state porque o app pode ficar aberto passando da
     // meia-noite: sem reavaliar, "Hoje" continuaria apontando pro dia anterior
     // e o salvamento morreria em "Data fora do prazo".
@@ -144,6 +163,31 @@ export default function RegisterScreen({ navigation }) {
         }, [sincronizarDiaAtual])
     );
 
+    // A lista recarrega a cada foco porque o usuário pode ter acabado de
+    // cadastrar um dispositivo no DeviceForm e voltado pra cá.
+    useFocusEffect(
+        useCallback(() => {
+            let montado = true;
+            obterDispositivos().then((lista) => {
+                if (!montado) return;
+                setDispositivos(lista);
+                const ativos = dispositivosAtivos(lista);
+                const padrao = dispositivoPadrao(lista)?.id ?? null;
+                // Vem marcado o dispositivo PADRÃO (o que o usuário definiu na
+                // lista). Escolha manual dele neste formulário ganha do padrão —
+                // menos quando o escolhido saiu de circulação. Sem escolha
+                // manual, voltar pra cá depois de trocar o padrão já mostra o
+                // padrão novo.
+                setDispositivoId((atual) =>
+                    escolhaManualRef.current && ativos.some((d) => d.id === atual) ? atual : padrao
+                );
+            });
+            return () => {
+                montado = false;
+            };
+        }, [])
+    );
+
     // Só dá pra registrar hoje e os DIAS_PARA_TRAS_NO_REGISTRO dias anteriores
     // (mais recente primeiro na lista). Recalculado a cada render — `hoje`
     // mudar de valor é o que garante que a lista acompanhe a virada.
@@ -170,6 +214,12 @@ export default function RegisterScreen({ navigation }) {
                 setAjudaOutro(ajudasSalvas.textoOutro);
                 setIntensidade(existente.intensity ?? 5);
                 setNota(existente.note ?? '');
+                // Registro antigo (sem dispositivo escolhido) mantém o padrão
+                // já selecionado — trocar pra null tiraria a opção marcada.
+                if (existente.deviceId) {
+                    setDispositivoId(Number(existente.deviceId));
+                    escolhaManualRef.current = true;
+                }
             } else {
                 setUsou(null);
                 setPuxadas(0);
@@ -179,6 +229,11 @@ export default function RegisterScreen({ navigation }) {
                 setAjudaOutro('');
                 setIntensidade(5);
                 setNota('');
+                // Dia em branco volta a seguir o padrão da lista.
+                escolhaManualRef.current = false;
+                const lista = await obterDispositivos();
+                if (!montado) return;
+                setDispositivoId(dispositivoPadrao(lista)?.id ?? null);
             }
         };
         verificarRegistroExistente();
@@ -225,6 +280,8 @@ export default function RegisterScreen({ navigation }) {
         setIntensidade(5);
         setNota('');
         setMensagemDeSucesso('');
+        // Formulário zerado volta a seguir o padrão da lista.
+        escolhaManualRef.current = false;
     };
 
     const alternarGatilho = (id) => {
@@ -236,6 +293,45 @@ export default function RegisterScreen({ navigation }) {
     const alternarAjuda = (id) => {
         setAjudas((anterior) =>
             anterior.includes(id) ? anterior.filter((h) => h !== id) : [...anterior, id]
+        );
+    };
+
+    const dispositivoSelecionado = dispositivoPorId(dispositivos, dispositivoId);
+    const tetoDoDia = tetoDePuxadasDoDispositivo(dispositivoSelecionado);
+
+    // Depois de salvar: o dispositivo já passou do que ele rende? Isso não
+    // bloqueia nada (o registro já está gravado) — só pergunta o que fazer,
+    // porque ou o vape acabou, ou o total declarado nele está errado.
+    const avisarSeEsgotou = async (idUsado) => {
+        if (!idUsado) return;
+        const [registros, lista] = await Promise.all([obterRegistros(), obterDispositivos()]);
+        const dispositivo = dispositivoPorId(lista, idUsado);
+        if (!dispositivo || dispositivo.archived) return;
+        const estado = estadoDoDispositivo(
+            dispositivo,
+            consumoPorDispositivo(registros)[dispositivo.id] ?? 0
+        );
+        if (!estado.esgotado) return;
+
+        Alert.alert(
+            'Esse dispositivo já rendeu tudo',
+            `Você já registrou ${estado.usadas} puxadas no "${dispositivo.name || 'seu vape'}", e ele foi cadastrado com ${estado.total}. Ele acabou?`,
+            [
+                {
+                    text: 'Acabou, vou cadastrar outro',
+                    onPress: async () => {
+                        await arquivarDispositivo(dispositivo.id, true);
+                        const lista = await obterDispositivos();
+                        setDispositivos(lista);
+                        navigation.navigate('DeviceForm');
+                    },
+                },
+                {
+                    text: 'Ele rende mais que isso',
+                    onPress: () => navigation.navigate('DeviceForm', { id: dispositivo.id }),
+                },
+                { text: 'Deixa assim', style: 'cancel' },
+            ]
         );
     };
 
@@ -356,7 +452,10 @@ export default function RegisterScreen({ navigation }) {
             const agora = new Date();
             // Usou = pelo menos 1 puxada. O onBlur do campo não roda se o
             // usuário digitar e tocar direto em Salvar, então normaliza aqui.
-            const puxadasFinais = usou ? Math.max(1, limitarPuxadas(puxadas)) : 0;
+            // O teto é o do dispositivo escolhido: nenhum dia pode passar do
+            // que o vape inteiro rende.
+            const puxadasFinais = usou ? Math.max(1, limitarPuxadas(puxadas, tetoDoDia)) : 0;
+            const idDoDispositivo = usou ? (dispositivoId ?? null) : null;
             if (usou && puxadasFinais !== puxadas) setPuxadas(puxadasFinais);
             const rotulosDeGatilhos = GATILHOS.filter((t) => gatilhos.includes(t.id)).map(
                 (t) => t.rotulo
@@ -376,6 +475,7 @@ export default function RegisterScreen({ navigation }) {
                     ...existente,
                     used: usou,
                     puffs: puxadasFinais,
+                    deviceId: idDoDispositivo,
                     triggers: rotulosDeGatilhos,
                     helps: rotulosDeAjudas,
                     intensity: intensidade,
@@ -396,6 +496,7 @@ export default function RegisterScreen({ navigation }) {
                     time: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
                     used: usou,
                     puffs: puxadasFinais,
+                    deviceId: idDoDispositivo,
                     triggers: rotulosDeGatilhos,
                     helps: rotulosDeAjudas,
                     intensity: intensidade,
@@ -418,6 +519,9 @@ export default function RegisterScreen({ navigation }) {
             const msg =
                 MENSAGENS_MOTIVACIONAIS[Math.floor(Math.random() * MENSAGENS_MOTIVACIONAIS.length)];
             mostrarSucesso(msg);
+            // Depois do sucesso, nunca antes: o aviso pergunta o que fazer com
+            // o vape que acabou, mas o registro do dia já está salvo.
+            await avisarSeEsgotou(idDoDispositivo);
         } catch {
             Alert.alert('Erro', 'Não deu pra salvar o registro. Tenta de novo.');
         } finally {
@@ -600,6 +704,63 @@ export default function RegisterScreen({ navigation }) {
                     {usou === true && (
                         <>
                             <Text style={[styles.fieldLabel, { color: cores.text }]}>
+                                Qual dispositivo você usou?
+                            </Text>
+                            {dispositivosAtivos(dispositivos).length === 0 ? (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.deviceEmpty,
+                                        { borderColor: cores.border, backgroundColor: cores.card },
+                                    ]}
+                                    onPress={() => navigation.navigate('DeviceForm')}
+                                >
+                                    <Ionicons
+                                        name="add-circle-outline"
+                                        size={18}
+                                        color={cores.primary}
+                                    />
+                                    <Text
+                                        style={[styles.deviceEmptyText, { color: cores.primary }]}
+                                    >
+                                        Cadastrar um dispositivo
+                                    </Text>
+                                </TouchableOpacity>
+                            ) : (
+                                <View style={styles.chips}>
+                                    {dispositivosAtivos(dispositivos).map((d) => (
+                                        <TouchableOpacity
+                                            key={d.id}
+                                            style={[
+                                                styles.chip,
+                                                {
+                                                    borderColor: cores.border,
+                                                    backgroundColor: cores.card,
+                                                },
+                                                dispositivoId === d.id && {
+                                                    borderColor: cores.primary,
+                                                    backgroundColor: cores.primary,
+                                                },
+                                            ]}
+                                            onPress={() => {
+                                                escolhaManualRef.current = true;
+                                                setDispositivoId(d.id);
+                                            }}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.chipText,
+                                                    { color: cores.textSecondary },
+                                                    dispositivoId === d.id && { color: '#fff' },
+                                                ]}
+                                            >
+                                                {d.name || 'Sem nome'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+
+                            <Text style={[styles.fieldLabel, { color: cores.text }]}>
                                 Quantas puxadas?
                             </Text>
                             <View style={styles.counterRow}>
@@ -615,14 +776,18 @@ export default function RegisterScreen({ navigation }) {
                                     keyboardType="number-pad"
                                     value={String(puxadas)}
                                     onChangeText={(texto) =>
-                                        setPuxadas(limitarPuxadas(texto.replace(/[^0-9]/g, '')))
+                                        setPuxadas(
+                                            limitarPuxadas(texto.replace(/[^0-9]/g, ''), tetoDoDia)
+                                        )
                                     }
                                     onBlur={() => setPuxadas((p) => Math.max(1, p))}
                                 />
                             </View>
-                            {puxadas >= MAX_PUXADAS_DIA && (
+                            {puxadas >= tetoDoDia && (
                                 <Text style={[styles.limitHint, { color: cores.warning }]}>
-                                    Máximo de {MAX_PUXADAS_DIA} puxadas por dia.
+                                    {dispositivoSelecionado
+                                        ? `Esse dispositivo rende ${tetoDoDia} puxadas no total.`
+                                        : `Máximo de ${tetoDoDia} puxadas por dia.`}
                                 </Text>
                             )}
 
@@ -887,6 +1052,17 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
     },
     chipText: { fontSize: 13, fontFamily: 'Poppins_500Medium' },
+    deviceEmpty: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        borderWidth: 1.5,
+        borderRadius: RAIO.md,
+        paddingVertical: 12,
+        marginBottom: 12,
+    },
+    deviceEmptyText: { fontSize: 14, fontFamily: 'Poppins_600SemiBold' },
     input: {
         borderWidth: 1.5,
         borderRadius: RAIO.md,

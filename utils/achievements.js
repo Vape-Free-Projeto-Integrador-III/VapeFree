@@ -9,14 +9,6 @@ const MIN_DIAS_PARA_COMPARAR = 3;
 
 export const CONQUISTAS = [
     {
-        id: 'first_record',
-        xp: 20,
-        titulo: 'Primeiro Passo',
-        descricao: 'Você fez seu primeiro registro',
-        icone: '📝',
-        condicao: (registros) => registros.length >= 1,
-    },
-    {
         id: 'streak_3',
         xp: 40,
         titulo: 'Começando Bem',
@@ -110,14 +102,6 @@ export const CONQUISTAS = [
         descricao: 'Você já fez 10 registros',
         icone: '📊',
         condicao: (registros) => registros.length >= 10,
-    },
-    {
-        id: 'first_mission',
-        xp: 20,
-        titulo: 'Missão Cumprida',
-        descricao: 'Você concluiu sua primeira missão',
-        icone: '🎯',
-        condicao: (registros, economia, missoesConcluidas) => (missoesConcluidas || []).length >= 1,
     },
     {
         id: 'records_30',

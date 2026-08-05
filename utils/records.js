@@ -1,4 +1,9 @@
-import { periodosDeAparelho } from './aparelhos';
+import {
+    periodosDeAparelho,
+    normalizarDispositivos,
+    consumoPorDispositivo,
+    estadoDoDispositivo,
+} from './aparelhos';
 import { economiaNoIntervalo } from './economia';
 
 //
@@ -17,12 +22,26 @@ import { economiaNoIntervalo } from './economia';
 // dia — vaper pesado fica na casa das centenas.
 export const MAX_PUXADAS_DIA = 2000;
 
-// Prende um valor de puxadas na faixa [0, MAX_PUXADAS_DIA]. Aceita string do
-// TextInput; devolve 0 pro que não é número.
-export function limitarPuxadas(valor) {
+// Prende um valor de puxadas na faixa [0, teto]. Aceita string do TextInput;
+// devolve 0 pro que não é número. `teto` é opcional e nunca passa de
+// MAX_PUXADAS_DIA — quem chama sem ele (a normalização de escrita) continua
+// com o teto global de antes.
+export function limitarPuxadas(valor, teto) {
     const n = Math.floor(Number(valor));
     if (!Number.isFinite(n) || n < 0) return 0;
-    return Math.min(n, MAX_PUXADAS_DIA);
+    const limite = Number.isFinite(Number(teto))
+        ? Math.min(MAX_PUXADAS_DIA, Math.max(0, Math.floor(Number(teto))))
+        : MAX_PUXADAS_DIA;
+    return Math.min(n, limite);
+}
+
+// Teto de puxadas de um dia com um dispositivo específico: nenhum dia pode
+// passar do que o vape inteiro rende — um pod de 600 puxadas aceitar 2000 num
+// dia só é dado impossível, e a economia sairia dele.
+export function tetoDePuxadasDoDispositivo(dispositivo) {
+    const total = numeroPositivo(dispositivo?.totalPuffs);
+    if (total === null) return MAX_PUXADAS_DIA;
+    return Math.min(MAX_PUXADAS_DIA, Math.floor(total));
 }
 
 // Teto da anotação livre do dia (campo `note`). Existe pelo mesmo motivo do
@@ -81,10 +100,21 @@ export function somarPuxadas(registros) {
 // Normaliza antes de persistir: sem uso = sem puxadas e sem gatilhos; com uso,
 // puxadas presas no teto (última linha de defesa — a tela já limita o input).
 // A anotação livre vale nos dois casos — o dia sem uso também rende texto.
+// O dispositivo do dia só existe quando houve uso — dia sem vape não tem
+// aparelho a que atribuir, e um `deviceId` sobrando ali inflaria o consumo
+// daquele dispositivo. `null` (e não undefined) porque é o que o Firestore
+// aceita gravar, mesmo padrão da nota.
 export function normalizarRegistro(registro) {
     const note = normalizarNota(registro.note);
-    if (registro.used) return { ...registro, puffs: limitarPuxadas(registro.puffs), note };
-    return { ...registro, puffs: 0, triggers: [], note };
+    if (registro.used) {
+        const bruto = registro.deviceId;
+        const deviceId =
+            bruto === null || bruto === undefined || bruto === '' || isNaN(Number(bruto))
+                ? null
+                : Number(bruto);
+        return { ...registro, puffs: limitarPuxadas(registro.puffs), deviceId, note };
+    }
+    return { ...registro, puffs: 0, triggers: [], deviceId: null, note };
 }
 
 // ─── Aparelho ────────────────────────────────────────────────────────────────
@@ -141,6 +171,41 @@ export function resumoDeAparelhos(historico, registros, economia) {
             dias: new Set(doPeriodo.map((registro) => registro.date)).size,
             gasto: custo === null ? 0 : parseFloat((puxadas * custo).toFixed(2)),
             economizado: economiaNoIntervalo(economia, de, ate),
+        };
+    });
+}
+
+// Leitura por DISPOSITIVO (e não por período de vigência): o que cada vape
+// cadastrado já levou de puxada, quanto custou e quanto rendeu de economia nos
+// dias em que ele foi usado. É o que a lista de dispositivos mostra.
+//
+// A economia sai da soma dos dias que apontam pro dispositivo — não dá pra usar
+// economiaNoIntervalo aqui, porque dois dispositivos podem ser usados em dias
+// alternados, sem intervalo contínuo.
+//
+// Devolve, na ordem da lista:
+//   { dispositivo, puxadas, dias, gasto, economizado, estado }
+export function resumoDeDispositivos(dispositivos, registros, economia) {
+    const lista = Array.isArray(registros) ? registros : [];
+    const consumo = consumoPorDispositivo(lista);
+    return normalizarDispositivos(dispositivos).map((dispositivo) => {
+        const doDispositivo = lista.filter(
+            (registro) => Number(registro?.deviceId) === dispositivo.id
+        );
+        const puxadas = somarPuxadas(doDispositivo);
+        const custo = custoPorPuxada(dispositivo);
+        const dias = new Set(doDispositivo.map((registro) => registro.date));
+        const economizado = [...dias].reduce((soma, dia) => {
+            const valor = Number(economia?.[dia]);
+            return soma + (isNaN(valor) ? 0 : valor);
+        }, 0);
+        return {
+            dispositivo,
+            puxadas,
+            dias: dias.size,
+            gasto: custo === null ? 0 : parseFloat((puxadas * custo).toFixed(2)),
+            economizado: parseFloat(economizado.toFixed(2)),
+            estado: estadoDoDispositivo(dispositivo, consumo[dispositivo.id] ?? 0),
         };
     });
 }

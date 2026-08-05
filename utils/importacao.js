@@ -19,7 +19,7 @@ import { File } from 'expo-file-system';
 
 import { substituirTodosOsDados } from './storage';
 import { normalizarRegistro } from './records';
-import { normalizarHistorico } from './aparelhos';
+import { normalizarHistorico, normalizarDispositivos } from './aparelhos';
 
 const DATA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -85,6 +85,9 @@ export function normalizarBackup(bruto) {
             // lista: vai vazia, e quem lê trata `aparelho` como válido desde
             // sempre (mesmo fallback de obterHistoricoDeAparelhos).
             historicoDeAparelhos: normalizarHistorico(raiz.historicoDeAparelhos),
+            // Mesma história da lista de vigências: backup antigo não tem
+            // `dispositivos`, e quem lê deriva a lista do histórico.
+            dispositivos: normalizarDispositivos(raiz.dispositivos),
             meta: objetoOuNulo(raiz.meta),
             metaDeDinheiro: objetoOuNulo(raiz.metaDeDinheiro),
             economia: normalizarEconomia(raiz.economia),

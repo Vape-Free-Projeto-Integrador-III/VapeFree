@@ -37,7 +37,7 @@ import { metaDoDia, metaValida, deslocarData } from '../utils/meta';
 import {
     concluirOnboarding,
     obterAparelho,
-    salvarAparelho,
+    salvarDispositivo,
     obterMeta,
     salvarMeta,
     obterRegistros,
@@ -188,7 +188,9 @@ export default function OnboardingScreen({ aoConcluir, navigation }) {
 
         setSalvando(true);
         const aparelho = { name: nome.trim(), price: p, totalPuffs: tp, days: d };
-        const resultado = await salvarAparelho(aparelho);
+        // salvarDispositivo cuida do `device`/`deviceHistory` também, então o
+        // primeiro vape já nasce na lista de dispositivos do usuário.
+        const resultado = await salvarDispositivo(aparelho);
         if (!resultado.ok) {
             setSalvando(false);
             mostrarErro('Não deu pra salvar o aparelho', 'Verifique sua conexão e tente de novo.');

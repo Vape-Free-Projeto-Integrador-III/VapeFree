@@ -42,15 +42,13 @@ O id da entrada salva é `` `${missionId}_${periodKey}` `` — é isso que faz a
 
 A "meta do dia" das duas primeiras vem de `metaEfetiva(meta, aparelho, data)` (`utils/meta.js`): a meta de redução declarada pelo usuário ganha da derivada do aparelho. Ver [database.md](database.md).
 
-Concluir a primeira missão desbloqueia a conquista `first_mission` (`utils/achievements.js`).
-
 ## Fluxo em runtime
 
 A tela **não** repete os passos na mão: chama `sincronizarGamificacao(entrada?)` (`utils/storage.js`), que faz o bloco inteiro na ordem certa e nunca lança:
 
 1. Carrega `registros`, `economia`, `sessoesDeCrise` e `diasDeAbertura` — ou usa os que a tela já carregou e passou em `entrada` (`{ registros, economia, sessoesDeCrise, diasDeAbertura }`, todos opcionais).
 2. `verificarEConcluirMissoes(records, economy, crisisSessions)` avalia, **salva** as recém-concluídas e devolve só essas novas.
-3. `verificarEDesbloquearConquistas(records, economy, completedMissions, ctx)` — a ordem importa: concluir missão pode desbloquear conquista (ex: `first_mission`).
+3. `verificarEDesbloquearConquistas(records, economy, completedMissions, ctx)` — a ordem importa: a missão recém-concluída já entra no contexto das conquistas.
 4. `atualizarXp(records, null, completedMissions)` por último, já com missão e conquista novas contabilizadas.
 
 Devolve `{ registros, economia, sessoesDeCrise, diasDeAbertura, meta, aparelho, missoesConcluidas, resumo, recompensas }`. A tela então:
@@ -62,7 +60,7 @@ Devolve `{ registros, economia, sessoesDeCrise, diasDeAbertura, meta, aparelho, 
 
 Passo 2.5 do bloco: `consolidarMissoesFechadas(hoje)` troca as entradas de período já fechado por uma única entrada `_resumo` (`{ summary: true, xp, count, until, updatedAt }`), mantendo detalhadas só as do dia e da semana corrente. Sem isso a subcoleção crescia ~1400 docs/ano e todos eram lidos toda vez, mesmo com só o `xp` importando depois que o período passa. Ela reaproveita a leitura que a sincronização já faz e devolve a lista consolidada — sem leitura extra.
 
-O resumo entra na lista de `obterMissoes()` como qualquer entrada: `calcularXp` soma o `xp` dele e descarta a entrada crua já coberta pelo `until`, e `verificarMissoes` o ignora (`_resumo` não bate com nenhum `missionId_periodKey`). **`missoesConcluidas.length` não é o número de missões concluídas** — a conquista `first_mission` só pergunta `>= 1`, o que continua certo. Detalhe do shape e da trava `until` em [database.md](database.md).
+O resumo entra na lista de `obterMissoes()` como qualquer entrada: `calcularXp` soma o `xp` dele e descarta a entrada crua já coberta pelo `until`, e `verificarMissoes` o ignora (`_resumo` não bate com nenhum `missionId_periodKey`). **`missoesConcluidas.length` não é o número de missões concluídas** — nenhuma conquista depende dessa contagem hoje; uma futura que dependa tem que somar o `count` do resumo. Detalhe do shape e da trava `until` em [database.md](database.md).
 
 `until` é `{ daily, weekly }`, **uma marca por tipo de período**, e não um valor só. A `periodKey` da diária é um dia qualquer e a da semanal é a segunda-feira daquela semana: com uma marca única, as diárias — que fecham todos os dias — empurravam `until` pra frente e em dois dias ele já passava da segunda-feira da semana **corrente**. A semanal daquela semana, ainda aberta, virava "já contada": o XP dela sumia da soma no meio da semana (o total na Home caía sozinho e o nível podia regredir) e, quando a semana enfim fechava, a entrada era apagada sem nunca entrar no resumo. Quem lê e avança essas marcas é `limiteDoResumo` / `jaEstaNoResumo` / `avancarLimite` (`utils/xp.js`) — resumo antigo com `until` string é convertido na leitura, e a marca semanal dele volta uma semana pra devolver a semanal que o bug engoliu. Pelo mesmo motivo `periodoEstaAberto` (`utils/storage.js`) olha o campo `period` em vez de comparar a `periodKey` contra as duas pontas: sem isso a diária de segunda-feira ficava "aberta" a semana inteira. Entrada antiga sem `period` continua no critério frouxo e nunca é descartada da soma.
 
@@ -86,7 +84,7 @@ Chamam `sincronizarGamificacao`: `HomeScreen` (passando `diasDeAbertura` de `reg
 
 ## UI
 
-- `components/MissionsCard.js`: card na `HomeScreen`, logo abaixo do card de nível/XP. Mostra só as diárias, com contador `x/3` e barra de progresso; rodapé navega para `Missions`.
+- `components/MissionsCard.js`: card na `AchievementsScreen`, logo abaixo do card de nível/XP — progressão (XP, nível, missões, conquistas) mora toda nessa tela, não na Home. Mostra só as diárias, com contador `x/3` e barra de progresso; rodapé navega para `Missions`.
 - `screens/MissionsScreen.js`: tela do `MainStack` (não é tab), seções "Hoje" e "Esta semana" com barra de progresso por missão.
 
 ## Ao adicionar uma missão nova

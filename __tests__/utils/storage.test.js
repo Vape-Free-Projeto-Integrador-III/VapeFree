@@ -217,8 +217,10 @@ const registroDeHoje = (extras = {}) => ({
     used: true,
     puffs: 100,
     triggers: [],
-    // normalizarRegistro sempre grava a anotação livre, null quando não tem.
+    // normalizarRegistro sempre grava a anotação livre e o dispositivo do dia,
+    // null quando não tem.
     note: null,
+    deviceId: null,
     ...extras,
 });
 
@@ -790,6 +792,133 @@ describe('recalcularEconomia', () => {
         );
 
         expect(mapa['2026-03-01']).toBe(0);
+    });
+});
+
+describe('lista de dispositivos', () => {
+    const POD = { name: 'Pod', price: 50, totalPuffs: 5000, days: 10 };
+
+    it('convidado: cria, edita e apaga na lista local', async () => {
+        expect(await storage.salvarDispositivo({ ...POD, id: 7 })).toEqual({ ok: true });
+        expect(await storage.obterDispositivos()).toMatchObject([{ id: 7, name: 'Pod' }]);
+
+        await storage.salvarDispositivo({ id: 7, ...POD, price: 80 });
+        const depois = await storage.obterDispositivos();
+        expect(depois).toHaveLength(1);
+        expect(depois[0].price).toBe(80);
+
+        expect(await storage.excluirDispositivo(7)).toEqual({ ok: true });
+        expect(await storage.obterDispositivos()).toEqual([]);
+    });
+
+    it('dispositivo novo também vira o aparelho atual', async () => {
+        await storage.salvarDispositivo({ ...POD, id: 7 });
+
+        expect(await storage.obterAparelho()).toMatchObject({ name: 'Pod', price: 50 });
+    });
+
+    it('não apaga dispositivo que algum registro usa — devolve em_uso', async () => {
+        await storage.salvarDispositivo({ ...POD, id: 7 });
+        await storage.salvarRegistro(registroDeHoje({ deviceId: 7 }));
+
+        expect(await storage.excluirDispositivo(7)).toEqual({ ok: false, motivo: 'em_uso' });
+        expect(await storage.obterDispositivos()).toHaveLength(1);
+    });
+
+    it('dispositivo novo vira o padrão, e definirDispositivoPadrao troca', async () => {
+        await storage.salvarDispositivo({ ...POD, id: 7 });
+        await storage.salvarDispositivo({ ...POD, id: 8, name: 'Caneta', price: 100 });
+
+        // O mais novo é o padrão — é o vape que a pessoa acabou de comprar.
+        expect((await storage.obterDispositivos()).map((d) => d.isDefault)).toEqual([false, true]);
+        expect(await storage.obterAparelho()).toMatchObject({ name: 'Caneta' });
+
+        expect(await storage.definirDispositivoPadrao(7)).toEqual({ ok: true });
+        expect((await storage.obterDispositivos()).map((d) => d.isDefault)).toEqual([true, false]);
+        // O `device` (meta derivada, backup) segue o padrão.
+        expect(await storage.obterAparelho()).toMatchObject({ name: 'Pod' });
+    });
+
+    it('editar dispositivo secundário não rouba o padrão', async () => {
+        await storage.salvarDispositivo({ ...POD, id: 7 });
+        await storage.salvarDispositivo({ ...POD, id: 8, name: 'Caneta' });
+
+        await storage.salvarDispositivo({ ...POD, id: 7, name: 'Pod novo nome' });
+
+        expect(await storage.obterAparelho()).toMatchObject({ name: 'Caneta' });
+    });
+
+    it('arquivar o padrão passa a marca pro próximo ativo', async () => {
+        await storage.salvarDispositivo({ ...POD, id: 7 });
+        await storage.salvarDispositivo({ ...POD, id: 8, name: 'Caneta' });
+
+        await storage.arquivarDispositivo(8);
+
+        expect(await storage.definirDispositivoPadrao(8)).toEqual({
+            ok: false,
+            motivo: 'arquivado',
+        });
+        const lista = await storage.obterDispositivos();
+        expect(lista.find((d) => d.id === 7).isDefault).toBe(true);
+    });
+
+    it('arquivar tira do seletor sem apagar nada', async () => {
+        await storage.salvarDispositivo({ ...POD, id: 7 });
+
+        expect(await storage.arquivarDispositivo(7)).toEqual({ ok: true });
+        expect((await storage.obterDispositivos())[0].archived).toBe(true);
+    });
+
+    it('quem só tinha aparelho salvo ganha a lista derivada do histórico', async () => {
+        await storage.salvarAparelho(APARELHO);
+
+        const dispositivos = await storage.obterDispositivos();
+        expect(dispositivos).toHaveLength(1);
+        expect(dispositivos[0]).toMatchObject({ price: 50, archived: false });
+    });
+
+    it('conta offline: escreve no espelho, enfileira e sobe quando a rede volta', async () => {
+        mockAuth.currentUser = { uid: UID };
+        mockOnline = false;
+
+        expect(await storage.salvarDispositivo({ ...POD, id: 7 })).toEqual({ ok: true });
+        expect(espelhoSalvo('devices')).toMatchObject([{ id: 7 }]);
+        expect(await storage.obterDispositivos()).toMatchObject([{ id: 7 }]);
+
+        await religarRedeEDrenar();
+
+        expect(mockRemoto[`users/${UID}`].devices).toMatchObject([{ id: 7 }]);
+    });
+});
+
+describe('recalcularEconomia por dispositivo', () => {
+    const POD = { id: 1, name: 'Pod', price: 50, totalPuffs: 5000, days: 10 };
+    const CANETA = { id: 2, name: 'Caneta', price: 500, totalPuffs: 5000, days: 50 };
+
+    it('cada dia é precificado pelo dispositivo que o registro aponta', async () => {
+        // Pod: custo 0,01 e meta 500/dia. Caneta: custo 0,10 e meta 100/dia.
+        const registros = [
+            { date: '2026-03-01', used: true, puffs: 100, deviceId: 1 }, // 400 × 0,01
+            { date: '2026-03-02', used: true, puffs: 50, deviceId: 2 }, // 50 × 0,10
+        ];
+
+        const mapa = await storage.recalcularEconomia(registros, APARELHO, null, [], [POD, CANETA]);
+
+        expect(mapa).toEqual({ '2026-03-01': 4, '2026-03-02': 5 });
+    });
+
+    it('registro sem deviceId continua caindo no aparelho da data', async () => {
+        const historico = [{ ...APARELHO, desde: '2026-03-01' }];
+
+        const mapa = await storage.recalcularEconomia(
+            [{ date: '2026-03-01', used: true, puffs: 100 }],
+            APARELHO,
+            null,
+            historico,
+            [CANETA]
+        );
+
+        expect(mapa).toEqual({ '2026-03-01': 4 });
     });
 });
 

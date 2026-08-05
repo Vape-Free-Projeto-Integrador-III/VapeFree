@@ -14,14 +14,15 @@ AppNavigator
 │    │    ├─ Register      (RegisterScreen)     label "Registrar"
 │    │    ├─ History       (HistoryScreen)      label "Histórico"
 │    │    └─ Achievements  (AchievementsScreen)  label "Conquistas"
-│    ├─ Device    (DeviceScreen)
+│    ├─ Device    (DeviceScreen)      lista dos dispositivos cadastrados
+│    ├─ DeviceForm (DeviceFormScreen)  cadastro/edição de um dispositivo; `route.params.id` = edição
 │    ├─ Goal      (GoalScreen)      metas de redução e de dinheiro, a partir da Home ou das Configurações
 │    ├─ Profile   (Profile)
 │    ├─ Settings  (SettingsScreen)
 │    ├─ Account   (AccountScreen)    nome/e-mail/senha e exclusão de conta (só logado)
 │    ├─ Crisis    (CrisisScreen)     modo crise, a partir do card da Home
 │    ├─ CrisisHistory (CrisisHistoryScreen) lista/edição das sessões de crise, a partir do InsightsCard no Histórico
-│    ├─ Missions  (MissionsScreen)   missões diárias/semanais, a partir do card da Home
+│    ├─ Missions  (MissionsScreen)   missões diárias/semanais, a partir do card em Conquistas
 │    ├─ Breathing (BreathingScreen)  respiração guiada
 │    └─ Onboarding (OnboardingScreen) "ver o tutorial de novo", a partir das Configurações
 └─ else                      → AuthStack (Stack.Navigator, headerShown: false)
@@ -35,7 +36,7 @@ A troca `MainStack` ↔ `AuthStack` é automática: acontece porque `usuario`/`e
 
 **Passos de formulário (6 e 7).** No fluxo inicial (com `aoConcluir`) entram dois passos a mais, cada um condicionado ao seu dado:
 
-- **6 — aparelho**, só se `obterAparelho()` devolver `null`: nome, preço, total de puxadas, dias de duração — mesmos campos e validação da `DeviceScreen`, com prévia de custo por puxada/meta diária. "Salvar meu dispositivo" chama `salvarAparelho()` + `recalcularEconomia()` (sem `sincronizarGamificacao()`: no dia 1 não existe registro) e avança.
+- **6 — aparelho**, só se `obterAparelho()` devolver `null`: nome, preço, total de puxadas, dias de duração — mesmos campos e validação da `DeviceFormScreen`, com prévia de custo por puxada/meta diária. "Salvar meu dispositivo" chama `salvarDispositivo()` (que mantém `device`/`deviceHistory` junto) + `recalcularEconomia()` (sem `sincronizarGamificacao()`: no dia 1 não existe registro) e avança.
 - **7 — meta**, só se `obterMeta()` não devolver meta válida: quantas puxadas por dia hoje, quantas quer chegar e prazo em chips (30/60/90 dias), com prévia da meta de hoje. O ponto de partida já vem preenchido com o consumo declarado no passo do aparelho. "Definir minha meta" chama `salvarMeta()` e conclui.
 
 Nos dois, falha de escrita mostra `mostrarErro` do `usarToast()` e mantém o usuário no passo; "Fazer isso depois" segue sem salvar. Quem veio das Configurações **nunca** vê nenhum dos dois, nem quem já tem o dado cadastrado. Enquanto essas checagens não respondem, a tela mostra um spinner — a lista de passos não pode mudar de tamanho no meio do tutorial.

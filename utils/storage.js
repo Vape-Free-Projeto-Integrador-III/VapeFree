@@ -55,7 +55,15 @@ import {
 import { verificarConquistas, calcularStreak, calcularEstadoDeStreak } from './achievements';
 import { montarContextoDeMissoes, verificarMissoes } from './missions';
 import { normalizarRegistro, somarPuxadas, custoPorPuxada } from './records';
-import { aparelhoEm, historicoComNovoAparelho, normalizarHistorico } from './aparelhos';
+import {
+    historicoComNovoAparelho,
+    normalizarHistorico,
+    normalizarDispositivos,
+    dispositivoDoRegistro,
+    dispositivoPadrao,
+    comDispositivoPadrao,
+    dispositivosDerivadosDoHistorico,
+} from './aparelhos';
 import { limiteDoDia } from './meta';
 import {
     resumoDeXp,
@@ -73,6 +81,7 @@ const CHAVES = {
     REGISTROS: '@vapefree_records',
     APARELHO: '@vapefree_device',
     HISTORICO_DE_APARELHOS: '@vapefree_device_history',
+    DISPOSITIVOS: '@vapefree_devices',
     META: '@vapefree_goal',
     META_DE_DINHEIRO: '@vapefree_money_goal',
     ECONOMIA: '@vapefree_economy',
@@ -248,6 +257,7 @@ export async function precarregarEspelho() {
         obterMissoes(),
         obterAparelho(),
         obterHistoricoDeAparelhos(),
+        obterDispositivos(),
         obterMeta(),
         obterMetaDeDinheiro(),
         obterEconomia(),
@@ -275,6 +285,7 @@ export async function obterDadosLocaisDoConvidado() {
         registros,
         aparelho,
         historicoDeAparelhos,
+        dispositivos,
         meta,
         metaDeDinheiro,
         economia,
@@ -287,6 +298,7 @@ export async function obterDadosLocaisDoConvidado() {
         lerJson(CHAVES.REGISTROS, []),
         lerJson(CHAVES.APARELHO, null),
         lerJson(CHAVES.HISTORICO_DE_APARELHOS, []),
+        lerJson(CHAVES.DISPOSITIVOS, []),
         lerJson(CHAVES.META, null),
         lerJson(CHAVES.META_DE_DINHEIRO, null),
         lerJson(CHAVES.ECONOMIA, {}),
@@ -304,6 +316,9 @@ export async function obterDadosLocaisDoConvidado() {
         // a lista vazia — quem lê aplica o mesmo fallback de
         // obterHistoricoDeAparelhos e trata `device` como válido desde sempre.
         historicoDeAparelhos: normalizarHistorico(historicoDeAparelhos),
+        // Vazio pra convidado antigo: quem lê aplica o fallback de
+        // obterDispositivos e deriva a lista do histórico.
+        dispositivos: normalizarDispositivos(dispositivos),
         meta: meta && typeof meta === 'object' ? meta : null,
         metaDeDinheiro:
             metaDeDinheiro && typeof metaDeDinheiro === 'object' ? metaDeDinheiro : null,
@@ -321,6 +336,7 @@ export async function temDadosLocaisDoConvidado() {
     return (
         dados.registros.length > 0 ||
         dados.aparelho !== null ||
+        dados.dispositivos.length > 0 ||
         dados.meta !== null ||
         dados.metaDeDinheiro !== null ||
         Object.keys(dados.economia).length > 0 ||
@@ -475,6 +491,7 @@ async function escreverTudoNaConta(uid, dados) {
                 {
                     device: dados.aparelho ?? null,
                     deviceHistory: dados.historicoDeAparelhos,
+                    devices: dados.dispositivos ?? [],
                     goal: dados.meta ?? null,
                     moneyGoal: dados.metaDeDinheiro ?? null,
                     economy:
@@ -504,6 +521,7 @@ async function escreverTudoNaConta(uid, dados) {
         escreverCache(uid, ESPELHOS.MISSOES, dados.missoes),
         escreverCache(uid, ESPELHOS.APARELHO, dados.aparelho ?? null),
         escreverCache(uid, ESPELHOS.HISTORICO_DE_APARELHOS, dados.historicoDeAparelhos),
+        escreverCache(uid, ESPELHOS.DISPOSITIVOS, dados.dispositivos ?? []),
         escreverCache(uid, ESPELHOS.META, dados.meta ?? null),
         escreverCache(uid, ESPELHOS.META_DE_DINHEIRO, dados.metaDeDinheiro ?? null),
         escreverCache(uid, ESPELHOS.ECONOMIA, dados.economia),
@@ -551,6 +569,7 @@ export async function substituirTodosOsDados(dados) {
                     CHAVES.HISTORICO_DE_APARELHOS,
                     JSON.stringify(dados.historicoDeAparelhos)
                 ),
+                AsyncStorage.setItem(CHAVES.DISPOSITIVOS, JSON.stringify(dados.dispositivos ?? [])),
                 AsyncStorage.setItem(CHAVES.META, JSON.stringify(dados.meta ?? null)),
                 AsyncStorage.setItem(
                     CHAVES.META_DE_DINHEIRO,
@@ -674,6 +693,7 @@ async function apagarDadosDaConta(uid) {
             {
                 device: null,
                 deviceHistory: [],
+                devices: [],
                 goal: null,
                 moneyGoal: null,
                 economy: deleteField(),
@@ -693,6 +713,7 @@ async function apagarDadosDaConta(uid) {
         escreverCache(uid, ESPELHOS.MISSOES, []),
         escreverCache(uid, ESPELHOS.APARELHO, null),
         escreverCache(uid, ESPELHOS.HISTORICO_DE_APARELHOS, []),
+        escreverCache(uid, ESPELHOS.DISPOSITIVOS, []),
         escreverCache(uid, ESPELHOS.META, null),
         escreverCache(uid, ESPELHOS.META_DE_DINHEIRO, null),
         escreverCache(uid, ESPELHOS.ECONOMIA, {}),
@@ -1030,6 +1051,169 @@ export async function salvarAparelho(aparelho) {
     }
 }
 
+// ─── Lista de dispositivos ──────────────────────────────────────────────────
+// Modo conta: campo "devices" dentro do documento users/{uid}.
+// Modo convidado: AsyncStorage.
+//
+// É a lista de vapes que o usuário tem, pro registro poder dizer QUAL foi
+// usado (campo `deviceId` do Record). `device`/`deviceHistory` continuam
+// existindo: `device` é o padrão do formulário e da meta derivada, e o
+// histórico ainda precifica os registros antigos, que não têm `deviceId`.
+
+// Grava a lista e mantém o `device` colado no padrão dela. Tudo que mexe na
+// lista passa por aqui: é o que garante que "o padrão" seja uma coisa só, e não
+// um `device` que diz uma coisa e uma lista que diz outra.
+//
+// A lista sempre entra por comDispositivoPadrao, então sai daqui com no máximo
+// um `isDefault` — e nunca num arquivado.
+async function escreverDispositivos(uid, lista, idDoPadrao) {
+    const final = comDispositivoPadrao(lista, idDoPadrao ?? dispositivoPadrao(lista)?.id ?? null);
+
+    if (uid) {
+        await escreverNaConta(uid, ESPELHOS.DISPOSITIVOS, final, {
+            tipo: 'merge_usuario',
+            dados: { devices: final },
+        });
+    } else {
+        await AsyncStorage.setItem(CHAVES.DISPOSITIVOS, JSON.stringify(final));
+    }
+
+    // `device` é o que alimenta a meta derivada (metaEfetiva), o formulário do
+    // tutorial e o backup — ele segue o padrão. salvarAparelho não cria vigência
+    // nova quando nada mudou, então repetir a chamada é barato.
+    const padrao = dispositivoPadrao(final);
+    if (padrao) {
+        const {
+            id: _id,
+            archived: _arquivado,
+            isDefault: _padrao,
+            createdAt: _criadoEm,
+            ...aparelho
+        } = padrao;
+        await salvarAparelho(aparelho);
+    }
+    return final;
+}
+
+// O padrão de leitura é `null` (e não `[]`) porque os dois casos são
+// diferentes: sem NADA salvo é quem nunca teve lista e merece a migração;
+// lista salva VAZIA é quem apagou os dispositivos, e derivar aí ressuscitaria
+// o que ele acabou de apagar.
+export async function obterDispositivos() {
+    const uid = obterUid();
+    let dispositivos;
+    if (uid) {
+        dispositivos = await lerDaConta(
+            uid,
+            ESPELHOS.DISPOSITIVOS,
+            async () => {
+                const snap = await getDoc(doc(db, 'users', uid));
+                return snap.exists() ? (snap.data().devices ?? null) : null;
+            },
+            null
+        );
+    } else {
+        dispositivos = await lerJson(CHAVES.DISPOSITIVOS, null);
+    }
+
+    if (Array.isArray(dispositivos)) return normalizarDispositivos(dispositivos);
+
+    // Quem cadastrou aparelho antes da lista existir não tem `devices` salvo:
+    // o histórico de vigências vira a lista, com o último ativo. Sem isso o
+    // seletor de dispositivo do registro nasceria vazio pra quem já usa o app.
+    return dispositivosDerivadosDoHistorico(await obterHistoricoDeAparelhos());
+}
+
+// Cria ou atualiza um dispositivo (upsert por `id`). Sem `id`, é criação e o id
+// sai de Date.now(), mesmo padrão do Record.
+//
+// Editar é RETROATIVO de propósito: quem corrige o preço está consertando um
+// dado errado, e os dias daquele dispositivo têm que ser reprecificados. Trocar
+// de vape é outra coisa — aí nasce um dispositivo novo e o passado não muda.
+// Quem dispara o recálculo é a tela (recalcularEconomia), como no aparelho.
+export async function salvarDispositivo(dispositivo) {
+    const uid = obterUid();
+    marcarGamificacaoSuja();
+    try {
+        const atuais = await obterDispositivos();
+        const id = dispositivo?.id ?? Date.now();
+        const existente = atuais.find((d) => d.id === Number(id)) ?? null;
+        const entrada = normalizarDispositivos([
+            {
+                ...existente,
+                ...dispositivo,
+                id,
+                createdAt: existente?.createdAt ?? dispositivo?.createdAt ?? dataDeHoje(),
+            },
+        ])[0];
+        if (!entrada) return falha('dispositivo_invalido');
+
+        const lista = existente
+            ? atuais.map((d) => (d.id === entrada.id ? entrada : d))
+            : [...atuais, entrada];
+
+        // Dispositivo NOVO vira o padrão — é o vape que a pessoa acabou de
+        // comprar. Editar não mexe em quem é o padrão; se a edição arquivou o
+        // padrão, escreverDispositivos passa a marca pro próximo ativo.
+        await escreverDispositivos(uid, lista, existente ? undefined : entrada.id);
+        return OK;
+    } catch {
+        return falha('rede');
+    }
+}
+
+// Arquivar tira do seletor sem mexer em nada do passado — é o que fazer com o
+// vape que acabou.
+export async function arquivarDispositivo(id, arquivado = true) {
+    const dispositivos = await obterDispositivos();
+    const alvo = dispositivos.find((d) => d.id === Number(id));
+    if (!alvo) return falha('nao_encontrado');
+    return salvarDispositivo({ ...alvo, archived: arquivado === true });
+}
+
+// Qual dispositivo já vem selecionado na hora de registrar. Só ativo pode ser
+// padrão: arquivado não aparece no seletor, então ser o padrão dele não
+// significaria nada.
+export async function definirDispositivoPadrao(id) {
+    const uid = obterUid();
+    marcarGamificacaoSuja();
+    try {
+        const dispositivos = await obterDispositivos();
+        const alvo = dispositivos.find((d) => d.id === Number(id));
+        if (!alvo) return falha('nao_encontrado');
+        if (alvo.archived) return falha('arquivado');
+
+        await escreverDispositivos(uid, dispositivos, alvo.id);
+        return OK;
+    } catch {
+        return falha('rede');
+    }
+}
+
+// Apagar de vez só quando NENHUM registro aponta pro dispositivo: senão a
+// economia daqueles dias seria recalculada por outro aparelho (ou por nenhum),
+// reescrevendo o passado. Com registro, devolve 'em_uso' e a tela oferece
+// arquivar.
+export async function excluirDispositivo(id) {
+    const uid = obterUid();
+    marcarGamificacaoSuja();
+    try {
+        const alvo = Number(id);
+        const registros = await obterRegistros();
+        if (registros.some((registro) => Number(registro?.deviceId) === alvo)) {
+            return falha('em_uso');
+        }
+        const restantes = (await obterDispositivos()).filter((d) => d.id !== alvo);
+
+        // Apagar o padrão passa a marca pro próximo ativo (quem resolve é o
+        // escreverDispositivos) — o seletor do registro nunca fica sem padrão.
+        await escreverDispositivos(uid, restantes);
+        return OK;
+    } catch {
+        return falha('rede');
+    }
+}
+
 // ─── Meta de redução ────────────────────────────────────────────────────────
 // Modo conta: campo "goal" dentro do documento users/{uid}.
 // Modo convidado: AsyncStorage.
@@ -1195,11 +1379,13 @@ export async function definirEconomia(mapaDeEconomia) {
 // função lê a atual, então quem não tem a meta em mãos chama com dois
 // argumentos, como antes.
 //
-// Cada dia é precificado pelo aparelho que valia NAQUELA data (aparelhoEm, em
-// utils/aparelhos.js), não pelo atual: senão cadastrar um vape mais caro
-// reescreveria a economia do passado inteiro. `historico` também é opcional —
-// sem ele a função lê o atual, pelo mesmo motivo do `meta`.
-export async function recalcularEconomia(registros, aparelho, meta, historico) {
+// Cada dia é precificado pelo DISPOSITIVO do registro daquele dia
+// (dispositivoDoRegistro, em utils/aparelhos.js): o `deviceId` escolhido no
+// registro manda; sem ele, cai no aparelho que valia naquela data; sem
+// histórico, no aparelho atual. Nunca pelo atual direto — senão cadastrar um
+// vape mais caro reescreveria a economia do passado inteiro. `historico` e
+// `dispositivos` também são opcionais, pelo mesmo motivo do `meta`.
+export async function recalcularEconomia(registros, aparelho, meta, historico, dispositivos) {
     if (!aparelho) return {};
     // Aparelho sem preço/total não precifica nada — nem o dia de hoje, nem o
     // passado (o histórico descarta entrada assim). Mapa vazio, como antes.
@@ -1209,6 +1395,10 @@ export async function recalcularEconomia(registros, aparelho, meta, historico) {
         historico !== undefined
             ? normalizarHistorico(historico)
             : await obterHistoricoDeAparelhos();
+    const dispositivosAtuais =
+        dispositivos !== undefined
+            ? normalizarDispositivos(dispositivos)
+            : await obterDispositivos();
 
     // Agrupa os registros por data
     const porData = {};
@@ -1220,7 +1410,13 @@ export async function recalcularEconomia(registros, aparelho, meta, historico) {
     const mapaDeEconomia = {};
     Object.entries(porData).forEach(([data, registrosDoDia]) => {
         const usadasHoje = somarPuxadas(registrosDoDia);
-        const aparelhoDoDia = aparelhoEm(historicoAtual, data) ?? aparelho;
+        // O dia tem um registro só; o primeiro é quem carrega o `deviceId`.
+        const aparelhoDoDia = dispositivoDoRegistro(
+            registrosDoDia[0],
+            dispositivosAtuais,
+            historicoAtual,
+            aparelho
+        );
         const custoDaPuxada = custoPorPuxada(aparelhoDoDia);
         // Sem limite nenhum pro dia não dá pra saber quanto foi poupado.
         const limite = limiteDoDia(metaAtual, aparelhoDoDia, data);
@@ -1579,8 +1775,8 @@ export async function excluirSessaoDeCrise(id) {
 // que já esteja coberta pelo `until`; como nenhum `missionId_periodKey` colide
 // com `_resumo`, `verificarMissoes` a ignora.
 // Cuidado: por isso `missoesConcluidas.length` NÃO é o número de missões
-// concluídas (a conquista `first_mission` só pergunta se é >= 1, o que continua
-// certo — o resumo só existe se houve pelo menos uma).
+// concluídas — nenhuma conquista depende dessa contagem hoje, mas quem for
+// criar uma que dependa precisa somar o `count` do resumo, não o length.
 // O id vem de utils/xp.js (lá é que a soma precisa reconhecer o resumo).
 
 function ehResumoDeMissoes(entrada) {
@@ -1793,8 +1989,8 @@ export async function verificarEDesbloquearConquistas(
 // Bloco único de "carrega dados -> conclui missões -> desbloqueia conquistas ->
 // atualiza XP". Toda tela que pode gerar recompensa (Home, Register, Crisis,
 // Missions) chama isto em vez de repetir a sequência — a ordem importa:
-// concluir missão pode desbloquear conquista (ex: first_mission), e o XP só é
-// recalculado depois das duas.
+// missão concluída entra no contexto das conquistas, e o XP só é recalculado
+// depois das duas.
 //
 // Aceita dados já carregados pela tela (evita reler) e devolve tudo o que as
 // telas usam, incluindo `recompensas` pronto pro mostrarRecompensas() do

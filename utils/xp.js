@@ -10,9 +10,10 @@
 import { CONQUISTAS } from './achievements';
 import { deslocarData, inicioDaSemana } from './datas';
 
+// Registrar (com ou sem uso) não paga XP: o ato de abrir o app e preencher o
+// dia já era premiado por missão diária, e pagar de novo aqui inflava o nível
+// de quem só registrava. Sobrou o bônus de streak, que é conquista de verdade.
 export const REGRAS_DE_XP = {
-    REGISTRO: 10, // por registro feito
-    DIA_LIMPO: 30, // por dia registrado sem usar o vape
     SEMANA_STREAK: 100, // bônus por cada 7 dias seguidos sem usar
 };
 
@@ -173,8 +174,6 @@ function somarXpDeMissoes(missoesConcluidas) {
 // atual em MISSOES) pra que mudar a tabela de missões não reescreva XP que
 // o usuário já ganhou.
 export function calcularXp(registros = [], conquistasDesbloqueadas = [], missoesConcluidas = []) {
-    const xpDeRegistros = (registros?.length || 0) * REGRAS_DE_XP.REGISTRO;
-    const xpDeDiasLimpos = contarDiasLimpos(registros) * REGRAS_DE_XP.DIA_LIMPO;
     const xpDeStreak = Math.floor(calcularMelhorStreak(registros) / 7) * REGRAS_DE_XP.SEMANA_STREAK;
 
     const xpPorId = new Map(CONQUISTAS.map((c) => [c.id, c.xp || 0]));
@@ -185,7 +184,7 @@ export function calcularXp(registros = [], conquistasDesbloqueadas = [], missoes
 
     const xpDeMissoes = somarXpDeMissoes(missoesConcluidas);
 
-    return xpDeRegistros + xpDeDiasLimpos + xpDeStreak + xpDeConquistas + xpDeMissoes;
+    return xpDeStreak + xpDeConquistas + xpDeMissoes;
 }
 
 export function obterNivel(xp = 0) {

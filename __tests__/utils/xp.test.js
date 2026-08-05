@@ -60,19 +60,14 @@ describe('contarDiasLimpos', () => {
 });
 
 describe('calcularXp', () => {
-    it('soma registros + dias limpos', () => {
-        const registros = diasSeguidos(1, 2);
-        expect(calcularXp(registros)).toBe(2 * REGRAS_DE_XP.REGISTRO + 2 * REGRAS_DE_XP.DIA_LIMPO);
+    it('nao paga xp por registrar, com ou sem uso', () => {
+        expect(calcularXp(diasSeguidos(1, 2))).toBe(0);
+        expect(calcularXp([usou('2026-03-01'), usou('2026-03-02')])).toBe(0);
     });
 
     it('paga bonus de streak a cada 7 dias completos', () => {
-        const de14 = diasSeguidos(1, 14);
-        const xpBase = 14 * REGRAS_DE_XP.REGISTRO + 14 * REGRAS_DE_XP.DIA_LIMPO;
-        expect(calcularXp(de14)).toBe(xpBase + 2 * REGRAS_DE_XP.SEMANA_STREAK);
-
-        const de13 = diasSeguidos(1, 13);
-        const xpBase13 = 13 * REGRAS_DE_XP.REGISTRO + 13 * REGRAS_DE_XP.DIA_LIMPO;
-        expect(calcularXp(de13)).toBe(xpBase13 + 1 * REGRAS_DE_XP.SEMANA_STREAK);
+        expect(calcularXp(diasSeguidos(1, 14))).toBe(2 * REGRAS_DE_XP.SEMANA_STREAK);
+        expect(calcularXp(diasSeguidos(1, 13))).toBe(1 * REGRAS_DE_XP.SEMANA_STREAK);
     });
 
     it('usa o xp gravado na propria entrada da missao', () => {
@@ -230,8 +225,8 @@ describe('obterNivel', () => {
 
 describe('resumoDeXp', () => {
     it('devolve xp e nivel juntos', () => {
-        const resumo = resumoDeXp(diasSeguidos(1, 2));
-        expect(resumo.xp).toBe(80);
+        const resumo = resumoDeXp(diasSeguidos(1, 7));
+        expect(resumo.xp).toBe(REGRAS_DE_XP.SEMANA_STREAK);
         expect(resumo.nivel.nome).toBe('Iniciante');
     });
 });

@@ -13,7 +13,7 @@ function getUid() {
 ```
 
 - **Logado** (`uid` existe) → Cloud Firestore, sob `users/{uid}/...`.
-- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_device_history`, `@vapefree_goal`, `@vapefree_money_goal`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
+- **Convidado** (`uid` nulo) → `AsyncStorage` local, chaves fixas (`@vapefree_records`, `@vapefree_device`, `@vapefree_device_history`, `@vapefree_devices`, `@vapefree_goal`, `@vapefree_money_goal`, `@vapefree_economy`, `@vapefree_achievements`, `@vapefree_crisis`, `@vapefree_missions`, `@vapefree_xp`).
 
 Exceção às duas regras acima, as preferências **do aparelho** — como `@vapefree_dark_mode` e `@vapefree_guest_mode`, elas nunca vão pro Firestore, não têm espelho e ficam de fora de `CHAVES` de propósito, pra `limparDadosLocaisDoConvidado()` não apagá-las:
 
@@ -26,7 +26,7 @@ O modo convidado fala direto com o `AsyncStorage`. O modo conta **não** fala di
 
 `utils/offline.js` é o motor; só `utils/storage.js` importa dele (a UI usa `context/ConnectionContext.js`). Duas peças:
 
-- **Espelho** — cópia local do que está no Firestore, no `AsyncStorage`, sob `@vapefree_cache_{uid}_{nome}`, com `nome` ∈ `records`, `achievements`, `crisisSessions`, `missions`, `device`, `deviceHistory`, `goal`, `moneyGoal`, `economy`, `xp`, `appOpenDays`, `profile`.
+- **Espelho** — cópia local do que está no Firestore, no `AsyncStorage`, sob `@vapefree_cache_{uid}_{nome}`, com `nome` ∈ `records`, `achievements`, `crisisSessions`, `missions`, `device`, `deviceHistory`, `devices`, `goal`, `moneyGoal`, `economy`, `xp`, `appOpenDays`, `profile`.
 - **Fila** — `@vapefree_queue_{uid}`, array ordenado de mutações `{ id, tipo, colecao, docId, dados, tentativas }`, com `tipo` ∈ `'set' | 'delete' | 'merge_usuario'` (esse último = `setDoc(users/{uid}, dados, { mergeFields: Object.keys(dados) })`, usado por device/deviceHistory/goal/moneyGoal/economy/xp/appOpenDays/profile). É `mergeFields` e **não** `merge: true` de propósito: `merge: true` faz merge **profundo** de map, e como `economy`/`device`/`goal`/`profile` são maps escritos sempre inteiros, a chave que sumiu do valor novo (dia excluído da economia) sobrevivia no servidor com o valor velho. `mergeFields` substitui cada campo listado por completo e não toca nos outros.
 
 Como cada operação se comporta:
@@ -76,7 +76,7 @@ Quem consome é o `ConnectionContext` (`dadosIncompletos`, `recarregarDados`) e 
 
 Escritas **iniciadas pelo usuário** devolvem `{ ok: true }` ou `{ ok: false, motivo }`:
 
-`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `salvarMeta`, `salvarMetaDeDinheiro`, `definirEconomia`, `salvarSessaoDeCrise`, `atualizarSessaoDeCrise`, `excluirSessaoDeCrise`.
+`salvarRegistro`, `atualizarRegistro`, `excluirRegistro`, `salvarAparelho`, `salvarDispositivo`, `arquivarDispositivo`, `excluirDispositivo`, `salvarMeta`, `salvarMetaDeDinheiro`, `definirEconomia`, `salvarSessaoDeCrise`, `atualizarSessaoDeCrise`, `excluirSessaoDeCrise`.
 
 Motivos: `'rede'` (falha de AsyncStorage), `'data_invalida'` (`salvarRegistro`, data fora da janela de 7 dias), `'nao_encontrado'` (`atualizarRegistro`/`atualizarSessaoDeCrise`, id inexistente em modo convidado). A tela **precisa** checar `ok` e chamar `mostrarErro` do `usarToast()` — e não pode conceder XP nem mostrar sucesso quando a gravação falhou.
 
@@ -100,17 +100,18 @@ Escritas **de fundo** continuam retornando boolean silencioso: `salvarConquista`
         triggers /* string[] label */,
         helps /* string[] label */,
         intensity /* 0-10 */,
+        deviceId /* number ou null — qual dispositivo foi usado */,
         note); /* string ou null — anotação livre do dia */
 }
 ```
 
 Firestore: subcoleção `users/{uid}/records`, doc id = `String(record.id)`. Convidado: array em `@vapefree_records`.
 
-`salvarRegistro`/`atualizarRegistro` passam o registro por `normalizarRegistro` (`utils/records.js`) antes de gravar: com `used: false`, `puffs` vira `0` e `triggers` vira `[]`. Para somar puxadas em qualquer lugar (gráficos, totais, economia, insights) use `puxadasDoRegistro(record)` / `somarPuxadas(records)` do mesmo arquivo — nunca `record.puffs` direto, porque registros salvos antes dessa normalização podem ter `puffs > 0` com `used: false` (foi editado de "usei" para "não usei").
+`salvarRegistro`/`atualizarRegistro` passam o registro por `normalizarRegistro` (`utils/records.js`) antes de gravar: com `used: false`, `puffs` vira `0`, `triggers` vira `[]` e `deviceId` vira `null` (dia sem vape não tem dispositivo a que atribuir). Para somar puxadas em qualquer lugar (gráficos, totais, economia, insights) use `puxadasDoRegistro(record)` / `somarPuxadas(records)` do mesmo arquivo — nunca `record.puffs` direto, porque registros salvos antes dessa normalização podem ter `puffs > 0` com `used: false` (foi editado de "usei" para "não usei").
 
 **Anotação livre** (`note`): campo opcional do dia, mesmo espírito da nota da sessão de crise. `normalizarRegistro` passa por `normalizarNota`: apara, corta em `MAX_NOTA` (280, `utils/records.js`) e devolve `null` quando não sobra nada — `null` e não `undefined` porque é o que o Firestore grava. Vale tanto no dia com uso quanto no dia sem. Preenchido no RegisterScreen e editável no modal do HistoryScreen; aparece no card do histórico e na coluna `anotacao` do CSV exportado. É o único campo buscável: o campo "Buscar nas anotações" do `HistoryScreen` filtra por ele com `notaCasaComBusca(note, termo)` (`utils/records.js`), comparando sem caixa e sem acento — a busca entra no mesmo recorte dos outros filtros, então mexe também no gráfico e no contador, e o campo só aparece quando existe alguma anotação salva. Registro salvo antes disso não tem o campo — sempre leia com `record.note ?? ''`.
 
-**Teto de puxadas**: `MAX_PUXADAS_DIA` (2000, `utils/records.js`) limita `puffs` de um dia. `normalizarRegistro` prende o valor na faixa `[0, MAX_PUXADAS_DIA]`, então nenhuma escrita passa disso — é a última linha de defesa. As duas telas que aceitam puxadas (RegisterScreen e o modal de edição do HistoryScreen) já limitam o input com `limitarPuxadas(texto)` e mostram um aviso ao bater no teto. Sem o teto, um `999999` digitado sem querer estourava a escala do gráfico do histórico e inflava a economia, que é puxadas × `custoPorPuxada`.
+**Teto de puxadas**: `MAX_PUXADAS_DIA` (2000, `utils/records.js`) limita `puffs` de um dia. `normalizarRegistro` prende o valor na faixa `[0, MAX_PUXADAS_DIA]`, então nenhuma escrita passa disso — é a última linha de defesa. As duas telas que aceitam puxadas (RegisterScreen e o modal de edição do HistoryScreen) já limitam o input com `limitarPuxadas(texto)` e mostram um aviso ao bater no teto. Com dispositivo escolhido o teto do dia é menor: `tetoDePuxadasDoDispositivo(dispositivo)` = `min(MAX_PUXADAS_DIA, totalPuffs)`, passado como segundo argumento de `limitarPuxadas` — um pod de 600 puxadas não pode registrar 2000 num dia só. Sem o teto, um `999999` digitado sem querer estourava a escala do gráfico do histórico e inflava a economia, que é puxadas × `custoPorPuxada`.
 
 **Janela de criação**: `salvarRegistro` recusa (`{ ok: false, motivo: 'data_invalida' }`) qualquer `date` fora de `datasRegistraveis()` — hoje ou até `DIAS_PARA_TRAS_NO_REGISTRO` (7) dias atrás. Vale só pra criação: `atualizarRegistro` continua aceitando qualquer data, pra edição de registro antigo pelo histórico seguir funcionando. Existe porque o XP é derivado dos registros (ver `utils/xp.js`) — sem o limite dava pra preencher anos de dias limpos falsos e inflar XP/conquistas. A RegisterScreen usa a mesma lista pra montar o seletor de data, mas a checagem no storage é a que vale.
 
@@ -126,7 +127,30 @@ O `delete` na fila só cobre o que o espelho local conhece. Com espelho frio (lo
 }
 ```
 
-Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`. É sempre o aparelho **atual** — é ele que a UI inteira lê.
+Firestore: campo `device` no doc `users/{uid}`. Convidado: `@vapefree_device`. É o dispositivo **padrão**: alimenta a meta derivada (`metaEfetiva`), o formulário e o backup. Não é mais o único aparelho do usuário — ver **Devices** abaixo.
+
+**Devices** (lista de dispositivos do usuário):
+
+```js
+[{ id, name, price, totalPuffs, days, createdAt, archived, isDefault }, ...]
+```
+
+Firestore: campo `devices` no doc `users/{uid}`. Convidado: `@vapefree_devices`. Espelho `devices`. `id` sai de `Date.now()` (mesmo padrão do `Record`) e é o que o `deviceId` do registro aponta. `archived: true` some do seletor do registro mas **continua precificando** os registros que já apontam pra ele. `isDefault` é o dispositivo que já vem selecionado na hora de registrar — fica na própria lista (e não numa chave separada) porque é propriedade dela: só um pode ser padrão, e quem escreve a lista escreve o padrão junto.
+
+CRUD em `utils/storage.js`: `obterDispositivos()`, `salvarDispositivo(dispositivo)` (upsert por `id`), `arquivarDispositivo(id, arquivado)`, `definirDispositivoPadrao(id)` e `excluirDispositivo(id)`. Todas as escritas devolvem `{ ok, motivo }`.
+
+- **Apagar** só rola quando nenhum registro aponta pro `id`; com registro devolve `{ ok: false, motivo: 'em_uso' }` e a tela oferece arquivar. Apagar um dispositivo em uso reescreveria a economia daqueles dias.
+- **Editar é retroativo**: corrigir preço/total é consertar dado errado, então os dias daquele dispositivo são reprecificados (a tela chama `recalcularEconomia` depois de salvar). Trocar de vape é cadastrar um dispositivo **novo**, e aí o passado não muda.
+- **Padrão**: toda escrita da lista passa por `escreverDispositivos`, que reancora o padrão com `comDispositivoPadrao` (`utils/aparelhos.js`) e cola o `device` nele — `device` é sempre o padrão, então meta derivada, formulário e backup nunca discordam da lista. Dispositivo **novo** vira o padrão; editar um secundário não promove ninguém; arquivar ou apagar o padrão passa a marca pro próximo ativo. `definirDispositivoPadrao(id)` recusa arquivado (`motivo: 'arquivado'`). Quem lê "quem é o padrão" usa `dispositivoPadrao(dispositivos)`, que cai no último ativo quando nada está marcado.
+- **Migração implícita**: `obterDispositivos()` lê com padrão `null` (e não `[]`) de propósito. Sem nada salvo, deriva a lista do `deviceHistory` via `dispositivosDerivadosDoHistorico` (uma entrada por vigência, só a última ativa, `id` derivado do `desde` pra ser estável). Lista salva **vazia** é quem apagou tudo — aí não deriva nada, senão o dispositivo apagado ressuscitaria.
+
+**Qual dispositivo precifica um registro** — regra única, em `dispositivoDoRegistro(registro, dispositivos, historico, aparelhoAtual)` (`utils/aparelhos.js`), usada pela economia, pela Home e pelo registro:
+
+1. `registro.deviceId` que casa com um dispositivo da lista;
+2. senão, `aparelhoEm(deviceHistory, registro.date)` — é o que mantém todo registro antigo (sem `deviceId`) precificado exatamente como antes;
+3. senão, o `device` atual.
+
+Consumo e esgotamento saem de dois helpers puros do mesmo arquivo: `consumoPorDispositivo(registros)` (`{ [deviceId]: puxadas }`, ignora dia sem uso) e `estadoDoDispositivo(dispositivo, consumidas)` (`{ usadas, total, restante, percentual, esgotado }`). `esgotado` é o gatilho do alerta pós-salvamento da RegisterScreen — que **nunca bloqueia** o registro, só pergunta se o vape acabou (arquiva e abre o cadastro de outro), se ele rende mais (abre a edição) ou se é pra deixar assim.
 
 **DeviceHistory** (vigência dos aparelhos, ao lado do `device`):
 
@@ -140,7 +164,7 @@ Firestore: campo `deviceHistory` no doc `users/{uid}`. Convidado: `@vapefree_dev
 
 Entrada **sem `desde` válido vale desde sempre**: é assim que quem já tinha aparelho salvo antes desse campo existir é migrado sem inventar data — `obterHistoricoDeAparelhos()` devolve `[{ ...device }]` quando o campo está vazio, o que reproduz exatamente o comportamento antigo. Dia anterior à primeira vigência cai no aparelho mais antigo do histórico, pelo mesmo motivo (registro retroativo de quem só cadastrou o vape depois continua sendo precificado).
 
-O `deviceHistory` também alimenta a lista "Seus aparelhos" do `DeviceScreen` (quanto cada aparelho custou). A conta é `resumoDeAparelhos(deviceHistory, records, economy)` (`utils/records.js`), que devolve por aparelho `{ aparelho, de, ate, puxadas, dias, gasto, economizado }`. Ela combina dois helpers puros: `periodosDeAparelho(historico)` (`utils/aparelhos.js`), que transforma o histórico em intervalos **meio-abertos** `[de, ate)` — `ate` é o `desde` do aparelho seguinte, e `null` no atual, exatamente o critério do `aparelhoEm` — e `economiaNoIntervalo(economia, de, ate)` (`utils/economia.js`). `gasto` é `puxadas do período × custoPorPuxada do aparelho do período`, ou seja, o dinheiro que aquele aparelho realmente consumiu.
+`resumoDeDispositivos(devices, records, economy)` (`utils/records.js`) é o que alimenta a lista do `DeviceScreen` hoje: agrupa **por `deviceId`** (e não por período de vigência, já que dois dispositivos podem ser usados em dias alternados) e devolve `{ dispositivo, puxadas, dias, gasto, economizado, estado }`. A versão por vigência continua existindo pra quem não tem `deviceId`: `resumoDeAparelhos(deviceHistory, records, economy)` (`utils/records.js`), que devolve por aparelho `{ aparelho, de, ate, puxadas, dias, gasto, economizado }`. Ela combina dois helpers puros: `periodosDeAparelho(historico)` (`utils/aparelhos.js`), que transforma o histórico em intervalos **meio-abertos** `[de, ate)` — `ate` é o `desde` do aparelho seguinte, e `null` no atual, exatamente o critério do `aparelhoEm` — e `economiaNoIntervalo(economia, de, ate)` (`utils/economia.js`). `gasto` é `puxadas do período × custoPorPuxada do aparelho do período`, ou seja, o dinheiro que aquele aparelho realmente consumiu.
 
 **Goal** (meta de redução, uma por usuário):
 
@@ -174,7 +198,7 @@ Firestore: campo `moneyGoal` no doc `users/{uid}`. Convidado: `@vapefree_money_g
 
 **Mission (resumo dos períodos fechados)**: `{ id: '_resumo', summary: true, xp, count, until, updatedAt }`, um único doc/entrada no mesmo lugar das missões. Uma entrada por missão por período crescia sem teto (~1400 documentos/ano) e todas eram lidas em toda sincronização, mesmo com só o `xp` importando depois que o período passa. `consolidarMissoesFechadas(hoje)` (chamada dentro de `sincronizarGamificacao`, na prática uma vez por dia) apaga as entradas de período fechado e acumula `xp`/`count` aqui — o que fica detalhado é só o dia e a semana corrente. `until` é `{ daily, weekly }` — o maior `periodKey` já contado **de cada tipo de período**: uma entrada que ressuscite no servidor (delete que não pegou) é apagada de novo **sem** somar XP duas vezes. São dois valores porque a `periodKey` da diária é um dia qualquer e a da semanal é a segunda-feira daquela semana; com uma marca só, as diárias fechando todo dia passavam por cima da semanal ainda aberta e o XP dela era descartado da soma no meio da semana e depois apagado de vez na consolidação (ver [missions.md](missions.md)). A trava vale nas duas pontas: `calcularXp` (`utils/xp.js`, dono de `ID_DO_RESUMO_DE_MISSOES` e dos helpers `limiteDoResumo`/`jaEstaNoResumo`/`avancarLimite`) descarta toda entrada já coberta pela marca do próprio período antes de somar, então o XP não infla nem se a entrada crua e o resumo aparecerem juntos na mesma lista — não depende mais da consolidação ter rodado antes. Resumo gravado antes dessa correção tem `until` como string e é convertido na leitura por `limiteDoResumo`. Entrada sem `periodKey` — ou sem `period` — continua somando. A entrada de resumo viaja na lista de `obterMissoes()` de propósito — tem `xp`, então `calcularXp` soma o resumo, e nenhum `missionId_periodKey` colide com `_resumo`, então `verificarMissoes` a ignora. Por isso `missoesConcluidas.length` **não** é o número de missões concluídas.
 
-**XP** (snapshot): `{ xp, level, levelName, updatedAt }`. Firestore: campo `xp` no doc `users/{uid}`. Convidado: `@vapefree_xp`. **Não é a fonte da verdade** — o XP é sempre _derivado_ de registros + conquistas + missões + melhor streak por `calcularXp` (`utils/xp.js`); esse snapshot é só cache do último cálculo, gravado por `atualizarXp(records, achievements, missions)` (chamado sempre via `sincronizarGamificacao` — ver `docs/missions.md`, nunca direto pela tela). Regras: +10 XP por registro, +30 por dia registrado sem uso, +100 por cada 7 dias seguidos sem uso (melhor streak histórico), + o campo `xp` de cada conquista desbloqueada, + o `xp` gravado em cada missão concluída. `atualizarXp` também devolve `ganho` (diferença pro snapshot anterior) — é o que alimenta o toast de XP. Níveis em `NIVEIS`: Iniciante 0, Resistente 200, Guerreiro 500, Campeão 1000, Lendário 2000+.
+**XP** (snapshot): `{ xp, level, levelName, updatedAt }`. Firestore: campo `xp` no doc `users/{uid}`. Convidado: `@vapefree_xp`. **Não é a fonte da verdade** — o XP é sempre _derivado_ de registros + conquistas + missões + melhor streak por `calcularXp` (`utils/xp.js`); esse snapshot é só cache do último cálculo, gravado por `atualizarXp(records, achievements, missions)` (chamado sempre via `sincronizarGamificacao` — ver `docs/missions.md`, nunca direto pela tela). Regras: +100 por cada 7 dias seguidos sem uso (melhor streak histórico), + o campo `xp` de cada conquista desbloqueada, + o `xp` gravado em cada missão concluída. **Registrar não paga XP** — nem com uso, nem sem uso: preencher o dia já é premiado pela missão diária, e pagar de novo aqui inflava o nível de quem só registrava. `atualizarXp` também devolve `ganho` (diferença pro snapshot anterior) — é o que alimenta o toast de XP. Níveis em `NIVEIS`: Iniciante 0, Resistente 1000, Guerreiro 2500, Campeão 5000, Lendário 10000+.
 
 **CrisisSession** (modo crise): `{ id, date, time, method, durationSec, completed, outcome, note }`. `id` = `Date.now()`, `method` ∈ `'respiracao' | 'timer' | 'distracao' | null`, `outcome` ∈ `'passou' | 'diminuiu' | 'usei' | null` (null = usuário pulou o feedback). Firestore: subcoleção `users/{uid}/crisisSessions`. Convidado: array em `@vapefree_crisis`. Salva sempre que o usuário encerra a `CrisisScreen`, mesmo sem responder o feedback — ter pedido ajuda já é dado. Lido por `metodoDeCriseRecomendado` (`utils/insights.js`) para sugerir na próxima crise o método que já funcionou. Editável (`atualizarSessaoDeCrise`) e apagável (`excluirSessaoDeCrise`) pela `CrisisHistoryScreen` — a edição só troca `outcome`/`note`; `date`, `time`, `method` e `durationSec` são medidos pelo app, não digitados. A `note` da sessão também é buscável na própria `CrisisHistoryScreen`, pelo mesmo `notaCasaComBusca` do Histórico — só que ali a busca recorta apenas a lista: o card de estatísticas (total/superadas/taxa) continua sobre a base inteira, porque taxa de sucesso de um recorte por texto não significa nada.
 
@@ -214,9 +238,9 @@ Não há prazo declarado: `dataEstimada` é derivada de `deslocarData(hoje, ceil
 
 As duas contas derivadas do aparelho ficam em `utils/records.js`, puras: `custoPorPuxada(device)` (`price / totalPuffs`) e `metaDiaria(device)` (`totalPuffs / days`). Ambas devolvem `null` quando algum campo não é número positivo. Use elas em vez de repetir a fórmula — são as mesmas usadas pela prévia do `DeviceScreen` e pelo fallback de `metaEfetiva`.
 
-`recalcularEconomia(records, device, goal, deviceHistory)`: para cada dia com registro, `economia = max(0, limiteDoDia - puffsUsados) * custoPorPuxada`. Grava o mapa inteiro via `definirEconomia`. Devolve `{}` sem gravar nada se o aparelho não permitir o cálculo (sem `price`/`totalPuffs`); dia cujo limite é `null` fica com economia `0`. O terceiro e o quarto argumentos são opcionais — omitidos, a função lê a meta atual por `obterMeta()` e o histórico por `obterHistoricoDeAparelhos()`, então quem não tem esses dados em mãos chama com dois argumentos.
+`recalcularEconomia(records, device, goal, deviceHistory, devices)`: para cada dia com registro, `economia = max(0, limiteDoDia - puffsUsados) * custoPorPuxada`. Grava o mapa inteiro via `definirEconomia`. Devolve `{}` sem gravar nada se o aparelho não permitir o cálculo (sem `price`/`totalPuffs`); dia cujo limite é `null` fica com economia `0`. Do terceiro argumento em diante é tudo opcional — omitidos, a função lê a meta por `obterMeta()`, o histórico por `obterHistoricoDeAparelhos()` e a lista por `obterDispositivos()`, então quem não tem esses dados em mãos chama com dois argumentos.
 
-O `custoPorPuxada` **e** o `metaDiaria` de cada dia saem de `aparelhoEm(deviceHistory, data)`, o aparelho que valia naquela data — não do aparelho atual. Trocar de aparelho hoje não mexe em nenhum dia anterior. Chamado depois de qualquer `salvarRegistro`/`atualizarRegistro`/`excluirRegistro`, depois de salvar um `aparelho` novo e depois de salvar/remover a meta na `GoalScreen`.
+O `custoPorPuxada` **e** o `metaDiaria` de cada dia saem de `dispositivoDoRegistro(registro do dia, devices, deviceHistory, device)` — o dispositivo escolhido no registro, com o aparelho da data como reserva. Nunca o aparelho atual direto. Trocar de aparelho hoje não mexe em nenhum dia anterior. Chamado depois de qualquer `salvarRegistro`/`atualizarRegistro`/`excluirRegistro`, depois de salvar um `aparelho` novo e depois de salvar/remover a meta na `GoalScreen`.
 
 O limite de cada dia vem de `limiteDoDia(meta, aparelho, data)` (`utils/meta.js`): é o `metaEfetiva` do dia, **mas só a partir do `startDate` da meta** — dias anteriores continuam valendo pela `metaDiaria(aparelho)`. Motivo: fora do intervalo `metaDoDia` gruda no `baseline` (o consumo atual, quase sempre maior que a meta do aparelho), e usar isso no passado inflaria retroativamente a economia já registrada quando o usuário cria uma meta.
 
@@ -226,7 +250,7 @@ Leitura do mapa de economia para gráfico fica em `utils/economia.js` (puro, mó
 
 ## Migração convidado → conta
 
-`migrarDadosDoConvidadoParaConta(uid)`: lê tudo do `AsyncStorage`, grava `device`/`deviceHistory`/`goal`/`moneyGoal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements`, `crisisSessions` e `missions` (é uma sobreposição, não um merge de listas), preenche o espelho local com o que subiu e só então limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
+`migrarDadosDoConvidadoParaConta(uid)`: lê tudo do `AsyncStorage`, grava `device`/`deviceHistory`/`devices`/`goal`/`moneyGoal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (merge), substitui inteiramente as subcoleções `records`, `achievements`, `crisisSessions` e `missions` (é uma sobreposição, não um merge de listas), preenche o espelho local com o que subiu e só então limpa o `AsyncStorage`. Detalhe do fluxo de UI em [auth.md](auth.md).
 
 A substituição (`substituirDocsDaColecao`) roda em `writeBatch` de **500 operações** (limite do Firestore) e na ordem **escreve o novo → apaga o que sobrou** (só os ids que não foram reescritos). Cada commit é atômico, então falhar no meio deixa dado **a mais** (docs velhos que ainda não saíram), nunca a menos — a próxima tentativa reescreve e limpa. A ordem inversa (apagar antes) perderia tudo se a rede caísse entre as duas fases.
 
@@ -239,7 +263,7 @@ O `estaOnline()` da entrada não basta: a rede pode cair depois dele, e aí o SD
 `apagarTodosOsDados()` (Configurações → "Apagar todos os meus dados") zera o progresso mantendo a conta:
 
 - **Convidado**: `limparDadosLocaisDoConvidado()` — o tutorial, o tema e a preferência de notificação sobrevivem (ficam fora de `CHAVES`).
-- **Conta**: apaga todos os docs das quatro subcoleções, zera `device`/`deviceHistory`/`goal`/`moneyGoal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (o `economy` sai com `deleteField()`, não com `{}`: merge de map no Firestore é profundo, então escrever `{}` num map é no-op e as chaves de data antigas voltariam na próxima leitura online) e deixa o espelho **quente e vazio** (`[]`/`{}`/`null`), pra leitura offline não confundir "apagado" com "ainda não carregado".
+- **Conta**: apaga todos os docs das quatro subcoleções, zera `device`/`deviceHistory`/`devices`/`goal`/`moneyGoal`/`economy`/`xp`/`appOpenDays` no doc `users/{uid}` (o `economy` sai com `deleteField()`, não com `{}`: merge de map no Firestore é profundo, então escrever `{}` num map é no-op e as chaves de data antigas voltariam na próxima leitura online) e deixa o espelho **quente e vazio** (`[]`/`{}`/`null`), pra leitura offline não confundir "apagado" com "ainda não carregado".
 
 Como a migração, **exige internet** (devolve `{ ok: false, motivo: 'rede' }` offline): apagar subcoleção depende de listar o que está no servidor. A fila é descartada antes da limpeza — escrita pendente que subisse depois ressuscitaria dado que o usuário mandou apagar.
 
@@ -247,7 +271,7 @@ Como a migração, **exige internet** (devolve `{ ok: false, motivo: 'rede' }` o
 
 ## Exportar dados
 
-`utils/exportacao.js` → `exportarDados('csv' | 'json')`. Lê tudo por `storage.js`, então funciona igual pra convidado e conta (e offline, servido pelo espelho); não escreve nada. CSV traz só os registros, uma linha por registro, com a economia do dia junto; JSON traz o pacote completo (registros, aparelho, histórico de aparelhos, metas, economia, conquistas, sessões de crise, missões, XP, dias de abertura), que serve de backup. No nativo grava em `Paths.cache` (`expo-file-system`) e abre o `Sharing.shareAsync`; na web baixa por link temporário, porque `expo-sharing` não existe lá. Devolve `{ ok }` ou `{ ok: false, motivo }` com `motivo` ∈ `'sem_dados' | 'sem_compartilhamento' | 'falhou'`.
+`utils/exportacao.js` → `exportarDados('csv' | 'json')`. Lê tudo por `storage.js`, então funciona igual pra convidado e conta (e offline, servido pelo espelho); não escreve nada. CSV traz só os registros, uma linha por registro, com a economia do dia junto; JSON traz o pacote completo (registros, aparelho, histórico de aparelhos, dispositivos, metas, economia, conquistas, sessões de crise, missões, XP, dias de abertura), que serve de backup. No nativo grava em `Paths.cache` (`expo-file-system`) e abre o `Sharing.shareAsync`; na web baixa por link temporário, porque `expo-sharing` não existe lá. Devolve `{ ok }` ou `{ ok: false, motivo }` com `motivo` ∈ `'sem_dados' | 'sem_compartilhamento' | 'falhou'`.
 
 As chaves do JSON **são** o formato do backup — renomear qualquer uma quebra os arquivos que os usuários já guardaram e que `utils/importacao.js` lê de volta.
 
@@ -255,7 +279,7 @@ As chaves do JSON **são** o formato do backup — renomear qualquer uma quebra 
 
 `utils/importacao.js` → `importarBackup()`, chamado pela linha "Importar backup" das Configurações. Abre o `expo-document-picker`, lê o texto (nativo: `new File(uri).text()`; web: o `File` do browser que o próprio picker devolve), faz `JSON.parse` e passa por `normalizarBackup(bruto)`.
 
-`normalizarBackup` é pura e desconfiada — o arquivo vem de fora do app: exige que exista a lista `registros` (senão `{ ok: false, motivo: 'formato' }`, o que evita apagar tudo por causa de um JSON qualquer), descarta entrada de subcoleção sem `id` (é o nome do documento no Firestore), registro com `date` fora de `'YYYY-MM-DD'` e chave/valor inválido da economia, roda `normalizarRegistro` em cada registro e preenche com vazio o que backup antigo não tinha (`historicoDeAparelhos`, `diasDeAbertura`).
+`normalizarBackup` é pura e desconfiada — o arquivo vem de fora do app: exige que exista a lista `registros` (senão `{ ok: false, motivo: 'formato' }`, o que evita apagar tudo por causa de um JSON qualquer), descarta entrada de subcoleção sem `id` (é o nome do documento no Firestore), registro com `date` fora de `'YYYY-MM-DD'` e chave/valor inválido da economia, roda `normalizarRegistro` em cada registro e preenche com vazio o que backup antigo não tinha (`historicoDeAparelhos`, `dispositivos`, `diasDeAbertura`).
 
 A escrita é `substituirTodosOsDados(dados)` (`utils/storage.js`), que **sobrepõe** — o que estava salvo e não veio no backup some. No modo convidado grava as chaves do `AsyncStorage`; no modo conta descarta espelho + fila (a fila é do estado antigo, subiria por cima do backup) e usa o mesmo `escreverTudoNaConta` da migração de convidado, então **exige rede** (`{ ok: false, motivo: 'rede' }` offline). `importarBackup` devolve `{ ok: true, resumo }` ou `{ ok: false, motivo }` com `motivo` ∈ `'cancelado' | 'formato' | 'vazio' | 'rede' | 'falhou'` — `'cancelado'` (fechou o seletor) não vira erro na tela.
 

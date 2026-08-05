@@ -22,6 +22,7 @@ const mockMostrarRecompensas = jest.fn();
 const mockSalvarRegistro = jest.fn();
 const mockAtualizarRegistro = jest.fn();
 const mockSalvarAparelho = jest.fn();
+const mockSalvarDispositivo = jest.fn();
 const mockSalvarMeta = jest.fn();
 const mockSalvarMetaDeDinheiro = jest.fn();
 const mockAtualizarSessaoDeCrise = jest.fn();
@@ -50,6 +51,10 @@ jest.mock('../../utils/storage', () => {
         salvarRegistro: (...args) => mockSalvarRegistro(...args),
         atualizarRegistro: (...args) => mockAtualizarRegistro(...args),
         salvarAparelho: (...args) => mockSalvarAparelho(...args),
+        salvarDispositivo: (...args) => mockSalvarDispositivo(...args),
+        arquivarDispositivo: jest.fn(() => Promise.resolve(OK)),
+        excluirDispositivo: jest.fn(() => Promise.resolve(OK)),
+        obterDispositivos: jest.fn(() => Promise.resolve([])),
         salvarMeta: (...args) => mockSalvarMeta(...args),
         salvarMetaDeDinheiro: (...args) => mockSalvarMetaDeDinheiro(...args),
         obterMetaDeDinheiro: jest.fn(() => Promise.resolve(null)),
@@ -103,7 +108,7 @@ jest.mock('@react-navigation/native', () => {
 });
 
 const RegisterScreen = require('../../screens/RegisterScreen').default;
-const DeviceScreen = require('../../screens/DeviceScreen').default;
+const DeviceFormScreen = require('../../screens/DeviceFormScreen').default;
 const GoalScreen = require('../../screens/GoalScreen').default;
 const CrisisHistoryScreen = require('../../screens/CrisisHistoryScreen').default;
 
@@ -167,7 +172,7 @@ describe('RegisterScreen', () => {
     });
 });
 
-describe('DeviceScreen', () => {
+describe('DeviceFormScreen', () => {
     const preencherEnviar = async () => {
         await fireEvent.changeText(screen.getByPlaceholderText('Ex: Vape Pod – Mint'), 'Pod Mint');
         await fireEvent.changeText(screen.getByPlaceholderText('Ex: 39.90'), '39.90');
@@ -176,9 +181,9 @@ describe('DeviceScreen', () => {
         await fireEvent.press(screen.getByText('Salvar'));
     };
 
-    it('salvarAparelho falhando não dá XP nem sucesso', async () => {
-        mockSalvarAparelho.mockResolvedValue(falhaDeRede);
-        await render(<DeviceScreen navigation={navegacao} />);
+    it('salvarDispositivo falhando não dá XP nem sucesso', async () => {
+        mockSalvarDispositivo.mockResolvedValue(falhaDeRede);
+        await render(<DeviceFormScreen navigation={navegacao} route={{ params: {} }} />);
 
         await preencherEnviar();
 
@@ -186,9 +191,9 @@ describe('DeviceScreen', () => {
         esperarNenhumaPremiacao();
     });
 
-    it('salvarAparelho dando ok concede XP', async () => {
-        mockSalvarAparelho.mockResolvedValue(OK);
-        await render(<DeviceScreen navigation={navegacao} />);
+    it('salvarDispositivo dando ok concede XP', async () => {
+        mockSalvarDispositivo.mockResolvedValue(OK);
+        await render(<DeviceFormScreen navigation={navegacao} route={{ params: {} }} />);
 
         await preencherEnviar();
 

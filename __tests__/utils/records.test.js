@@ -12,6 +12,8 @@ import {
     MAX_PUXADAS_DIA,
     MAX_NOTA,
     resumoDeAparelhos,
+    resumoDeDispositivos,
+    tetoDePuxadasDoDispositivo,
 } from '../../utils/records';
 
 const APARELHO = { price: 50, totalPuffs: 5000, days: 10 };
@@ -48,12 +50,27 @@ describe('normalizarRegistro', () => {
     it('zera puffs e triggers quando nao houve uso', () => {
         expect(
             normalizarRegistro({ date: '2026-03-05', used: false, puffs: 7, triggers: ['stress'] })
-        ).toEqual({ date: '2026-03-05', used: false, puffs: 0, triggers: [], note: null });
+        ).toEqual({
+            date: '2026-03-05',
+            used: false,
+            puffs: 0,
+            triggers: [],
+            deviceId: null,
+            note: null,
+        });
     });
 
     it('preserva os campos quando houve uso', () => {
         const registro = { date: '2026-03-05', used: true, puffs: 7, triggers: ['stress'] };
-        expect(normalizarRegistro(registro)).toEqual({ ...registro, note: null });
+        expect(normalizarRegistro(registro)).toEqual({ ...registro, deviceId: null, note: null });
+    });
+
+    it('mantem o dispositivo escolhido quando houve uso', () => {
+        expect(normalizarRegistro({ used: true, puffs: 3, deviceId: 12 }).deviceId).toBe(12);
+    });
+
+    it('descarta o dispositivo no dia sem uso', () => {
+        expect(normalizarRegistro({ used: false, deviceId: 12 }).deviceId).toBeNull();
     });
 
     it('prende puffs no teto quando houve uso', () => {
@@ -246,5 +263,64 @@ describe('resumoDeAparelhos', () => {
         const resumo = resumoDeAparelhos([legado, CARO], REGISTROS, ECONOMIA);
 
         expect(resumo[0]).toMatchObject({ de: null, ate: '2024-03-10', puxadas: 150 });
+    });
+});
+
+describe('tetoDePuxadasDoDispositivo', () => {
+    it('nenhum dia passa do que o vape inteiro rende', () => {
+        expect(tetoDePuxadasDoDispositivo({ totalPuffs: 600 })).toBe(600);
+    });
+
+    it('nunca passa do teto global, mesmo com vape gigante', () => {
+        expect(tetoDePuxadasDoDispositivo({ totalPuffs: 50000 })).toBe(MAX_PUXADAS_DIA);
+    });
+
+    it('sem dispositivo vale o teto global', () => {
+        expect(tetoDePuxadasDoDispositivo(null)).toBe(MAX_PUXADAS_DIA);
+    });
+});
+
+describe('limitarPuxadas com teto de dispositivo', () => {
+    it('prende no teto do dispositivo', () => {
+        expect(limitarPuxadas(900, 600)).toBe(600);
+        expect(limitarPuxadas(500, 600)).toBe(500);
+    });
+
+    it('teto maior que o global não vale', () => {
+        expect(limitarPuxadas(99999, 50000)).toBe(MAX_PUXADAS_DIA);
+    });
+});
+
+describe('resumoDeDispositivos', () => {
+    const POD = { id: 1, name: 'Pod', price: 50, totalPuffs: 5000, days: 10 };
+    const CANETA = { id: 2, name: 'Caneta', price: 100, totalPuffs: 1000, days: 10 };
+    const registros = [
+        { date: '2026-03-01', used: true, puffs: 100, deviceId: 1 },
+        { date: '2026-03-02', used: true, puffs: 400, deviceId: 1 },
+        { date: '2026-03-03', used: true, puffs: 50, deviceId: 2 },
+    ];
+    const economia = { '2026-03-01': 4, '2026-03-02': 1, '2026-03-03': 5 };
+
+    it('agrupa por dispositivo, não por período', () => {
+        const resumo = resumoDeDispositivos([POD, CANETA], registros, economia);
+
+        expect(resumo[0]).toMatchObject({ puxadas: 500, dias: 2, gasto: 5, economizado: 5 });
+        expect(resumo[1]).toMatchObject({ puxadas: 50, dias: 1, gasto: 5, economizado: 5 });
+    });
+
+    it('leva junto o quanto cada um já rendeu', () => {
+        const resumo = resumoDeDispositivos([POD, CANETA], registros, economia);
+
+        expect(resumo[0].estado).toMatchObject({ usadas: 500, restante: 4500, esgotado: false });
+        expect(resumo[1].estado).toMatchObject({ usadas: 50, restante: 950 });
+    });
+
+    it('dispositivo sem registro nenhum aparece zerado', () => {
+        expect(resumoDeDispositivos([POD], [], {})[0]).toMatchObject({
+            puxadas: 0,
+            dias: 0,
+            gasto: 0,
+            economizado: 0,
+        });
     });
 });

@@ -111,3 +111,132 @@ export function historicoComNovoAparelho(historico, aparelho, hoje) {
     }
     return [...lista, nova];
 }
+
+// ─── Lista de dispositivos ───────────────────────────────────────────────────
+//
+// O histórico acima resolve "qual vape valia naquele dia". A lista de
+// dispositivos resolve outra coisa: QUAIS vapes o usuário tem, pra ele escolher
+// no registro qual usou. Um registro guarda `deviceId` e é precificado por esse
+// dispositivo — não mais pela data.
+//
+// Shape persistido (campo `devices`):
+//   [{ id, name, price, totalPuffs, days, createdAt, archived, isDefault }, ...]
+//
+// `archived: true` some do seletor mas continua precificando os registros que
+// já apontam pra ele: apagar de vez um dispositivo com registro reescreveria a
+// economia do passado, que é justamente o que este arquivo existe pra evitar.
+//
+// `isDefault` é o dispositivo que já vem selecionado no registro. Fica na
+// própria lista (e não numa chave separada) porque é uma propriedade dela: só
+// um pode ser padrão, e quem escreve a lista escreve o padrão junto, sem
+// espelho novo e sem os dois saírem de sincronia.
+
+function idValido(valor) {
+    const n = Number(valor);
+    return !isNaN(n) && valor !== null && valor !== undefined && valor !== '' ? n : null;
+}
+
+// Descarta o que não dá pra calcular (mesma regra do histórico) e o que não tem
+// id — sem id não dá pra ligar registro a dispositivo.
+export function normalizarDispositivos(valor) {
+    if (!Array.isArray(valor)) return [];
+    return valor
+        .filter((entrada) => aparelhoUtilizavel(entrada) && idValido(entrada?.id) !== null)
+        .map((entrada) => ({
+            ...entrada,
+            id: idValido(entrada.id),
+            archived: entrada.archived === true,
+            isDefault: entrada.isDefault === true,
+        }));
+}
+
+export function dispositivoPorId(dispositivos, id) {
+    const alvo = idValido(id);
+    if (alvo === null) return null;
+    return normalizarDispositivos(dispositivos).find((d) => d.id === alvo) ?? null;
+}
+
+// Os que aparecem no seletor do registro.
+export function dispositivosAtivos(dispositivos) {
+    return normalizarDispositivos(dispositivos).filter((d) => !d.archived);
+}
+
+// O dispositivo que já vem selecionado no registro. Padrão arquivado não vale
+// (ele saiu de circulação), e sem padrão marcado cai no último ativo — que é o
+// que a lista fazia antes de existir a marcação explícita.
+export function dispositivoPadrao(dispositivos) {
+    const ativos = dispositivosAtivos(dispositivos);
+    return ativos.find((d) => d.isDefault) ?? ativos[ativos.length - 1] ?? null;
+}
+
+// Marca `id` como padrão e tira a marca de todos os outros — o padrão é único
+// por construção, então quem escreve a lista passa por aqui.
+export function comDispositivoPadrao(dispositivos, id) {
+    const alvo = idValido(id);
+    return normalizarDispositivos(dispositivos).map((dispositivo) => ({
+        ...dispositivo,
+        isDefault: dispositivo.id === alvo && !dispositivo.archived,
+    }));
+}
+
+// O dispositivo que precifica um registro. Três camadas, nessa ordem:
+//   1. o `deviceId` do próprio registro (o caminho novo);
+//   2. o aparelho que valia na data (registro salvo antes desta feature);
+//   3. o aparelho atual (quem nunca teve histórico).
+// A camada 2 é o que faz a economia já registrada continuar idêntica.
+export function dispositivoDoRegistro(registro, dispositivos, historico, aparelhoAtual) {
+    const doId = dispositivoPorId(dispositivos, registro?.deviceId);
+    if (doId) return doId;
+    return aparelhoEm(historico, registro?.date) ?? aparelhoAtual ?? null;
+}
+
+// Quantas puxadas cada dispositivo já levou, somando os registros que apontam
+// pra ele. Registro sem uso não conta (`used: false` é sempre zero puxada) —
+// mesma regra de puxadasDoRegistro, repetida aqui porque este é módulo folha.
+export function consumoPorDispositivo(registros) {
+    const total = {};
+    (Array.isArray(registros) ? registros : []).forEach((registro) => {
+        const id = idValido(registro?.deviceId);
+        if (id === null || !registro?.used) return;
+        const puxadas = Number(registro.puffs);
+        total[id] = (total[id] ?? 0) + (isNaN(puxadas) ? 0 : puxadas);
+    });
+    return total;
+}
+
+// Quanto do dispositivo já foi. `esgotado` é o gatilho do aviso de "acabou?":
+// passou do que ele rende, então ou acabou mesmo ou o total declarado está
+// errado — quem decide é o usuário.
+export function estadoDoDispositivo(dispositivo, consumidas) {
+    const total = numeroPositivo(dispositivo?.totalPuffs);
+    const usadas = Math.max(0, Number(consumidas) || 0);
+    if (total === null) {
+        return { usadas, total: null, restante: null, percentual: 0, esgotado: false };
+    }
+    return {
+        usadas,
+        total,
+        restante: Math.max(0, total - usadas),
+        percentual: Math.min(100, Math.round((usadas / total) * 100)),
+        esgotado: usadas >= total,
+    };
+}
+
+// Migração implícita pra quem já tinha aparelho cadastrado antes da lista
+// existir: cada vigência do histórico vira um dispositivo, o último ativo e os
+// anteriores arquivados (já foram trocados). O id sai da vigência pra ser
+// estável entre chamadas — se fosse Date.now() a lista mudaria de id a cada
+// leitura, e os registros nunca casariam com ela.
+export function dispositivosDerivadosDoHistorico(historico) {
+    const lista = normalizarHistorico(historico);
+    return lista.map((aparelho, indice) => {
+        const desde = dataDeVigencia(aparelho);
+        return {
+            ...aparelho,
+            id: desde === null ? indice + 1 : Number(desde.replace(/-/g, '')) * 10 + indice,
+            createdAt: desde,
+            archived: indice < lista.length - 1,
+            isDefault: indice === lista.length - 1,
+        };
+    });
+}

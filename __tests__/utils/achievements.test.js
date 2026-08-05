@@ -110,16 +110,16 @@ describe('verificarConquistas', () => {
     it('desbloqueia a conquista cuja condicao foi cumprida', async () => {
         const resultados = await verificarConquistas([limpo('2026-03-01')]);
         const porId = new Map(resultados.map((c) => [c.id, c]));
-        expect(porId.get('first_record').desbloqueada).toBe(true);
+        expect(porId.get('no_puffs_1').desbloqueada).toBe(true);
         expect(porId.get('streak_30').desbloqueada).toBe(false);
         expect(porId.get('streak_30').desbloqueadaEm).toBeNull();
     });
 
     it('mantem desbloqueada e preserva a data de quem ja tinha desbloqueado', async () => {
         const resultados = await verificarConquistas([], {}, [
-            { id: 'first_record', unlockedAt: '2026-01-01T10:00:00.000Z' },
+            { id: 'no_puffs_1', unlockedAt: '2026-01-01T10:00:00.000Z' },
         ]);
-        const conquista = resultados.find((c) => c.id === 'first_record');
+        const conquista = resultados.find((c) => c.id === 'no_puffs_1');
         expect(conquista.desbloqueada).toBe(true);
         expect(conquista.desbloqueadaEm).toBe('2026-01-01T10:00:00.000Z');
     });

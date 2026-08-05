@@ -84,7 +84,7 @@ O relógio **não é o streak**: streak soma dia protegido por escudo, e dia pro
 
 ## `MissionsCard` (`components/MissionsCard.js`)
 
-Card da `HomeScreen` com as missões **diárias** do dia. Props: `missoes` (já calculadas pela tela via `verificarMissoes`), `cores`, `aoPressionar` (navega para `Missions`). É só apresentação — não lê storage nem decide conclusão. Ver [missions.md](missions.md).
+Card da `AchievementsScreen` com as missões **diárias** do dia. Props: `missoes` (já calculadas pela tela via `verificarMissoes`), `cores`, `aoPressionar` (navega para `Missions`). É só apresentação — não lê storage nem decide conclusão. Ver [missions.md](missions.md).
 
 ## `OfflineBanner` (`components/OfflineBanner.js`)
 
@@ -156,10 +156,10 @@ Esses padrões existem em várias telas com estilo copiado, não como componente
 
 - **Card**: `View` com `borderRadius: RAIO.lg`, `backgroundColor: cores.card`, `SOMBRA.medium`, `marginHorizontal: 16`.
 - **Toggle de 2 opções** (ex: Descartável/Recarregável, Sim/Não): row de dois `TouchableOpacity` com `borderColor`/`backgroundColor: cores.primary` quando selecionado, texto branco quando ativo.
-- **Chips multi-seleção** (gatilhos, ajudas): `RAIO.full`, mesmo padrão de cor do toggle, usado com arrays `GATILHOS`/`AJUDAS` de `utils/theme.js`.
+- **Chips multi-seleção** (gatilhos, ajudas): `RAIO.full`, mesmo padrão de cor do toggle, usado com arrays `GATILHOS`/`AJUDAS` de `utils/theme.js`. O **seletor de dispositivo** da `RegisterScreen` ("Qual dispositivo você usou?") usa o mesmo chip, mas de seleção única, alimentado por `dispositivosAtivos(dispositivos)` e já marcando `dispositivoPadrao(dispositivos)` (`utils/aparelhos.js`) — escolha manual no formulário ganha do padrão, mas formulário zerado volta a segui-lo — sem dispositivo cadastrado, o lugar dos chips vira um atalho pro `DeviceForm`.
 - **Contador +/-**: par de botões circulares (`width/height: 44`, `borderRadius: 22`) em volta de um número grande central — usado para "quantidade de puxadas".
-- **Toast de sucesso**: `Animated.Value` iniciado em 0, sequência `timing(1) → delay(2000) → timing(0)`, guardado em `useRef`/`useState`. Ver `DeviceScreen.js`/`RegisterScreen.js`.
+- **Toast de sucesso**: `Animated.Value` iniciado em 0, sequência `timing(1) → delay(2000) → timing(0)`, guardado em `useRef`/`useState`. Ver `DeviceFormScreen.js`/`RegisterScreen.js`.
 - **Modal bottom-sheet** (edição, seletor de data): `Modal transparent animationType="slide"`, overlay `rgba(0,0,0,0.5)` + `justifyContent: 'flex-end'`, conteúdo com `borderTopLeftRadius/borderTopRightRadius: RAIO.xl`.
 - **Modal de confirmação central** (excluir registro): mesmo overlay, mas `justifyContent: 'center'`, card com `width: '80%', maxWidth: 300`.
-- **Barra de progresso**: não existe componente compartilhado — cada card monta a sua com dois `View` (`xpTrack` com `overflow: 'hidden'` + `xpFill` com `width: '{n}%'`). Usada no card de XP, no card de meta e no bloco da meta de dinheiro (`HomeScreen`), e em `MissionsCard`/`HealthMilestonesCard`.
+- **Barra de progresso**: não existe componente compartilhado — cada card monta a sua com dois `View` (`xpTrack` com `overflow: 'hidden'` + `xpFill` com `width: '{n}%'`). Usada no card de meta e no bloco da meta de dinheiro (`HomeScreen`), no card de XP (`AchievementsScreen`), e em `MissionsCard`/`HealthMilestonesCard`.
 - **Faixa de status dentro de card**: row com ícone Ionicons + texto, `padding: 10`, `RAIO.md`, `borderWidth: 1`, fundo suave e borda na cor do estado. Duas na `HomeScreen`, no card "Como você foi hoje?": `shieldRow` (escudo do streak, tons de `primary`) e `excessRow` (uso acima da meta do aparelho, `cores.danger` com fundo `cores.danger + '22'` — mesmo truque de opacidade do `ConfirmModal`). O `excessRow` só aparece quando `excessoDoDia(registrosDeHoje, aparelho)` (`utils/records.js`) devolve `puxadasAMais > 0`; sem aparelho cadastrado, nunca aparece.

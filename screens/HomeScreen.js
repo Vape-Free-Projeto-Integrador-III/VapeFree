@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import {
     obterRegistros,
     obterAparelho,
+    obterDispositivos,
+    obterHistoricoDeAparelhos,
     obterMeta,
     obterMetaDeDinheiro,
     obterEconomia,
@@ -25,9 +27,13 @@ import {
     totalEconomizado,
 } from '../utils/economia';
 import { metaEfetiva, progressoDaMeta, metaValida, comparativoSemanal } from '../utils/meta';
+import {
+    dispositivoDoRegistro,
+    dispositivoPadrao,
+    consumoPorDispositivo,
+    estadoDoDispositivo,
+} from '../utils/aparelhos';
 import { progressoDaMetaDeDinheiro } from '../utils/metaDeDinheiro';
-import { obterNivel } from '../utils/xp';
-import { montarContextoDeMissoes, verificarMissoes } from '../utils/missions';
 import { DIAS_PARA_ESCUDO } from '../utils/achievements';
 import { estadoDoDia, resumoDoMes, mesDeData } from '../utils/calendario';
 import { RAIO, SOMBRA, DICAS } from '../utils/theme';
@@ -35,7 +41,6 @@ import { usarLayoutResponsivo, estiloDoConteudo } from '../utils/responsivo';
 import { usarTema } from '../context/ThemeContext';
 import { usarToast } from '../context/ToastContext';
 import ScreenHeader from '../components/ScreenHeader';
-import MissionsCard from '../components/MissionsCard';
 import CalendarioMensal from '../components/CalendarioMensal';
 import HealthMilestonesCard from '../components/HealthMilestonesCard';
 import GradeDeCards from '../components/GradeDeCards';
@@ -50,11 +55,11 @@ export default function HomeScreen({ navigation }) {
     const { mostrarRecompensas } = usarToast();
     const [registros, setRegistros] = useState([]);
     const [aparelho, setAparelho] = useState(null);
+    const [dispositivos, setDispositivos] = useState([]);
+    const [historicoDeAparelhos, setHistoricoDeAparelhos] = useState([]);
     const [meta, setMeta] = useState(null);
     const [metaDeDinheiro, setMetaDeDinheiro] = useState(null);
     const [economia, setEconomia] = useState({});
-    const [missoes, setMissoes] = useState([]);
-    const [xp, setXp] = useState(0);
     const [atualizando, setAtualizando] = useState(false);
     const [mesDoCalendario, setMesDoCalendario] = useState(() => mesDeData(dataDeHoje()));
 
@@ -66,21 +71,25 @@ export default function HomeScreen({ navigation }) {
             // Home é a porta de entrada do app — marcar aqui o dia de abertura
             // alimenta a conquista de presença diária (app_open_7).
             const diasDeAbertura = await registrarAberturaDoApp();
-            const [r, d, e, c, m, md] = await Promise.all([
+            const [r, d, e, c, m, md, disp, hist] = await Promise.all([
                 obterRegistros(),
                 obterAparelho(),
                 obterEconomia(),
                 obterSessoesDeCrise(),
                 obterMeta(),
                 obterMetaDeDinheiro(),
+                obterDispositivos(),
+                obterHistoricoDeAparelhos(),
             ]);
             setRegistros(r);
             setAparelho(d);
+            setDispositivos(disp);
+            setHistoricoDeAparelhos(hist);
             setEconomia(e);
             setMeta(m);
             setMetaDeDinheiro(md);
 
-            const { missoesConcluidas, resumo, recompensas } = await sincronizarGamificacao({
+            const { recompensas } = await sincronizarGamificacao({
                 registros: r,
                 economia: e,
                 sessoesDeCrise: c,
@@ -88,16 +97,6 @@ export default function HomeScreen({ navigation }) {
                 meta: m,
                 aparelho: d,
             });
-            const contextoDeMissoes = montarContextoDeMissoes({
-                registros: r,
-                economia: e,
-                sessoesDeCrise: c,
-                meta: m,
-                aparelho: d,
-                hoje: dataDeHoje(),
-            });
-            setMissoes(verificarMissoes(contextoDeMissoes, missoesConcluidas));
-            setXp(resumo.xp);
             mostrarRecompensas(recompensas);
         } catch {
             // Silencioso: leitura de tela, mantém o que já está renderizado.
@@ -219,8 +218,26 @@ export default function HomeScreen({ navigation }) {
         return `Faltam ${faltam} ${faltam === 1 ? 'dia' : 'dias'} sem uso pra ganhar um escudo`;
     })();
 
+    // O dispositivo que vale num dia é o que o registro daquele dia aponta —
+    // dia sem registro (ou registro antigo, sem `deviceId`) cai no aparelho da
+    // data e, por último, no atual. Mesma regra da economia.
+    const aparelhoDoDia = useCallback(
+        (data) =>
+            dispositivoDoRegistro(
+                registros.find((registro) => registro.date === data) ?? { date: data },
+                dispositivos,
+                historicoDeAparelhos,
+                aparelho
+            ),
+        [registros, dispositivos, historicoDeAparelhos, aparelho]
+    );
+    const aparelhoDeHoje = useMemo(() => aparelhoDoDia(hoje), [aparelhoDoDia, hoje]);
+
     // Meta do dia: a declarada pelo usuário ganha da derivada do aparelho.
-    const metaDeHoje = useMemo(() => metaEfetiva(meta, aparelho, hoje), [meta, aparelho, hoje]);
+    const metaDeHoje = useMemo(
+        () => metaEfetiva(meta, aparelhoDeHoje, hoje),
+        [meta, aparelhoDeHoje, hoje]
+    );
     const progressoDoObjetivo = useMemo(
         () => progressoDaMeta(meta, registros, hoje),
         [meta, registros, hoje]
@@ -235,8 +252,8 @@ export default function HomeScreen({ navigation }) {
     // esse valor em zero, então o alerta é o único lugar que mostra o que foi
     // gasto a mais. Sem aparelho não dá pra precificar (custoAMais = null).
     const excesso = useMemo(
-        () => excessoDoDia(registrosDeHoje, aparelho, metaDeHoje),
-        [registrosDeHoje, aparelho, metaDeHoje]
+        () => excessoDoDia(registrosDeHoje, aparelhoDeHoje, metaDeHoje),
+        [registrosDeHoje, aparelhoDeHoje, metaDeHoje]
     );
     const mostrarExcesso = !!excesso && excesso.puxadasAMais > 0;
     const mensagemDoExcesso = mostrarExcesso
@@ -267,7 +284,7 @@ export default function HomeScreen({ navigation }) {
         (dataStr) => {
             const estado = estadoDoDia(
                 registrosPorData[dataStr] || [],
-                metaEfetiva(meta, aparelho, dataStr)
+                metaEfetiva(meta, aparelhoDoDia(dataStr), dataStr)
             );
             if (estado === 'limpo') return { fundo: cores.primary, corDoTexto: '#fff' };
             if (estado === 'usou_dentro')
@@ -281,7 +298,7 @@ export default function HomeScreen({ navigation }) {
             if (estado === 'usou') return { fundo: cores.warning + '33', corDoTexto: cores.text };
             return { fundo: cores.borderLight, corDoTexto: cores.textMuted };
         },
-        [registrosPorData, meta, aparelho, cores]
+        [registrosPorData, meta, aparelhoDoDia, cores]
     );
 
     const tooltipDoDiaNoCalendario = useCallback(
@@ -292,7 +309,20 @@ export default function HomeScreen({ navigation }) {
         [registrosPorData]
     );
 
-    const nivel = obterNivel(xp);
+    // Quanto o dispositivo PADRÃO já rendeu — o atalho pros dispositivos mostra
+    // isso, que é o aviso antecipado de "vai acabar" antes do alerta do registro.
+    // Sem padrão (nenhum ativo), o atalho não mostra consumo de ninguém: falar
+    // de um vape que não é o de uso só confundiria.
+    const padrao = useMemo(() => dispositivoPadrao(dispositivos), [dispositivos]);
+    const consumoDoPadrao = useMemo(() => {
+        if (!padrao) return null;
+        const estado = estadoDoDispositivo(
+            padrao,
+            consumoPorDispositivo(registros)[padrao.id] ?? 0
+        );
+        return estado.total === null ? null : estado;
+    }, [padrao, registros]);
+
     const dica = DICAS[new Date().getDate() % DICAS.length];
 
     return (
@@ -722,42 +752,6 @@ export default function HomeScreen({ navigation }) {
                         </View>
 
                         <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
-                            <View style={styles.xpHeader}>
-                                <Text style={styles.xpIcon}>{nivel.icone}</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={[styles.xpLevel, { color: cores.text }]}>
-                                        Nível {nivel.numero} · {nivel.nome}
-                                    </Text>
-                                    <Text style={[styles.xpSub, { color: cores.textSecondary }]}>
-                                        {nivel.nomeDoProximo
-                                            ? `${nivel.xpParaProximo} XP pra virar ${nivel.nomeDoProximo}`
-                                            : 'Nível máximo — você é lenda 👑'}
-                                    </Text>
-                                </View>
-                                <Text style={[styles.xpTotal, { color: cores.primaryDark }]}>
-                                    {xp} XP
-                                </Text>
-                            </View>
-                            <View style={[styles.xpTrack, { backgroundColor: cores.primaryLight }]}>
-                                <View
-                                    style={[
-                                        styles.xpFill,
-                                        {
-                                            backgroundColor: cores.primary,
-                                            width: `${Math.round(nivel.progresso * 100)}%`,
-                                        },
-                                    ]}
-                                />
-                            </View>
-                        </View>
-
-                        <MissionsCard
-                            missoes={missoes.filter((missao) => missao.period === 'daily')}
-                            cores={cores}
-                            aoPressionar={() => navigation.navigate('Missions')}
-                        />
-
-                        <View style={[styles.card, { backgroundColor: cores.card }, SOMBRA.media]}>
                             <Text style={[styles.cardTitle, { color: cores.textMuted }]}>
                                 💰 Economia
                             </Text>
@@ -1141,7 +1135,7 @@ export default function HomeScreen({ navigation }) {
                             />
                             <Text style={[styles.deviceBtnText, { color: cores.primaryDark }]}>
                                 {aparelho
-                                    ? `Seu dispositivo: ${aparelho.name}`
+                                    ? `Meus dispositivos${consumoDoPadrao === null ? '' : ` · ${padrao.name} em ${consumoDoPadrao.percentual}%`}`
                                     : 'Cadastrar meu dispositivo'}
                             </Text>
                             <Ionicons name="chevron-forward" size={16} color={cores.primary} />
@@ -1250,11 +1244,6 @@ const styles = StyleSheet.create({
     },
     goalBadgeText: { fontSize: 12, fontFamily: 'Poppins_700Bold' },
     goalFoot: { fontSize: 12, fontFamily: 'Poppins_600SemiBold', marginTop: 8 },
-    xpHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-    xpIcon: { fontSize: 26, fontFamily: 'Poppins_400Regular' },
-    xpLevel: { fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },
-    xpSub: { fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 2 },
-    xpTotal: { fontSize: 16, fontFamily: 'Poppins_800ExtraBold' },
     xpTrack: { height: 10, borderRadius: RAIO.md, overflow: 'hidden' },
     xpFill: { height: '100%', borderRadius: RAIO.md },
     goalBlock: { borderTopWidth: 1, marginTop: 14, paddingTop: 14, gap: 8 },
