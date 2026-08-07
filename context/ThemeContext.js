@@ -73,48 +73,53 @@ export function usarTema() {
     return useContext(ThemeContext);
 }
 
-// ─── Claro (original) ────────────────────────────────────────────────────────
+// ─── Claro ───────────────────────────────────────────────────────────────────
+// Mesma paleta das telas de auth (LoginScreen/SignUpScreen): azul #4990E2 como
+// cor de marca e navy #22384B como texto. Os tons cinza (#6F747B, #989FA6,
+// #E1E1E1, #F7F8FA) são exatamente os do `CORES` local daquelas telas.
 const CORES_CLARAS = {
-    primary: '#4CAF50',
-    primaryLight: '#E8F5E9',
-    primaryMid: '#81C784',
-    primaryDark: '#2E7D32',
-    background: '#F9F9F9',
+    primary: '#4990E2',
+    primaryLight: '#EAF1FC',
+    primaryMid: '#6684A7',
+    primaryDark: '#22384B',
+    background: '#F7F8FA',
     white: '#FFFFFF',
     card: '#FFFFFF',
-    text: '#1A1A1A',
-    textSecondary: '#555555',
-    textMuted: '#888888',
-    border: '#E0E0E0',
-    borderLight: '#F0F0F0',
+    text: '#22384B',
+    textSecondary: '#6F747B',
+    textMuted: '#989FA6',
+    border: '#E1E1E1',
+    borderLight: '#F0F2F5',
     danger: '#E53935',
     warning: '#FB8C00',
     cardShadow: '#00000014',
     tabBar: '#FFFFFF',
-    tabBorder: '#E0E0E0',
-    inputBg: '#F9F9F9',
+    tabBorder: '#E1E1E1',
+    inputBg: '#F7F8FA',
     modalBg: '#FFFFFF',
 };
 
 // ─── Escuro ─────────────────────────────────────────────────────────────────────
+// Mesma família azul/navy, escurecida: o fundo é o próprio navy da auth puxado
+// pro preto, e não um cinza neutro.
 const CORES_ESCURAS = {
-    primary: '#66BB6A', // verde um pouco mais claro para contraste no escuro
-    primaryLight: '#1B3A1E', // verde escuro suave para fundos destacados
-    primaryMid: '#81C784',
-    primaryDark: '#A5D6A7', // verde claro para textos sobre fundo escuro
-    background: '#0F0F0F', // fundo bem escuro
-    white: '#1E1E1E', // "branco" no dark = cinza escuro para cards
-    card: '#1E1E1E',
-    text: '#F0F0F0',
-    textSecondary: '#BBBBBB',
-    textMuted: '#777777',
-    border: '#2E2E2E',
-    borderLight: '#252525',
+    primary: '#6BA8EA', // azul um pouco mais claro para contraste no escuro
+    primaryLight: '#16283A', // azul escuro suave para fundos destacados
+    primaryMid: '#8FB2D4',
+    primaryDark: '#A8C9EE', // azul claro para textos sobre fundo escuro
+    background: '#0C141C', // navy bem escuro
+    white: '#16222E', // "branco" no dark = navy escuro para cards
+    card: '#16222E',
+    text: '#EAF0F6',
+    textSecondary: '#A9B6C2',
+    textMuted: '#6F7C89',
+    border: '#26333F',
+    borderLight: '#1D2A36',
     danger: '#EF5350',
     warning: '#FFA726',
     cardShadow: '#00000040',
-    tabBar: '#161616',
-    tabBorder: '#2A2A2A',
-    inputBg: '#161616',
-    modalBg: '#1E1E1E',
+    tabBar: '#111C25',
+    tabBorder: '#26333F',
+    inputBg: '#111C25',
+    modalBg: '#16222E',
 };

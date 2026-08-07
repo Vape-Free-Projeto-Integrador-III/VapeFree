@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.7,
     },
     infoValue: { fontSize: 15, fontFamily: 'Poppins_600SemiBold', marginTop: 2 },
-    divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E0E0E0' },
+    divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E1E1E1' },
     guestActions: {
         paddingHorizontal: 16,
         marginTop: 4,

@@ -18,7 +18,7 @@ export default function GuestDataChoiceModal({
             <View style={styles.backdrop}>
                 <View style={styles.card}>
                     <View style={styles.iconWrap}>
-                        <Ionicons name="cloud-outline" size={22} color="#2F6FED" />
+                        <Ionicons name="cloud-outline" size={22} color="#4990E2" />
                     </View>
                     <Text style={styles.title}>{titulo}</Text>
                     <Text style={styles.message}>{mensagem}</Text>
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#EAF1FF',
+        backgroundColor: '#EAF1FC',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 14,
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF1F2',
     },
     importButton: {
-        backgroundColor: '#2F6FED',
+        backgroundColor: '#4990E2',
     },
     cancelText: {
         color: '#22384B',

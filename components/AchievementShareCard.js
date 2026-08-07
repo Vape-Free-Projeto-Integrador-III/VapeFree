@@ -45,14 +45,14 @@ export default function AchievementShareCard({ conquista, streak = 0 }) {
 const styles = StyleSheet.create({
     card: {
         width: LARGURA_DO_CARD,
-        backgroundColor: '#2E7D32',
+        backgroundColor: '#22384B',
         borderRadius: RAIO.xl,
         paddingVertical: 32,
         paddingHorizontal: 24,
         alignItems: 'center',
     },
     rotulo: {
-        color: '#C8E6C9',
+        color: '#A8C9EE',
         fontSize: 11,
         fontFamily: 'Poppins_800ExtraBold',
         letterSpacing: 1.5,
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     descricao: {
-        color: '#DCEDC8',
+        color: '#CFE0F3',
         fontSize: 14,
         fontFamily: 'Poppins_400Regular',
         textAlign: 'center',
@@ -87,17 +87,17 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: RAIO.full,
-        backgroundColor: '#1B5E20',
+        backgroundColor: '#16283A',
     },
     streakTexto: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins_800ExtraBold' },
     rodape: {
         marginTop: 28,
         paddingTop: 18,
         borderTopWidth: 1,
-        borderTopColor: '#4CAF50',
+        borderTopColor: '#4990E2',
         alignSelf: 'stretch',
         alignItems: 'center',
     },
     marca: { color: '#FFFFFF', fontSize: 17, fontFamily: 'Poppins_800ExtraBold' },
-    assinatura: { color: '#A5D6A7', fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 4 },
+    assinatura: { color: '#8FB2D4', fontSize: 12, fontFamily: 'Poppins_400Regular', marginTop: 4 },
 });

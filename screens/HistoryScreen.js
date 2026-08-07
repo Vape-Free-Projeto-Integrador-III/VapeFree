@@ -632,7 +632,8 @@ export default function HistoryScreen({ navigation }) {
                                             backgroundGradientFrom: cores.card,
                                             backgroundGradientTo: cores.card,
                                             decimalPlaces: 0,
-                                            color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
+                                            color: (opacity = 1) =>
+                                                `rgba(73, 144, 226, ${opacity})`,
                                             labelColor: () => cores.textSecondary,
                                             propsForBackgroundLines: { stroke: cores.borderLight },
                                             propsForLabels: { fontFamily: 'Poppins_400Regular' },

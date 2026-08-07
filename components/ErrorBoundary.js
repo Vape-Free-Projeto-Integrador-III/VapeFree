@@ -14,12 +14,12 @@ import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 
 const CORES = {
-    fundo: '#F9F9F9',
+    fundo: '#F7F8FA',
     card: '#FFFFFF',
-    texto: '#1A1A1A',
-    textoSecundario: '#555555',
-    primaria: '#4CAF50',
-    borda: '#E0E0E0',
+    texto: '#22384B',
+    textoSecundario: '#6F747B',
+    primaria: '#4990E2',
+    borda: '#E1E1E1',
 };
 
 export default class ErrorBoundary extends React.Component {

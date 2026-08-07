@@ -26,7 +26,7 @@
                 "expo-notifications",
                 {
                     "icon": "./assets/icon.png",
-                    "color": "#4CAF50"
+                    "color": "#4990E2"
                 }
             ],
             "expo-font"
@@ -36,7 +36,7 @@
             "versionCode": 1,
             "adaptiveIcon": {
                 "foregroundImage": "./assets/adaptive-icon.png",
-                "backgroundColor": "#4CAF50"
+                "backgroundColor": "#4990E2"
             }
         }
     }

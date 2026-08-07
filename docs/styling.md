@@ -11,7 +11,9 @@
 
 `primary`, `primaryLight`, `primaryMid`, `primaryDark`, `background`, `white`, `card`, `text`, `textSecondary`, `textMuted`, `border`, `borderLight`, `danger`, `warning`, `cardShadow`, `tabBar`, `tabBorder`, `inputBg`, `modalBg`. Mesma estrutura de chaves nas duas paletas (claro/escuro) — ao adicionar uma chave nova, adicione nas duas (`CORES_CLARAS` e `CORES_ESCURAS`) em `ThemeContext.js`.
 
-Cor de marca: verde (`#4CAF50` claro / `#66BB6A` escuro). Telas de auth (`LoginScreen`, `SignUpScreen`) usam uma paleta **própria e fixa** (`CORES` local no topo do arquivo, tom azul `#4990E2`), não `usarTema()` — é intencional, a tela de auth roda antes de qualquer contexto de usuário fazer sentido, e o design dessas telas é deliberadamente diferente do resto do app.
+Cor de marca: azul `#4990E2` (claro) / `#6BA8EA` (escuro), com navy `#22384B` como cor de texto no claro. É a **mesma paleta das telas de auth**: `CORES_CLARAS` foi alinhada ao `CORES` local de `LoginScreen`/`SignUpScreen` (`#4990E2`, `#22384B`, `#6F747B`, `#989FA6`, `#E1E1E1`, `#F7F8FA`) e `CORES_ESCURAS` é essa mesma família azul/navy escurecida. Ao mudar um desses tons, mude nos dois lugares — as telas de auth continuam com paleta própria e fixa (não usam `usarTema()`, porque rodam antes de qualquer contexto de usuário fazer sentido), então elas não seguem sozinhas.
+
+Fora do `ThemeContext` ainda existem cores fixas dessa mesma paleta, por motivo específico: `components/ErrorBoundary.js` (o erro pode ter vindo do próprio `ThemeProvider`), `components/AchievementShareCard.js` (imagem exportada, tem que ficar igual nos dois temas), `components/GuestDataChoiceModal.js` (modal do fluxo de auth) e o `color` dos gráficos (`react-native-chart-kit` pede função `(opacity) => rgba(...)`, hoje `rgba(73, 144, 226, …)`). `app.json` usa `#4990E2` no accent das notificações e no fundo do adaptive icon.
 
 ## Dark mode
 
